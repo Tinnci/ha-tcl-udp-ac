@@ -1,0 +1,17 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "description": "This integration will discover TCL AC units on your network via UDP broadcast on ports 10074 and 10075.",
+                "data": {}
+            }
+        },
+        "error": {
+            "connection": "Unable to start UDP listener.",
+            "unknown": "Unknown error occurred."
+        },
+        "abort": {
+            "already_configured": "This entry is already configured."
+        }
+    }
+}
