@@ -44,6 +44,7 @@ class TclUdpApiClient:
     ) -> None:
         """Initialize the API client."""
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._bind_host: str | None = None
         self._listener_sock: socket.socket | None = None
         self._listener_transport: asyncio.DatagramTransport | None = (
             None  # Keep for compatibility
@@ -75,8 +76,8 @@ class TclUdpApiClient:
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self._listener_sock.setblocking(False)  # noqa: FBT003
-            # Bind to all interfaces to receive broadcast packets from the LAN.
-            self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))  # noqa: S104
+            bind_host = self._resolve_bind_host()
+            self._listener_sock.bind((bind_host, UDP_BROADCAST_PORT))
 
             LOGGER.debug("UDP socket bound to %s", self._listener_sock.getsockname())
 
@@ -107,6 +108,37 @@ class TclUdpApiClient:
         except OSError as exc:
             LOGGER.error("Error reading from socket: %s", exc)
 
+    def _resolve_bind_host(self) -> str:
+        """Resolve the bind host for the UDP listener."""
+        if self._bind_host:
+            return self._bind_host
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.setblocking(False)  # noqa: FBT003
+            try:
+                probe.connect(("8.8.8.8", UDP_COMMAND_PORT))
+                self._bind_host = probe.getsockname()[0]
+            except OSError:
+                self._bind_host = None
+
+        if not self._bind_host or self._bind_host.startswith("127."):
+            self._bind_host = self._resolve_fallback_bind_host()
+
+        return self._bind_host
+
+    def _resolve_fallback_bind_host(self) -> str:
+        """Resolve a non-loopback bind host as a fallback."""
+        try:
+            _, _, addresses = socket.gethostbyname_ex(socket.gethostname())
+        except OSError:
+            addresses = []
+
+        for address in addresses:
+            if not address.startswith("127."):
+                return address
+
+        return "127.0.0.1"
+
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
         if self._listener_sock:
@@ -115,6 +147,7 @@ class TclUdpApiClient:
             self._listener_sock.close()
             self._listener_sock = None
             LOGGER.info("UDP listener stopped")
+        self._bind_host = None
 
     def _handle_status_update(  # noqa: PLR0912
         self, data: bytes, addr: tuple[str, int]
