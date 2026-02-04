@@ -12,3 +12,11 @@ UDP_COMMAND_PORT = 10075
 
 # Default values
 DEFAULT_NAME = "TCL AC"
+DEFAULT_ACTION_JID = "homeassistant@tcl.com/ha-plugin-001"
+DEFAULT_ACTION_SOURCE = "1"
+DEFAULT_ACCOUNT = "homeassistant"
+
+# Config keys
+CONF_ACTION_JID = "action_jid"
+CONF_ACTION_SOURCE = "action_source"
+CONF_ACCOUNT = "account"

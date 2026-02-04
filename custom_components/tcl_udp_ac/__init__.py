@@ -29,6 +29,15 @@ PLATFORMS: list[Platform] = [
     Platform.SENSOR,
 ]
 
+from .const import (
+    CONF_ACCOUNT,
+    CONF_ACTION_JID,
+    CONF_ACTION_SOURCE,
+    DEFAULT_ACCOUNT,
+    DEFAULT_ACTION_JID,
+    DEFAULT_ACTION_SOURCE,
+)
+
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
 async def async_setup_entry(
@@ -44,8 +53,24 @@ async def async_setup_entry(
         update_interval=timedelta(minutes=30),
     )
 
+    # Get config or options, falling back to defaults
+    action_jid = entry.options.get(
+        CONF_ACTION_JID, entry.data.get(CONF_ACTION_JID, DEFAULT_ACTION_JID)
+    )
+    action_source = entry.options.get(
+        CONF_ACTION_SOURCE,
+        entry.data.get(CONF_ACTION_SOURCE, DEFAULT_ACTION_SOURCE),
+    )
+    account = entry.options.get(
+        CONF_ACCOUNT, entry.data.get(CONF_ACCOUNT, DEFAULT_ACCOUNT)
+    )
+
     # Create API client
-    client = TclUdpApiClient()
+    client = TclUdpApiClient(
+        action_jid=action_jid,
+        action_source=action_source,
+        account=account,
+    )
 
     entry.runtime_data = TclUdpData(
         client=client,

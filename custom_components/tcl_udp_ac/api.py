@@ -21,7 +21,12 @@ class TclUdpApiClientCommunicationError(TclUdpApiClientError):
 class TclUdpApiClient:
     """TCL UDP API Client for local communication."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        action_jid: str = "homeassistant@tcl.com/ha-plugin",
+        action_source: str = "1",
+        account: str = "homeassistant",
+    ) -> None:
         """Initialize the API client."""
         self._listener_transport: asyncio.DatagramTransport | None = None
         self._listener_protocol: UDPListenerProtocol | None = None
@@ -29,6 +34,13 @@ class TclUdpApiClient:
         self._status_callback: Any = None
         self._last_status: dict[str, Any] = {}
         self._tasks: set[asyncio.Task] = set()
+        
+        # Configurable protocol fields
+        self._action_jid = action_jid
+        self._action_source = action_source
+        self._account = account
+        self._sequence = 0
+        self._device_mac = "00:00:00:00:00:00"  # Will be discovered
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -41,6 +53,7 @@ class TclUdpApiClient:
             self._listener_transport, _ = await loop.create_datagram_endpoint(
                 lambda: self._listener_protocol,
                 local_addr=("0.0.0.0", UDP_BROADCAST_PORT),  # noqa: S104
+                reuse_port=True,
             )
             LOGGER.info("UDP listener started on port %s", UDP_BROADCAST_PORT)
         except OSError as exception:
@@ -65,6 +78,11 @@ class TclUdpApiClient:
             parser = ET.XMLParser()  # noqa: S314
             parser.entity = {}  # Disable entity resolution
             root = ET.fromstring(message, parser=parser)  # noqa: S314
+
+            # Capture device MAC if available
+            dev_id = root.get("devid")
+            if dev_id:
+                self._device_mac = dev_id
 
             # Check if it's a status message
             if root.get("cmd") == "status":
@@ -167,8 +185,21 @@ class TclUdpApiClient:
     async def async_send_command(self, command: str, value: str) -> None:
         """Send a command to the device."""
         try:
-            # Build XML command
-            xml_command = f'<msg cmd="control"><{command} value="{value}"/></msg>'
+            self._sequence += 1
+            seq = str(self._sequence)
+            
+            # Construct full spoofed XML packet
+            xml_command = (
+                f'<msg cmd="control" seq="{seq}" devid="{self._device_mac}" type="control">'
+                f'<control>'
+                f'<actionJid value="{self._action_jid}"/>'
+                f'<actionSource value="{self._action_source}"/>'
+                f'<account value="{self._account}"/>'
+                f'<{command} value="{value}"/>'
+                f'</control>'
+                f'</msg>'
+            )
+            
             LOGGER.debug("Sending command: %s", xml_command)
 
             # Send via UDP
