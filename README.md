@@ -72,6 +72,98 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Troubleshooting
+
+### UDP Packets Not Received (Discovery/Status Updates Fail)
+
+If the integration can send commands but cannot receive responses or status updates, your **firewall may be blocking UDP port 10074**.
+
+#### Check if firewall is blocking
+
+Run tcpdump to see if packets arrive at the network interface:
+```bash
+sudo tcpdump -i wlan0 -n udp port 10074
+```
+
+If you see packets in tcpdump but Home Assistant doesn't receive them, the firewall is likely blocking.
+
+#### Solution for nftables (postmarketOS, Alpine, modern Linux)
+
+```bash
+# Add firewall rules
+sudo nft add rule inet filter input iifname "wlan*" udp dport 10074 accept comment \"TCL AC UDP\"
+sudo nft add rule inet filter input iifname "wlan*" udp dport 10075 accept comment \"TCL AC UDP Response\"
+
+# Verify rules were added
+sudo nft list chain inet filter input | grep 10074
+```
+
+To make rules persistent across reboots:
+```bash
+# Create startup script
+echo '#!/bin/sh
+nft add rule inet filter input iifname "wlan*" udp dport 10074 accept comment "TCL AC UDP"
+nft add rule inet filter input iifname "wlan*" udp dport 10075 accept comment "TCL AC UDP"
+' | sudo tee /etc/local.d/tcl_ac.start
+sudo chmod +x /etc/local.d/tcl_ac.start
+```
+
+#### Solution for iptables (older Linux, Debian/Ubuntu)
+
+```bash
+sudo iptables -A INPUT -p udp --dport 10074 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 10075 -j ACCEPT
+
+# Save rules (Debian/Ubuntu)
+sudo iptables-save > /etc/iptables.rules
+```
+
+### Test UDP Reception
+
+You can test if UDP packets are being received properly:
+
+```bash
+# In container
+docker exec -it homeassistant python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('0.0.0.0', 10074))
+s.settimeout(10)
+print('Waiting for UDP packet on port 10074...')
+try:
+    data, addr = s.recvfrom(4096)
+    print(f'SUCCESS! Received {len(data)} bytes from {addr}')
+except socket.timeout:
+    print('FAILED: No packet received (check firewall)')
+s.close()
+"
+```
+
+### Docker Networking
+
+This integration requires Docker to use **host networking** mode:
+
+```yaml
+# docker-compose.yml
+services:
+  homeassistant:
+    network_mode: host
+```
+
+If using bridge networking, UDP broadcast packets may not be properly forwarded.
+
+### Debug Logging
+
+Enable debug logging in `configuration.yaml`:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.tcl_udp_ac: debug
+```
+
 ## Credits
 
 Built with the [Home Assistant Integration Blueprint](https://github.com/ludeeus/integration_blueprint)

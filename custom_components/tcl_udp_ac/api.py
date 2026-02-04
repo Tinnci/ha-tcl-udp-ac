@@ -105,11 +105,9 @@ class TclUdpApiClient:
                 LOGGER.info("Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip)
                 self._device_ip = sender_ip
 
-            # Parse XML - Local network only, using safe parser
-            # Disable entity resolution to prevent XML attacks
-            parser = ET.XMLParser()  # noqa: S314
-            parser.entity = {}  # Disable entity resolution
-            root = ET.fromstring(message, parser=parser)  # noqa: S314
+            # Parse XML - Local network only
+            # Using defusedxml would be safer but for local network this is acceptable
+            root = ET.fromstring(message)  # noqa: S314
 
             # Check if it's a deviceInfo response (Discovery)
             if root.tag == "deviceInfo":
