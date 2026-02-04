@@ -49,12 +49,19 @@ class TclUdpApiClient:
         loop = asyncio.get_event_loop()
 
         try:
-            # Create UDP listener
+            # Create socket with broadcast capability
+            # This socket will be used for both receiving and sending
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # CRITICAL for sending broadcasts
+            sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
+            sock.setblocking(False)
+            
+            # Create UDP listener using our pre-configured socket
             self._listener_protocol = UDPListenerProtocol(self._handle_status_update)
             self._listener_transport, _ = await loop.create_datagram_endpoint(
                 lambda: self._listener_protocol,
-                local_addr=("0.0.0.0", UDP_BROADCAST_PORT),  # noqa: S104
-                reuse_port=True,
+                sock=sock,  # Use our socket instead of local_addr
             )
             LOGGER.info("UDP listener started on port %s", UDP_BROADCAST_PORT)
         except OSError as exception:
@@ -72,8 +79,8 @@ class TclUdpApiClient:
         """Handle incoming status update from device."""
         try:
             message = data.decode("utf-8")
-            # Log carefully to avoid spam, but initially debug is useful
-            # LOGGER.debug("Received UDP message from %s: %s", addr, message)
+            # Log to verify packets are being received
+            LOGGER.debug("Received UDP message from %s: %s", addr, message)
 
             # Update Device IP from the sender's address
             # addr is (ip, port)
@@ -235,10 +242,10 @@ class TclUdpApiClient:
             else:
                 LOGGER.debug("Sending command to Broadcast: %s", xml_command)
 
-            # Send via UDP
-            loop = asyncio.get_event_loop()
-            await loop.sock_sendto(
-                self._get_command_socket(),
+            # Send via UDP using listener transport
+            # This ensures we send from port 10074 (same port we listen on)
+            # so the AC will reply to the correct port
+            self._listener_transport.sendto(
                 xml_command.encode("utf-8"),
                 target_addr,
             )
@@ -251,32 +258,7 @@ class TclUdpApiClient:
                  self._device_ip = None
             raise TclUdpApiClientCommunicationError(msg) from exception
 
-    def _get_command_socket(self) -> socket.socket:
-        """
-        Get or create command socket.
 
-        CRITICAL: Must bind to port 10074 (same as listener) because the AC
-        replies to the SOURCE PORT of the request. If we use a random ephemeral
-        port, the AC will reply there and our listener on 10074 won't receive it.
-        
-        Uses SO_REUSEADDR and SO_REUSEPORT to allow sharing port 10074 with listener.
-        """
-        if self._command_sock is None:
-            self._command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # SO_REUSEPORT allows multiple sockets to bind to same port
-            # Not available on all platforms but critical for this use case
-            try:
-                self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-            except AttributeError:
-                # SO_REUSEPORT not available on this platform
-                pass
-            self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            # Bind to port 10074 so replies come back here
-            self._command_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
-            # Required for asyncio sock_sendto compatibility
-            self._command_sock.setblocking(False)  # noqa: FBT003
-        return self._command_sock
 
     async def async_set_power(self, *, power_on: bool) -> None:
         """Turn the AC on or off."""
@@ -341,10 +323,8 @@ class TclUdpApiClient:
             
             LOGGER.debug("Sending discovery: %s", xml_command)
 
-            # Send via UDP Broadcast
-            loop = asyncio.get_event_loop()
-            await loop.sock_sendto(
-                self._get_command_socket(),
+            # Send via UDP Broadcast using listener transport
+            self._listener_transport.sendto(
                 xml_command.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
