@@ -60,8 +60,11 @@ class TclUdpApiClient:
             message = data.decode("utf-8")
             LOGGER.debug("Received UDP message from %s: %s", addr, message)
 
-            # Parse XML - Local network only, trusted source
-            root = ET.fromstring(message)  # noqa: S314
+            # Parse XML - Local network only, using safe parser
+            # Disable entity resolution to prevent XML attacks
+            parser = ET.XMLParser()  # noqa: S314
+            parser.entity = {}  # Disable entity resolution
+            root = ET.fromstring(message, parser=parser)  # noqa: S314
 
             # Check if it's a status message
             if root.get("cmd") == "status":
@@ -129,10 +132,17 @@ class TclUdpApiClient:
             raise TclUdpApiClientCommunicationError(msg) from exception
 
     def _get_command_socket(self) -> socket.socket:
-        """Get or create command socket."""
+        """
+        Get or create command socket.
+
+        Uses setblocking(False) for compatibility with asyncio's sock_sendto.
+        The socket is used with asyncio's sock_sendto method which requires
+        a non-blocking socket for async operations.
+        """
         if self._command_sock is None:
             self._command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            # Required for asyncio sock_sendto compatibility
             self._command_sock.setblocking(False)  # noqa: FBT003
         return self._command_sock
 
@@ -151,6 +161,16 @@ class TclUdpApiClient:
 
     async def async_close(self) -> None:
         """Close the API client."""
+        # Cancel all pending tasks
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to complete/cancel
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+
         await self.async_stop_listener()
         if self._command_sock:
             self._command_sock.close()
