@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import json
+import random
 import xml.etree.ElementTree as ET
 from typing import Any
 
@@ -41,6 +43,7 @@ class TclUdpApiClient:
         self._sequence = 0
         self._device_mac = "00:00:00:00:00:00"  # Will be discovered
         self._device_ip: str | None = None  # Will be discovered
+        self._device_port: int = 10075  # Default, may be updated from deviceInfo
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -121,6 +124,17 @@ class TclUdpApiClient:
                 if dev_mac and self._device_mac != dev_mac:
                     LOGGER.info("Device MAC discovered via deviceInfo: %s", dev_mac)
                     self._device_mac = dev_mac
+                
+                # Save device port from deviceInfo
+                dev_port_str = root.findtext("devPort")
+                if dev_port_str:
+                    try:
+                        dev_port = int(dev_port_str)
+                        if self._device_port != dev_port:
+                            LOGGER.info("Device port discovered via deviceInfo: %d", dev_port)
+                            self._device_port = dev_port
+                    except ValueError:
+                        pass
                 return
 
             # Capture device MAC if available (standard msg)
@@ -232,35 +246,38 @@ class TclUdpApiClient:
             seq = str(self._sequence)
             
             # Construct full spoofed XML packet
-            # Strict ordering: cmd -> type -> seq -> devid
+            # Use non-self-closing tags for better compatibility with old XML parsers
             xml_command = (
                 f'<msg cmd="control" type="control" seq="{seq}" devid="{self._device_mac}">'
                 f'<control>'
-                f'<actionJid value="{self._action_jid}"/>'
-                f'<actionSource value="{self._action_source}"/>'
-                f'<account value="{self._account}"/>'
-                f'<{command} value="{value}"/>'
+                f'<actionJid value="{self._action_jid}"></actionJid>'
+                f'<actionSource value="{self._action_source}"></actionSource>'
+                f'<account value="{self._account}"></account>'
+                f'<{command} value="{value}"></{command}>'
                 f'</control>'
                 f'</msg>'
             )
             
             LOGGER.debug("Sending command: %s", xml_command)
 
-            # Determine target address
-            target_addr = ("<broadcast>", UDP_COMMAND_PORT)
+            # Determine target address - use discovered port if available
+            # deviceInfo reports device's port (often 6666 for TCP, but we'll try it)
             if self._device_ip:
-                target_addr = (self._device_ip, UDP_COMMAND_PORT)
-                LOGGER.debug("Sending command to %s (Unicast): %s", self._device_ip, xml_command)
+                # Send to both device port and standard command port for reliability
+                addresses = [
+                    (self._device_ip, UDP_COMMAND_PORT),  # Standard UDP command port
+                ]
+                if self._device_port != UDP_COMMAND_PORT:
+                    addresses.append((self._device_ip, self._device_port))  # Device's reported port
+                
+                for target_addr in addresses:
+                    LOGGER.debug("Sending command to %s:%d: %s", target_addr[0], target_addr[1], xml_command)
+                    self._listener_sock.sendto(xml_command.encode("utf-8"), target_addr)
             else:
+                # Broadcast mode
+                target_addr = ("<broadcast>", UDP_COMMAND_PORT)
                 LOGGER.debug("Sending command to Broadcast: %s", xml_command)
-
-            # Send via UDP using listener socket
-            # This ensures we send from port 10074 (same port we listen on)
-            # so the AC will reply to the correct port
-            self._listener_sock.sendto(
-                xml_command.encode("utf-8"),
-                target_addr,
-            )
+                self._listener_sock.sendto(xml_command.encode("utf-8"), target_addr)
         except OSError as exception:
             msg = f"Error sending command: {exception}"
             # If unicast fails, we might want to clear IP and try broadcast next time
@@ -330,16 +347,29 @@ class TclUdpApiClient:
             # devid is unknown so using default or empty.
             # Discovery command
             # Confirmed via pcap: The device responds to <searchDevice></searchDevice>
-            # It also responds to JSON but we use XML.
-            xml_command = '<searchDevice></searchDevice>'
-            
-            LOGGER.debug("Sending discovery: %s", xml_command)
-
             # Send via UDP Broadcast using listener socket
+            # Try both XML and JSON discovery as seen in phone captures
+            
+            # 1. XML Search (standard)
+            xml_command = '<searchDevice></searchDevice>'
             self._listener_sock.sendto(
                 xml_command.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
+            
+            # 2. JSON Search (seen in phone.pcapng from OnePlus-13)
+            # {"msgId":"123","version":"123","method":"searchReq"}
+            json_search = json.dumps({
+                "msgId": str(random.randint(1000, 9999)),
+                "version": "123",
+                "method": "searchReq"
+            })
+            self._listener_sock.sendto(
+                json_search.encode("utf-8"),
+                ("<broadcast>", UDP_COMMAND_PORT),
+            )
+            
+            LOGGER.debug("Sent discovery (XML and JSON)")
         except OSError as exception:
             LOGGER.warning("Failed to send discovery packet: %s", exception)
 
