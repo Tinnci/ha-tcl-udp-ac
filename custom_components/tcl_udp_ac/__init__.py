@@ -14,7 +14,16 @@ from homeassistant.const import Platform
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import TclUdpApiClient
-from .const import DOMAIN, LOGGER
+from .const import (
+    CONF_ACCOUNT,
+    CONF_ACTION_JID,
+    CONF_ACTION_SOURCE,
+    DEFAULT_ACCOUNT,
+    DEFAULT_ACTION_JID,
+    DEFAULT_ACTION_SOURCE,
+    DOMAIN,
+    LOGGER,
+)
 from .coordinator import TclUdpDataUpdateCoordinator
 from .data import TclUdpData
 
@@ -28,15 +37,6 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.SENSOR,
 ]
-
-from .const import (
-    CONF_ACCOUNT,
-    CONF_ACTION_JID,
-    CONF_ACTION_SOURCE,
-    DEFAULT_ACCOUNT,
-    DEFAULT_ACTION_JID,
-    DEFAULT_ACTION_SOURCE,
-)
 
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
@@ -82,7 +82,7 @@ async def async_setup_entry(
     await client.async_start_listener(coordinator.async_handle_status_update)
 
     # Trigger active discovery
-    # This sends a broadcast query so we don't have to wait for the next spontaneous heartbeat
+    # This sends a broadcast query so we don't have to wait for the next heartbeat
     await client.async_send_discovery()
 
     # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
