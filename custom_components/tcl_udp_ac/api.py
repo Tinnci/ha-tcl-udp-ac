@@ -41,6 +41,7 @@ class TclUdpApiClient:
         self._account = account
         self._sequence = 0
         self._device_mac = "00:00:00:00:00:00"  # Will be discovered
+        self._device_ip: str | None = None  # Will be discovered
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -71,7 +72,15 @@ class TclUdpApiClient:
         """Handle incoming status update from device."""
         try:
             message = data.decode("utf-8")
-            LOGGER.debug("Received UDP message from %s: %s", addr, message)
+            # Log carefully to avoid spam, but initially debug is useful
+            # LOGGER.debug("Received UDP message from %s: %s", addr, message)
+
+            # Update Device IP from the sender's address
+            # addr is (ip, port)
+            sender_ip = addr[0]
+            if self._device_ip != sender_ip:
+                LOGGER.info("Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip)
+                self._device_ip = sender_ip
 
             # Parse XML - Local network only, using safe parser
             # Disable entity resolution to prevent XML attacks
@@ -81,7 +90,8 @@ class TclUdpApiClient:
 
             # Capture device MAC if available
             dev_id = root.get("devid")
-            if dev_id:
+            if dev_id and dev_id != self._device_mac:
+                LOGGER.info("Device MAC discovered: %s", dev_id)
                 self._device_mac = dev_id
 
             # Check if it's a status message
@@ -202,15 +212,28 @@ class TclUdpApiClient:
             
             LOGGER.debug("Sending command: %s", xml_command)
 
+            # Determine target address
+            target_addr = ("<broadcast>", UDP_COMMAND_PORT)
+            if self._device_ip:
+                target_addr = (self._device_ip, UDP_COMMAND_PORT)
+                LOGGER.debug("Sending command to %s (Unicast): %s", self._device_ip, xml_command)
+            else:
+                LOGGER.debug("Sending command to Broadcast: %s", xml_command)
+
             # Send via UDP
             loop = asyncio.get_event_loop()
             await loop.sock_sendto(
                 self._get_command_socket(),
                 xml_command.encode("utf-8"),
-                ("<broadcast>", UDP_COMMAND_PORT),
+                target_addr,
             )
         except OSError as exception:
             msg = f"Error sending command: {exception}"
+            # If unicast fails, we might want to clear IP and try broadcast next time
+            # For now, just raise
+            if self._device_ip:
+                 LOGGER.warning("Unicast failed to %s, clearing discovered IP. Error: %s", self._device_ip, exception)
+                 self._device_ip = None
             raise TclUdpApiClientCommunicationError(msg) from exception
 
     def _get_command_socket(self) -> socket.socket:
@@ -274,6 +297,38 @@ class TclUdpApiClient:
     async def async_set_beep(self, enabled: bool) -> None:
         """Set beep on/off."""
         await self.async_send_command("beepEn", "1" if enabled else "0")
+
+    async def async_send_discovery(self) -> None:
+        """Send a discovery packet to find devices."""
+        try:
+            self._sequence += 1
+            seq = str(self._sequence)
+            
+            # Discovery command
+            # Using type="get" to request status. 
+            # devid is unknown so using default or empty.
+            # We broadcast this to the network.
+            xml_command = (
+                f'<msg cmd="status" seq="{seq}" devid="00:00:00:00:00:00" type="get">'
+                f'<control>'
+                f'<actionJid value="{self._action_jid}"/>'
+                f'<actionSource value="{self._action_source}"/>'
+                f'<account value="{self._account}"/>'
+                f'</control>'
+                f'</msg>'
+            )
+            
+            LOGGER.debug("Sending discovery: %s", xml_command)
+
+            # Send via UDP Broadcast
+            loop = asyncio.get_event_loop()
+            await loop.sock_sendto(
+                self._get_command_socket(),
+                xml_command.encode("utf-8"),
+                ("<broadcast>", UDP_COMMAND_PORT),
+            )
+        except OSError as exception:
+            LOGGER.warning("Failed to send discovery packet: %s", exception)
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
