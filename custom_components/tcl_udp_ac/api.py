@@ -28,9 +28,8 @@ class TclUdpApiClient:
         account: str = "homeassistant",
     ) -> None:
         """Initialize the API client."""
-        self._listener_transport: asyncio.DatagramTransport | None = None
-        self._listener_protocol: UDPListenerProtocol | None = None
-        self._command_sock: socket.socket | None = None
+        self._listener_sock: socket.socket | None = None
+        self._listener_transport: asyncio.DatagramTransport | None = None  # Keep for compatibility
         self._status_callback: Any = None
         self._last_status: dict[str, Any] = {}
         self._tasks: set[asyncio.Task] = set()
@@ -46,33 +45,50 @@ class TclUdpApiClient:
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
         self._status_callback = status_callback
-        loop = asyncio.get_event_loop()
+        # Use get_running_loop() in async context - more reliable than get_event_loop()
+        loop = asyncio.get_running_loop()
 
         try:
-            # Create socket with broadcast capability
-            # This socket will be used for both receiving and sending
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # CRITICAL for sending broadcasts
-            sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
-            sock.setblocking(False)
+            # Create raw socket manually - more reliable than create_datagram_endpoint
+            # in some environments (especially Docker containers)
+            self._listener_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            self._listener_sock.setblocking(False)
+            self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
             
-            # Create UDP listener using our pre-configured socket
-            self._listener_protocol = UDPListenerProtocol(self._handle_status_update)
-            self._listener_transport, _ = await loop.create_datagram_endpoint(
-                lambda: self._listener_protocol,
-                sock=sock,  # Use our socket instead of local_addr
-            )
-            LOGGER.info("UDP listener started on port %s", UDP_BROADCAST_PORT)
+            LOGGER.warning("!!! SOCKET CREATED: bound to %s !!!", self._listener_sock.getsockname())
+            
+            # Use add_reader for direct event loop integration
+            # This bypasses asyncio's DatagramProtocol which may have issues
+            loop.add_reader(self._listener_sock.fileno(), self._on_socket_readable)
+            
+            # Store transport reference for sending (will use the same socket)
+            self._listener_transport = None  # Not using transport anymore
+            
+            LOGGER.info("UDP listener started on port %s (using raw socket)", UDP_BROADCAST_PORT)
         except OSError as exception:
             msg = f"Failed to start UDP listener: {exception}"
             raise TclUdpApiClientCommunicationError(msg) from exception
 
+    def _on_socket_readable(self) -> None:
+        """Called when socket has data to read."""
+        try:
+            data, addr = self._listener_sock.recvfrom(4096)
+            LOGGER.warning("!!! RAW SOCKET RECEIVED %d bytes from %s !!!", len(data), addr)
+            self._handle_status_update(data, addr)
+        except BlockingIOError:
+            pass  # No data available
+        except Exception as e:
+            LOGGER.error("Error reading from socket: %s", e)
+
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
-        if self._listener_transport:
-            self._listener_transport.close()
-            self._listener_transport = None
+        if self._listener_sock:
+            loop = asyncio.get_running_loop()
+            loop.remove_reader(self._listener_sock.fileno())
+            self._listener_sock.close()
+            self._listener_sock = None
             LOGGER.info("UDP listener stopped")
 
     def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
@@ -134,8 +150,6 @@ class TclUdpApiClient:
             LOGGER.error("Error decoding status message: %s", exception)
         except (KeyError, AttributeError) as exception:
             LOGGER.error("Error processing status message: %s", exception)
-
-        return status
 
     def _parse_bool_feature(self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]) -> None:
         """Helper to parse boolean features."""
@@ -242,10 +256,10 @@ class TclUdpApiClient:
             else:
                 LOGGER.debug("Sending command to Broadcast: %s", xml_command)
 
-            # Send via UDP using listener transport
+            # Send via UDP using listener socket
             # This ensures we send from port 10074 (same port we listen on)
             # so the AC will reply to the correct port
-            self._listener_transport.sendto(
+            self._listener_sock.sendto(
                 xml_command.encode("utf-8"),
                 target_addr,
             )
@@ -323,8 +337,8 @@ class TclUdpApiClient:
             
             LOGGER.debug("Sending discovery: %s", xml_command)
 
-            # Send via UDP Broadcast using listener transport
-            self._listener_transport.sendto(
+            # Send via UDP Broadcast using listener socket
+            self._listener_sock.sendto(
                 xml_command.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
@@ -362,4 +376,6 @@ class UDPListenerProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle received datagram."""
+        # CRITICAL DEBUG: Log immediately to confirm this method is actually called
+        LOGGER.warning("!!! UDP DATAGRAM RECEIVED from %s, %d bytes !!!", addr, len(data))
         self._callback(data, addr)
