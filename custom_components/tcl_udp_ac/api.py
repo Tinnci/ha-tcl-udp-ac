@@ -475,10 +475,9 @@ class TclUdpApiClient:
                 json_search.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
+            LOGGER.debug("Sent discovery (XML and JSON)")
         except OSError as exception:
             LOGGER.warning("Failed to send discovery packet: %s", exception)
-        else:
-            LOGGER.debug("Sent discovery (XML and JSON)")
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
