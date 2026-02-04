@@ -443,14 +443,14 @@ class TclUdpApiClient:
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
-        try:
-            if not self._listener_sock:
-                LOGGER.warning(
-                    "Cannot send discovery: UDP listener not initialized. "
-                    "Ensure async_start_listener() was called."
-                )
-                return
+        if not self._listener_sock:
+            LOGGER.warning(
+                "Cannot send discovery: UDP listener not initialized. "
+                "Ensure async_start_listener() was called."
+            )
+            return
 
+        try:
             self._sequence += 1
             # Java: sendMulticast() -> <message msgid="SearchDevice"></message>
             xml_command = '<message msgid="SearchDevice"></message>'
