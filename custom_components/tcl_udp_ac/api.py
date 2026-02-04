@@ -259,7 +259,7 @@ class TclUdpApiClient:
             except ValueError:
                 LOGGER.warning("Invalid InTemp value: %s", val)
 
-        # Parse outdoor temperature (OutTemp/outTemp)
+        # Parse outdoor temperature (OutTemp/outTemp) reported in Fahrenheit.
         node = status_msg.find("OutTemp") or status_msg.find("outTemp")
         val = self._get_node_value(node)
         if val:
