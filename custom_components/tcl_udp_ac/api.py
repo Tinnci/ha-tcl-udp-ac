@@ -348,20 +348,20 @@ class TclUdpApiClient:
             self._sequence += 1
             seq = str(self._sequence)
 
-            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java)
-            # <msg tclid="MAC" msgid="SetMessage" type="Control" seq="123">
-            #   <SetMessage>
-            #     <TurnOn>on</TurnOn>
-            #   </SetMessage>
-            # </msg>
-            xml_command = (
-                f'<msg tclid="{self._device_mac}" msgid="SetMessage" '
-                f'type="Control" seq="{seq}">'
-                f"<SetMessage>"
-                f"<{command}>{value}</{command}>"
-                f"</SetMessage>"
-                f"</msg>"
+            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java).
+            msg = ET.Element(
+                "msg",
+                {
+                    "tclid": self._device_mac,
+                    "msgid": "SetMessage",
+                    "type": "Control",
+                    "seq": seq,
+                },
             )
+            set_message = ET.SubElement(msg, "SetMessage")
+            command_node = ET.SubElement(set_message, command)
+            command_node.text = value
+            xml_command = ET.tostring(msg, encoding="unicode")
 
             LOGGER.debug("Sending SetMessage: %s", xml_command)
 
@@ -464,6 +464,7 @@ class TclUdpApiClient:
 
             # JSON Discovery (Optional/Alternative seen in some packet dumps)
             # Keeping it as a backup but Java source relies on XML.
+            # Use secrets to avoid predictable IDs flagged by security linting.
             json_search = json.dumps(
                 {
                     "msgId": str(secrets.randbelow(9000) + 1000),
