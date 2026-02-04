@@ -19,8 +19,36 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
-from .const import LOGGER
-from .entity import TclUdpEntity
+from .const import (
+    FAN_AUTO as TCL_FAN_AUTO,
+)
+from .const import (
+    FAN_HIGH as TCL_FAN_HIGH,
+)
+from .const import (
+    FAN_LOW as TCL_FAN_LOW,
+)
+from .const import (
+    FAN_MIDDLE as TCL_FAN_MIDDLE,
+)
+from .const import (
+    LOGGER,
+)
+from .const import (
+    MODE_AUTO as TCL_MODE_AUTO,
+)
+from .const import (
+    MODE_COOL as TCL_MODE_COOL,
+)
+from .const import (
+    MODE_DEHUMI as TCL_MODE_DEHUMI,
+)
+from .const import (
+    MODE_FAN as TCL_MODE_FAN,
+)
+from .const import (
+    MODE_HEAT as TCL_MODE_HEAT,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -30,22 +58,22 @@ if TYPE_CHECKING:
     from .data import TclUdpConfigEntry
 
 # Protocol mappings
-# Fan Speed: 0=Auto, 1=Low, 2=Med, 3=High
+# Fan Speed
 FAN_MODE_MAP = {
-    FAN_AUTO: 0,
-    FAN_LOW: 1,
-    FAN_MEDIUM: 2,
-    FAN_HIGH: 3,
+    FAN_AUTO: TCL_FAN_AUTO,
+    FAN_LOW: TCL_FAN_LOW,
+    FAN_MEDIUM: TCL_FAN_MIDDLE,
+    FAN_HIGH: TCL_FAN_HIGH,
 }
 FAN_MODE_MAP_REV = {v: k for k, v in FAN_MODE_MAP.items()}
 
-# mode: 0=Auto, 1=Cool, 2=Dry, 3=Fan, 4=Heat
+# mode: HA Mode -> API String
 HVAC_MODE_MAP = {
-    HVACMode.AUTO: 0,
-    HVACMode.COOL: 1,
-    HVACMode.DRY: 2,
-    HVACMode.FAN_ONLY: 3,
-    HVACMode.HEAT: 4,
+    HVACMode.AUTO: TCL_MODE_AUTO,
+    HVACMode.COOL: TCL_MODE_COOL,
+    HVACMode.DRY: TCL_MODE_DEHUMI,
+    HVACMode.FAN_ONLY: TCL_MODE_FAN,
+    HVACMode.HEAT: TCL_MODE_HEAT,
 }
 HVAC_MODE_MAP_REV = {v: k for k, v in HVAC_MODE_MAP.items()}
 
@@ -120,13 +148,13 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         data = self.coordinator.data
         if not data:
             return HVACMode.OFF
-            
+
         # If power is off, return OFF
         if not data.get("power"):
             return HVACMode.OFF
 
         # Read mode from device
-        mode_val = data.get("mode", 1)  # Default to Cool if missing
+        mode_val = data.get("mode", MODE_COOL)  # Default to Cool if missing
         return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
 
     @property
@@ -135,7 +163,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         data = self.coordinator.data
         if not data:
             return None
-        speed_val = data.get("fan_speed", 0)
+        speed_val = data.get("fan_speed", FAN_SPEED_AUTO)
         return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
 
     @property
@@ -144,7 +172,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         data = self.coordinator.data
         if not data:
             return None
-        
+
         swing_h = data.get("swing_h", False)
         swing_v = data.get("swing_v", False)
 
@@ -171,12 +199,12 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         client = self.coordinator.config_entry.runtime_data.client
 
         if hvac_mode == HVACMode.OFF:
-            await client.async_set_power(power_on=False)
+            await client.async_set_power(power=False)
         else:
             # Ensure power is on
             if not self.coordinator.data.get("power"):
-                await client.async_set_power(power_on=True)
-            
+                await client.async_set_power(power=True)
+
             # Send mode command
             udp_mode = HVAC_MODE_MAP.get(hvac_mode)
             if udp_mode is not None:
@@ -188,7 +216,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         """Set new fan mode."""
         LOGGER.debug("Setting fan mode to %s", fan_mode)
         client = self.coordinator.config_entry.runtime_data.client
-        
+
         speed_val = FAN_MODE_MAP.get(fan_mode)
         if speed_val is not None:
             await client.async_set_fan_speed(speed_val)
@@ -198,10 +226,10 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         """Set new swing mode."""
         LOGGER.debug("Setting swing mode to %s", swing_mode)
         client = self.coordinator.config_entry.runtime_data.client
-        
+
         vertical = swing_mode in (SWING_VERTICAL, SWING_BOTH)
         horizontal = swing_mode in (SWING_HORIZONTAL, SWING_BOTH)
-        
+
         await client.async_set_swing(vertical=vertical, horizontal=horizontal)
         await self.coordinator.async_request_refresh()
 

@@ -20,3 +20,21 @@ DEFAULT_ACCOUNT = "homeassistant"
 CONF_ACTION_JID = "action_jid"
 CONF_ACTION_SOURCE = "action_source"
 CONF_ACCOUNT = "account"
+
+# Protocol value mappings
+# HVAC Modes (BaseMode tag values)
+MODE_COOL = "cool"
+MODE_HEAT = "heat"
+MODE_FAN = "fan"
+MODE_DEHUMI = "dehumi"
+MODE_AUTO = "selffeel"
+
+# Fan Speeds (WindSpeed tag values)
+FAN_HIGH = "high"
+FAN_MIDDLE = "middle"
+FAN_LOW = "low"
+FAN_AUTO = "auto"
+
+# Swing/Boolean values
+VALUE_ON = "on"
+VALUE_OFF = "off"

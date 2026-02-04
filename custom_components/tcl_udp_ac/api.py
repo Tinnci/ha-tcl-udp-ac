@@ -3,13 +3,26 @@
 from __future__ import annotations
 
 import asyncio
-import socket
 import json
 import random
+import socket
 import xml.etree.ElementTree as ET
 from typing import Any
 
-from .const import LOGGER, UDP_BROADCAST_PORT, UDP_COMMAND_PORT
+from .const import (
+    FAN_AUTO,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MIDDLE,
+    LOGGER,
+    MODE_AUTO,
+    MODE_COOL,
+    MODE_DEHUMI,
+    MODE_FAN,
+    MODE_HEAT,
+    UDP_BROADCAST_PORT,
+    UDP_COMMAND_PORT,
+)
 
 
 class TclUdpApiClientError(Exception):
@@ -31,11 +44,13 @@ class TclUdpApiClient:
     ) -> None:
         """Initialize the API client."""
         self._listener_sock: socket.socket | None = None
-        self._listener_transport: asyncio.DatagramTransport | None = None  # Keep for compatibility
+        self._listener_transport: asyncio.DatagramTransport | None = (
+            None  # Keep for compatibility
+        )
         self._status_callback: Any = None
         self._last_status: dict[str, Any] = {}
         self._tasks: set[asyncio.Task] = set()
-        
+
         # Configurable protocol fields
         self._action_jid = action_jid
         self._action_source = action_source
@@ -59,17 +74,21 @@ class TclUdpApiClient:
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self._listener_sock.setblocking(False)
             self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
-            
-            LOGGER.warning("!!! SOCKET CREATED: bound to %s !!!", self._listener_sock.getsockname())
-            
+
+            LOGGER.warning(
+                "!!! SOCKET CREATED: bound to %s !!!", self._listener_sock.getsockname()
+            )
+
             # Use add_reader for direct event loop integration
             # This bypasses asyncio's DatagramProtocol which may have issues
             loop.add_reader(self._listener_sock.fileno(), self._on_socket_readable)
-            
+
             # Store transport reference for sending (will use the same socket)
             self._listener_transport = None  # Not using transport anymore
-            
-            LOGGER.info("UDP listener started on port %s (using raw socket)", UDP_BROADCAST_PORT)
+
+            LOGGER.info(
+                "UDP listener started on port %s (using raw socket)", UDP_BROADCAST_PORT
+            )
         except OSError as exception:
             msg = f"Failed to start UDP listener: {exception}"
             raise TclUdpApiClientCommunicationError(msg) from exception
@@ -78,7 +97,9 @@ class TclUdpApiClient:
         """Called when socket has data to read."""
         try:
             data, addr = self._listener_sock.recvfrom(4096)
-            LOGGER.warning("!!! RAW SOCKET RECEIVED %d bytes from %s !!!", len(data), addr)
+            LOGGER.warning(
+                "!!! RAW SOCKET RECEIVED %d bytes from %s !!!", len(data), addr
+            )
             self._handle_status_update(data, addr)
         except BlockingIOError:
             pass  # No data available
@@ -105,7 +126,9 @@ class TclUdpApiClient:
             # addr is (ip, port)
             sender_ip = addr[0]
             if self._device_ip != sender_ip:
-                LOGGER.info("Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip)
+                LOGGER.info(
+                    "Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip
+                )
                 self._device_ip = sender_ip
 
             # Parse XML - Local network only
@@ -114,38 +137,54 @@ class TclUdpApiClient:
 
             # Check if it's a deviceInfo response (Discovery)
             if root.tag == "deviceInfo":
-                dev_ip = root.findtext("devIP")
-                dev_mac = root.findtext("devMac")
-                
+                # Java protocol uses PascalCase (DevIP, DevMac, DevPort) but old logs saw camelCase
+                # We check both for robustness
+                dev_ip = root.findtext("DevIP") or root.findtext("devIP")
+                dev_mac = (
+                    root.findtext("DevMAC")
+                    or root.findtext("devMac")
+                    or root.findtext("devMAC")
+                )
+
                 if dev_ip and self._device_ip != dev_ip:
-                    LOGGER.info("Device IP discovered via deviceInfo: %s -> %s", self._device_ip, dev_ip)
+                    LOGGER.info(
+                        "Device IP discovered via deviceInfo: %s -> %s",
+                        self._device_ip,
+                        dev_ip,
+                    )
                     self._device_ip = dev_ip
-                
+
                 if dev_mac and self._device_mac != dev_mac:
                     LOGGER.info("Device MAC discovered via deviceInfo: %s", dev_mac)
                     self._device_mac = dev_mac
-                
-                # Save device port from deviceInfo
-                dev_port_str = root.findtext("devPort")
+
+                # Save device port from deviceInfo (CRITICAL for control)
+                dev_port_str = root.findtext("DevPort") or root.findtext("devPort")
                 if dev_port_str:
                     try:
                         dev_port = int(dev_port_str)
                         if self._device_port != dev_port:
-                            LOGGER.info("Device port discovered via deviceInfo: %d", dev_port)
+                            LOGGER.info(
+                                "Device port discovered via deviceInfo: %d", dev_port
+                            )
                             self._device_port = dev_port
                     except ValueError:
                         pass
                 return
 
-            # Capture device MAC if available (standard msg)
-            dev_id = root.get("devid")
+            # Capture device MAC if available in msg header
+            # Java: tclid, Old: devid
+            dev_id = root.get("tclid") or root.get("devid")
             if dev_id and dev_id != self._device_mac:
                 LOGGER.info("Device MAC discovered via header: %s", dev_id)
                 self._device_mac = dev_id
 
             # Check if it's a status message
-            if root.get("cmd") == "status":
-                status_msg = root.find("statusUpdateMsg")
+            # Matches cmd="status" (old) or type="Notify" (new/Java)
+            if root.get("cmd") == "status" or root.get("type") == "Notify":
+                status_msg = root.find("statusUpdateMsg") or root.find(
+                    "StatusUpdateMsg"
+                )
                 if status_msg is not None:
                     status = self._parse_status(status_msg)
                     self._last_status = status
@@ -163,212 +202,264 @@ class TclUdpApiClient:
         except (KeyError, AttributeError) as exception:
             LOGGER.error("Error processing status message: %s", exception)
 
-    def _parse_bool_feature(self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]) -> None:
-        """Helper to parse boolean features."""
-        node = status_msg.find(tag)
-        if node is not None:
-             status[status_key] = node.get("value") == "1"
+    def _get_node_value(self, node: ET.Element | None) -> str | None:
+        """Extract value from node, handling both <tag value='x'> and <tag>x</tag>."""
+        if node is None:
+            return None
+        # Try attribute first (old style)
+        val = node.get("value")
+        if val is None:
+            # Try text content (new/Java style)
+            val = node.text
+        return val
+
+    def _parse_bool_feature(
+        self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
+    ) -> None:
+        """Helper to parse boolean features from both XML formats."""
+        # Try PascalCase (Java) and camelCase (Old)
+        node = status_msg.find(tag) or status_msg.find(tag[0].lower() + tag[1:])
+        val = self._get_node_value(node)
+
+        if val is not None:
+            # Handle 'on'/'off' and '1'/'0'
+            status[status_key] = val.lower() == "on" or val == "1"
 
     def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
-        """Parse status message XML."""
+        """Parse status message XML, supporting multiple formats."""
         status = {}
 
-        # Parse power state
-        turn_on = status_msg.find("turnOn")
-        if turn_on is not None:
-            status["power"] = turn_on.get("value") == "1"
+        # Parse power state (TurnOn/turnOn)
+        node = status_msg.find("TurnOn") or status_msg.find("turnOn")
+        val = self._get_node_value(node)
+        if val:
+            status["power"] = val.lower() == "on" or val == "1"
 
-        # Parse set temperature
-        set_temp = status_msg.find("setTemp")
-        if set_temp is not None:
+        # Parse set temperature (SetTemp/setTemp)
+        # Note: Java protocol sends/receives Fahrenheit. We need to detect reasonable range?
+        # Or assume if > 50 it's likely F.
+        node = status_msg.find("SetTemp") or status_msg.find("setTemp")
+        val = self._get_node_value(node)
+        if val:
             try:
-                status["target_temp"] = int(set_temp.get("value", "0"))
+                temp_val = int(val)
+                # Heuristic: If temp > 40, assume Fahrenheit and convert to Celsius for HA
+                if temp_val > 45:
+                    status["target_temp"] = int((temp_val - 32) * 5 / 9)
+                else:
+                    status["target_temp"] = temp_val
             except ValueError:
-                LOGGER.warning("Invalid setTemp value")
+                LOGGER.warning("Invalid SetTemp value: %s", val)
 
-        # Parse indoor temperature
-        in_temp = status_msg.find("inTemp")
-        if in_temp is not None:
+        # Parse indoor temperature (InTemp/inTemp)
+        node = status_msg.find("InTemp") or status_msg.find("inTemp")
+        val = self._get_node_value(node)
+        if val:
             try:
-                status["current_temp"] = int(in_temp.get("value", "0"))
+                temp_val = int(val)
+                if temp_val > 45:
+                    status["current_temp"] = int((temp_val - 32) * 5 / 9)
+                else:
+                    status["current_temp"] = temp_val
             except ValueError:
-                LOGGER.warning("Invalid inTemp value")
+                LOGGER.warning("Invalid InTemp value: %s", val)
 
-        # Parse outdoor temperature
-        out_temp = status_msg.find("outTemp")
-        if out_temp is not None:
-            try:
-                # 176 is often used as a default/invalid value in some protocols
-                # We interpret it as is, entity layer can filter if needed
-                status["outdoor_temp"] = int(out_temp.get("value", "0"))
-            except ValueError:
-                LOGGER.warning("Invalid outTemp value")
+        # Parse boolean features using helper (handles case variations)
+        self._parse_bool_feature(status_msg, "OptECO", "eco_mode", status)
+        self._parse_bool_feature(status_msg, "OptDisplay", "display", status)
+        self._parse_bool_feature(status_msg, "OptHealthy", "health_mode", status)
+        self._parse_bool_feature(
+            status_msg, "Opt_sleepMode", "sleep_mode", status
+        )  # Java tag uses underscore
+        self._parse_bool_feature(status_msg, "Opt_super", "turbo_mode", status)
+        self._parse_bool_feature(status_msg, "BeepEnable", "beep", status)
+        # Parse fan speed (WindSpeed/windSpd)
+        node = status_msg.find("WindSpeed") or status_msg.find("windSpd")
+        val = self._get_node_value(node)
+        if val:
+            # Map string values to HA integers or keep strings?
+            # Integration expects integers 0-3 usually? Let's check consumer.
+            # Wait, `fan_speed` in HA implies mode.
+            # Java values: high, middle, low, auto
+            # Mapping: high=3, middle=2, low=1, auto=0 (example)
+            v = val.lower()
+            if v == "high":
+                status["fan_speed"] = FAN_HIGH
+            elif v == "middle":
+                status["fan_speed"] = FAN_MIDDLE
+            elif v == "low":
+                status["fan_speed"] = FAN_LOW
+            elif v == "auto":
+                status["fan_speed"] = FAN_AUTO
+            else:
+                status["fan_speed"] = v  # Fallback
 
-        # Parse boolean features
-        self._parse_bool_feature(status_msg, "optECO", "eco_mode", status)
-        self._parse_bool_feature(status_msg, "optDisplay", "display", status)
-        self._parse_bool_feature(status_msg, "optHealthy", "health_mode", status)
-        self._parse_bool_feature(status_msg, "optSleepMd", "sleep_mode", status)
-        self._parse_bool_feature(status_msg, "optSuper", "turbo_mode", status)
-        self._parse_bool_feature(status_msg, "beepEn", "beep", status)
+        # Parse swing mode (WindDirection_H/V or directH/V)
+        node_h = status_msg.find("WindDirection_H") or status_msg.find("directH")
+        val_h = self._get_node_value(node_h)
+        if val_h:
+            status["swing_h"] = val_h.lower() == "on" or val_h == "1"
 
-        # Parse fan speed (windSpd)
-        wind_spd = status_msg.find("windSpd")
-        if wind_spd is not None:
-             try:
-                status["fan_speed"] = int(wind_spd.get("value", "0"))
-             except ValueError:
-                LOGGER.warning("Invalid windSpd value")
+        node_v = status_msg.find("WindDirection_V") or status_msg.find("directV")
+        val_v = self._get_node_value(node_v)
+        if val_v:
+            status["swing_v"] = val_v.lower() == "on" or val_v == "1"
 
-        # Parse swing mode (directH/directV)
-        direct_h = status_msg.find("directH")
-        if direct_h is not None:
-            status["swing_h"] = direct_h.get("value") == "1"
-
-        direct_v = status_msg.find("directV")
-        if direct_v is not None:
-            status["swing_v"] = direct_v.get("value") == "1"
-
-        # Parse mode (baseMode)
-        base_mode = status_msg.find("baseMode")
-        if base_mode is not None:
-            try:
-                status["mode"] = int(base_mode.get("value", "0"))
-            except ValueError:
-                LOGGER.warning("Invalid baseMode value")
+        # Parse mode (BaseMode/baseMode)
+        node = status_msg.find("BaseMode") or status_msg.find("baseMode")
+        val = self._get_node_value(node)
+        if val:
+            # Java values: cool, heat, fan, dehumi, selffeel
+            # Mapping to integers expected by Entity?
+            # Looking at previous code, it expected int(value).
+            # We need to map string back to int if entity expects int.
+            v = val.lower()
+            # 1=cool, 2=heat, 3=fan, 4=dry, 5=auto (Standard guess)
+            if v == "cool":
+                status["mode"] = MODE_COOL
+            elif v == "heat":
+                status["mode"] = MODE_HEAT
+            elif v == "fan":
+                status["mode"] = MODE_FAN
+            elif v == "dehumi":
+                status["mode"] = MODE_DEHUMI
+            elif v == "selffeel":
+                status["mode"] = MODE_AUTO
+            else:
+                status["mode"] = v  # Fallback
 
         return status
 
     async def async_send_command(self, command: str, value: str) -> None:
-        """Send a command to the device."""
+        """
+        Send a command using SetMessage XML format (per Java source code).
+
+        Args:
+            command: XML tag name (e.g., 'TurnOn', 'SetTemp', 'BaseMode')
+            value: Tag value (e.g., 'on', 'off', '78', 'cool')
+
+        """
         try:
             self._sequence += 1
             seq = str(self._sequence)
-            
-            # Construct full spoofed XML packet
-            # Use non-self-closing tags for better compatibility with old XML parsers
+
+            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java)
+            # <msg tclid="MAC" msgid="SetMessage" type="Control" seq="123">
+            #   <SetMessage>
+            #     <TurnOn>on</TurnOn>
+            #   </SetMessage>
+            # </msg>
             xml_command = (
-                f'<msg cmd="control" type="control" seq="{seq}" devid="{self._device_mac}">'
-                f'<control>'
-                f'<actionJid value="{self._action_jid}"></actionJid>'
-                f'<actionSource value="{self._action_source}"></actionSource>'
-                f'<account value="{self._account}"></account>'
-                f'<{command} value="{value}"></{command}>'
-                f'</control>'
-                f'</msg>'
+                f'<msg tclid="{self._device_mac}" msgid="SetMessage" type="Control" seq="{seq}">'
+                f"<SetMessage>"
+                f"<{command}>{value}</{command}>"
+                f"</SetMessage>"
+                f"</msg>"
             )
-            
-            LOGGER.debug("Sending command: %s", xml_command)
 
-            # Determine target address - use discovered port if available
-            # deviceInfo reports device's port (often 6666 for TCP, but we'll try it)
-            if self._device_ip:
-                # Send to both device port and standard command port for reliability
-                addresses = [
-                    (self._device_ip, UDP_COMMAND_PORT),  # Standard UDP command port
-                ]
-                if self._device_port != UDP_COMMAND_PORT:
-                    addresses.append((self._device_ip, self._device_port))  # Device's reported port
-                
-                for target_addr in addresses:
-                    LOGGER.debug("Sending command to %s:%d: %s", target_addr[0], target_addr[1], xml_command)
-                    self._listener_sock.sendto(xml_command.encode("utf-8"), target_addr)
-            else:
-                # Broadcast mode
-                target_addr = ("<broadcast>", UDP_COMMAND_PORT)
-                LOGGER.debug("Sending command to Broadcast: %s", xml_command)
+            LOGGER.debug("Sending SetMessage: %s", xml_command)
+
+            # Send to discovered device port (mandatory per Java logic)
+            if self._device_ip and self._device_port:
+                target_addr = (self._device_ip, self._device_port)
+                LOGGER.debug("Sending to %s:%d", target_addr[0], target_addr[1])
                 self._listener_sock.sendto(xml_command.encode("utf-8"), target_addr)
+            else:
+                LOGGER.warning("Device not discovered. Cannot send command.")
+
         except OSError as exception:
-            msg = f"Error sending command: {exception}"
-            # If unicast fails, we might want to clear IP and try broadcast next time
-            # For now, just raise
+            LOGGER.error("Failed to send command: %s", exception)
             if self._device_ip:
-                 LOGGER.warning("Unicast failed to %s, clearing discovered IP. Error: %s", self._device_ip, exception)
-                 self._device_ip = None
-            raise TclUdpApiClientCommunicationError(msg) from exception
+                LOGGER.warning("Clearing discovered IP after failure")
+                self._device_ip = None
+            raise TclUdpApiClientCommunicationError(
+                f"Error sending command: {exception}"
+            ) from exception
 
-
-
-    async def async_set_power(self, *, power_on: bool) -> None:
-        """Turn the AC on or off."""
-        value = "1" if power_on else "0"
-        await self.async_send_command("turnOn", value)
+    async def async_set_power(self, power: bool) -> None:
+        """Set power on/off."""
+        # Java: <TurnOn>on</TurnOn> or <TurnOn>off</TurnOn>
+        await self.async_send_command("TurnOn", "on" if power else "off")
 
     async def async_set_temperature(self, temperature: int) -> None:
-        """Set target temperature."""
-        await self.async_send_command("setTemp", str(temperature))
+        """Set target temperature (converts Celsius to Fahrenheit)."""
+        # Java: <SetTemp>78</SetTemp> (Fahrenheit integer)
+        fahrenheit = int(temperature * 9 / 5 + 32)
+        await self.async_send_command("SetTemp", str(fahrenheit))
 
-    async def async_set_fan_speed(self, speed: int) -> None:
-        """Set fan speed."""
-        await self.async_send_command("windSpd", str(speed))
+    async def async_set_fan_speed(self, speed_str: str) -> None:
+        """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
+        # Java: <WindSpeed>high</WindSpeed>
+        await self.async_send_command("WindSpeed", speed_str)
 
     async def async_set_swing(self, vertical: bool, horizontal: bool) -> None:
         """Set swing mode."""
-        # This might need refinement based on exact protocol behavior
-        await self.async_send_command("directV", "1" if vertical else "0")
-        await self.async_send_command("directH", "1" if horizontal else "0")
+        # Java: <WindDirection_V>on</WindDirection_V>
+        await self.async_send_command("WindDirection_V", "on" if vertical else "off")
+        await self.async_send_command("WindDirection_H", "on" if horizontal else "off")
 
-    async def async_set_mode(self, mode: int) -> None:
-        """Set operation mode."""
-        await self.async_send_command("baseMode", str(mode))
+    async def async_set_mode(self, mode_str: str) -> None:
+        """Set operation mode (expects 'cool', 'heat', 'fan', 'dehumi', 'selffeel')."""
+        # Java: <BaseMode>cool</BaseMode>
+        await self.async_send_command("BaseMode", mode_str)
 
     async def async_set_eco_mode(self, enabled: bool) -> None:
         """Set ECO mode."""
-        await self.async_send_command("optECO", "1" if enabled else "0")
+        # Java: <Opt_ECO>on</Opt_ECO>
+        await self.async_send_command("Opt_ECO", "on" if enabled else "off")
 
     async def async_set_display(self, enabled: bool) -> None:
         """Set display on/off."""
-        await self.async_send_command("optDisplay", "1" if enabled else "0")
+        await self.async_send_command("OptDisplay", "on" if enabled else "off")
 
     async def async_set_health_mode(self, enabled: bool) -> None:
         """Set health mode."""
-        await self.async_send_command("optHealthy", "1" if enabled else "0")
+        await self.async_send_command("OptHealthy", "on" if enabled else "off")
 
     async def async_set_sleep_mode(self, enabled: bool) -> None:
         """Set sleep mode."""
-        await self.async_send_command("optSleepMd", "1" if enabled else "0")
+        await self.async_send_command("Opt_sleepMode", "on" if enabled else "off")
 
     async def async_set_turbo_mode(self, enabled: bool) -> None:
         """Set turbo (super) mode."""
-        await self.async_send_command("optSuper", "1" if enabled else "0")
+        await self.async_send_command("Opt_super", "on" if enabled else "off")
 
     async def async_set_beep(self, enabled: bool) -> None:
         """Set beep on/off."""
-        await self.async_send_command("beepEn", "1" if enabled else "0")
+        # Java: <BeepEnable>on</BeepEnable>
+        await self.async_send_command("BeepEnable", "on" if enabled else "off")
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
         try:
             self._sequence += 1
-            seq = str(self._sequence)
-            
-            # Discovery command
-            # Using type="get" to request status. 
-            # devid is unknown so using default or empty.
-            # Discovery command
-            # Confirmed via pcap: The device responds to <searchDevice></searchDevice>
-            # Send via UDP Broadcast using listener socket
-            # Try both XML and JSON discovery as seen in phone captures
-            
-            # 1. XML Search (standard)
-            xml_command = '<searchDevice></searchDevice>'
+            # Java: sendMulticast() -> <message msgid="SearchDevice"></message>
+            xml_command = '<message msgid="SearchDevice"></message>'
+
+            LOGGER.debug("Sending Discovery: %s", xml_command)
+
             self._listener_sock.sendto(
                 xml_command.encode("utf-8"),
-                ("<broadcast>", UDP_COMMAND_PORT),
+                ("<broadcast>", UDP_COMMAND_PORT),  # 10075
             )
-            
-            # 2. JSON Search (seen in phone.pcapng from OnePlus-13)
-            # {"msgId":"123","version":"123","method":"searchReq"}
-            json_search = json.dumps({
-                "msgId": str(random.randint(1000, 9999)),
-                "version": "123",
-                "method": "searchReq"
-            })
+
+            # JSON Discovery (Optional/Alternative seen in some packet dumps)
+            # Keeping it as a backup but Java source relies on XML.
+            json_search = json.dumps(
+                {
+                    "msgId": str(random.randint(1000, 9999)),
+                    "version": "123",
+                    "method": "searchReq",
+                }
+            )
             self._listener_sock.sendto(
                 json_search.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
-            
+
+        except OSError as exception:
+            LOGGER.warning("Failed to send discovery packet: %s", exception)
+
             LOGGER.debug("Sent discovery (XML and JSON)")
         except OSError as exception:
             LOGGER.warning("Failed to send discovery packet: %s", exception)
@@ -405,5 +496,7 @@ class UDPListenerProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle received datagram."""
         # CRITICAL DEBUG: Log immediately to confirm this method is actually called
-        LOGGER.warning("!!! UDP DATAGRAM RECEIVED from %s, %d bytes !!!", addr, len(data))
+        LOGGER.warning(
+            "!!! UDP DATAGRAM RECEIVED from %s, %d bytes !!!", addr, len(data)
+        )
         self._callback(data, addr)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import voluptuous as vol
 from typing import Any
+
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 
@@ -50,15 +51,11 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Optional(
-                        CONF_ACTION_JID, default=DEFAULT_ACTION_JID
-                    ): str,
+                    vol.Optional(CONF_ACTION_JID, default=DEFAULT_ACTION_JID): str,
                     vol.Optional(
                         CONF_ACTION_SOURCE, default=DEFAULT_ACTION_SOURCE
                     ): str,
-                    vol.Optional(
-                        CONF_ACCOUNT, default=DEFAULT_ACCOUNT
-                    ): str,
+                    vol.Optional(CONF_ACCOUNT, default=DEFAULT_ACCOUNT): str,
                 }
             ),
             errors=errors,
@@ -101,7 +98,7 @@ class TclUdpOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_ACCOUNT,
                         default=self.config_entry.options.get(
                             CONF_ACCOUNT,
-                            self.config_entry.data.get(CONF_ACCOUNT, DEFAULT_ACCOUNT)
+                            self.config_entry.data.get(CONF_ACCOUNT, DEFAULT_ACCOUNT),
                         ),
                     ): str,
                 }
