@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 PLATFORMS: list[Platform] = [
     Platform.CLIMATE,
+    Platform.SWITCH,
+    Platform.SENSOR,
 ]
 
 

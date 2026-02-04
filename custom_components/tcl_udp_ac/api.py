@@ -86,6 +86,14 @@ class TclUdpApiClient:
         except (KeyError, AttributeError) as exception:
             LOGGER.error("Error processing status message: %s", exception)
 
+        return status
+
+    def _parse_bool_feature(self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]) -> None:
+        """Helper to parse boolean features."""
+        node = status_msg.find(tag)
+        if node is not None:
+             status[status_key] = node.get("value") == "1"
+
     def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
         """Parse status message XML."""
         status = {}
@@ -111,6 +119,24 @@ class TclUdpApiClient:
             except ValueError:
                 LOGGER.warning("Invalid inTemp value")
 
+        # Parse outdoor temperature
+        out_temp = status_msg.find("outTemp")
+        if out_temp is not None:
+            try:
+                # 176 is often used as a default/invalid value in some protocols
+                # We interpret it as is, entity layer can filter if needed
+                status["outdoor_temp"] = int(out_temp.get("value", "0"))
+            except ValueError:
+                LOGGER.warning("Invalid outTemp value")
+
+        # Parse boolean features
+        self._parse_bool_feature(status_msg, "optECO", "eco_mode", status)
+        self._parse_bool_feature(status_msg, "optDisplay", "display", status)
+        self._parse_bool_feature(status_msg, "optHealthy", "health_mode", status)
+        self._parse_bool_feature(status_msg, "optSleepMd", "sleep_mode", status)
+        self._parse_bool_feature(status_msg, "optSuper", "turbo_mode", status)
+        self._parse_bool_feature(status_msg, "beepEn", "beep", status)
+
         # Parse fan speed (windSpd)
         wind_spd = status_msg.find("windSpd")
         if wind_spd is not None:
@@ -120,9 +146,6 @@ class TclUdpApiClient:
                 LOGGER.warning("Invalid windSpd value")
 
         # Parse swing mode (directH/directV)
-        # Using simple boolean logic: if either is enabled, we consider swing on
-        # But for full control we might need to know which one.
-        # For now, let's just parse them.
         direct_h = status_msg.find("directH")
         if direct_h is not None:
             status["swing_h"] = direct_h.get("value") == "1"
@@ -196,6 +219,30 @@ class TclUdpApiClient:
     async def async_set_mode(self, mode: int) -> None:
         """Set operation mode."""
         await self.async_send_command("baseMode", str(mode))
+
+    async def async_set_eco_mode(self, enabled: bool) -> None:
+        """Set ECO mode."""
+        await self.async_send_command("optECO", "1" if enabled else "0")
+
+    async def async_set_display(self, enabled: bool) -> None:
+        """Set display on/off."""
+        await self.async_send_command("optDisplay", "1" if enabled else "0")
+
+    async def async_set_health_mode(self, enabled: bool) -> None:
+        """Set health mode."""
+        await self.async_send_command("optHealthy", "1" if enabled else "0")
+
+    async def async_set_sleep_mode(self, enabled: bool) -> None:
+        """Set sleep mode."""
+        await self.async_send_command("optSleepMd", "1" if enabled else "0")
+
+    async def async_set_turbo_mode(self, enabled: bool) -> None:
+        """Set turbo (super) mode."""
+        await self.async_send_command("optSuper", "1" if enabled else "0")
+
+    async def async_set_beep(self, enabled: bool) -> None:
+        """Set beep on/off."""
+        await self.async_send_command("beepEn", "1" if enabled else "0")
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
