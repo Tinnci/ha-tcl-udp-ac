@@ -496,6 +496,7 @@ class TclUdpApiClient:
         self._tasks.clear()
 
         await self.async_stop_listener()
+        # Listener teardown clears the loop reader; reset loop reference.
         self._loop = None
 
 
