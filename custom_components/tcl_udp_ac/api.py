@@ -75,6 +75,7 @@ class TclUdpApiClient:
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             self._listener_sock.setblocking(flag=False)
+            # Bind to all interfaces to receive broadcast packets from the LAN.
             self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))  # noqa: S104
 
             LOGGER.debug("UDP socket bound to %s", self._listener_sock.getsockname())
@@ -381,7 +382,8 @@ class TclUdpApiClient:
             if self._device_ip:
                 LOGGER.warning("Clearing discovered IP after failure")
                 self._device_ip = None
-            raise TclUdpApiClientCommunicationError from exception
+            msg = f"Send command failed: {exception}"
+            raise TclUdpApiClientCommunicationError(msg) from exception
 
     async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
