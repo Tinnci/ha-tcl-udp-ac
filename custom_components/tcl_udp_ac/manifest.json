@@ -1,0 +1,10 @@
+{
+  "domain": "tcl_udp_ac",
+  "name": "TCL UDP Air Conditioner",
+  "codeowners": ["@Tinnci"],
+  "config_flow": true,
+  "documentation": "https://github.com/Tinnci/ha-tcl-udp-ac",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Tinnci/ha-tcl-udp-ac/issues",
+  "version": "0.1.0"
+}
