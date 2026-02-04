@@ -34,6 +34,7 @@ from .const import (
 from .const import (
     LOGGER,
 )
+from .entity import TclUdpEntity
 from .const import (
     MODE_AUTO as TCL_MODE_AUTO,
 )
@@ -149,13 +150,26 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if not data:
             return HVACMode.OFF
 
-        # If power is off, return OFF
-        if not data.get("power"):
+        # If power is explicitly OFF, return OFF
+        if data.get("power") is False:
             return HVACMode.OFF
 
         # Read mode from device
-        mode_val = data.get("mode", MODE_COOL)  # Default to Cool if missing
-        return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
+        mode_val = data.get("mode")
+        if mode_val:
+            return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
+
+        # If power is explicitly ON but no mode, default to COOL
+        if data.get("power") is True:
+            return HVACMode.COOL
+
+        # If we have other signs of life (like target temp) but no power/mode tag,
+        # it's likely ON (most partial updates don't include power/mode)
+        if "target_temp" in data or "fan_speed" in data:
+            return HVACMode.COOL
+
+        # Default to OFF for unknown state
+        return HVACMode.OFF
 
     @property
     def fan_mode(self) -> str | None:
@@ -163,7 +177,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         data = self.coordinator.data
         if not data:
             return None
-        speed_val = data.get("fan_speed", FAN_SPEED_AUTO)
+        speed_val = data.get("fan_speed", TCL_FAN_AUTO)
         return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
 
     @property

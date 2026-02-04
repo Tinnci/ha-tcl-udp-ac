@@ -20,12 +20,13 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> Any:
         """Update data via library."""
-        # For UDP push-based updates, we just return the last known status
+        # For UDP push-based updates, we return the last known status
+        # But we also trigger a SyncStatusReq as a manual poll fallback
         try:
+            await self.config_entry.runtime_data.client.async_request_status()
             return self.config_entry.runtime_data.client.get_last_status()
         except TclUdpApiClientError:
-            # Log but don't fail - we rely on push updates
-            return {}
+            return self.config_entry.runtime_data.client.get_last_status()
 
     async def async_handle_status_update(self, status: dict[str, Any]) -> None:
         """Handle status update from UDP broadcast."""

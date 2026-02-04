@@ -56,6 +56,7 @@ class TclUdpApiClient:
         self._action_source = action_source
         self._account = account
         self._sequence = 0
+        self._last_received_seq: str | None = None
         self._device_mac = "00:00:00:00:00:00"  # Will be discovered
         self._device_ip: str | None = None  # Will be discovered
         self._device_port: int = 10075  # Default, may be updated from deviceInfo
@@ -125,11 +126,23 @@ class TclUdpApiClient:
             # Update Device IP from the sender's address
             # addr is (ip, port)
             sender_ip = addr[0]
+            sender_port = addr[1]
+
             if self._device_ip != sender_ip:
                 LOGGER.info(
                     "Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip
                 )
                 self._device_ip = sender_ip
+
+            # Most TCL devices send status from their control port (usually 10075)
+            # If we don't have a port yet, or it's different, update it.
+            if sender_port and sender_port != self._device_port:
+                LOGGER.info(
+                    "Device port discovered from sender: %d -> %d",
+                    self._device_port,
+                    sender_port,
+                )
+                self._device_port = sender_port
 
             # Parse XML - Local network only
             # Using defusedxml would be safer but for local network this is acceptable
@@ -181,18 +194,26 @@ class TclUdpApiClient:
 
             # Check if it's a status message
             # Matches cmd="status" (old) or type="Notify" (new/Java)
-            if root.get("cmd") == "status" or root.get("type") == "Notify":
+            msg_type = (root.get("type") or "").lower()
+            if root.get("cmd") == "status" or msg_type == "notify":
+                # De-duplicate identical packets (often arrive in bursts)
+                current_seq = root.get("seq")
+                if current_seq is not None and current_seq == self._last_received_seq:
+                    return
+                self._last_received_seq = current_seq
+
                 status_msg = root.find("statusUpdateMsg") or root.find(
                     "StatusUpdateMsg"
                 )
                 if status_msg is not None:
                     status = self._parse_status(status_msg)
-                    self._last_status = status
-                    LOGGER.debug("Parsed status: %s", status)
+                    # Merge with existing status to preserve missing fields in partial updates
+                    self._last_status.update(status)
+                    LOGGER.debug("Parsed status: %s (merged)", self._last_status)
 
-                    # Call the callback with new status
+                    # Call the callback with the full current status
                     if self._status_callback:
-                        task = asyncio.create_task(self._status_callback(status))
+                        task = asyncio.create_task(self._status_callback(self._last_status))
                         self._tasks.add(task)
                         task.add_done_callback(self._tasks.discard)
         except ET.ParseError as exception:
@@ -228,60 +249,67 @@ class TclUdpApiClient:
     def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
         """Parse status message XML, supporting multiple formats."""
         status = {}
+        parsed_tags = set()
+
+        def get_and_record(tag_names: list[str]) -> ET.Element | None:
+            for name in tag_names:
+                node = status_msg.find(name)
+                if node is not None:
+                    parsed_tags.add(node.tag)
+                    return node
+            return None
 
         # Parse power state (TurnOn/turnOn)
-        node = status_msg.find("TurnOn") or status_msg.find("turnOn")
+        node = get_and_record(["TurnOn", "turnOn", "Power", "power"])
         val = self._get_node_value(node)
         if val:
             status["power"] = val.lower() == "on" or val == "1"
 
         # Parse set temperature (SetTemp/setTemp)
-        # Note: Java protocol sends/receives Fahrenheit. We need to detect reasonable range?
-        # Or assume if > 50 it's likely F.
-        node = status_msg.find("SetTemp") or status_msg.find("setTemp")
+        node = get_and_record(["SetTemp", "setTemp"])
         val = self._get_node_value(node)
         if val:
             try:
-                temp_val = int(val)
-                # Heuristic: If temp > 40, assume Fahrenheit and convert to Celsius for HA
-                if temp_val > 45:
-                    status["target_temp"] = int((temp_val - 32) * 5 / 9)
-                else:
-                    status["target_temp"] = temp_val
+                status["target_temp"] = int(val)
             except ValueError:
                 LOGGER.warning("Invalid SetTemp value: %s", val)
 
-        # Parse indoor temperature (InTemp/inTemp)
-        node = status_msg.find("InTemp") or status_msg.find("inTemp")
+        # Parse indoor temperature (InTemp/inTemp/IndoorTemp)
+        node = get_and_record(["InTemp", "inTemp", "IndoorTemp", "indoorTemp"])
         val = self._get_node_value(node)
         if val:
             try:
-                temp_val = int(val)
-                if temp_val > 45:
-                    status["current_temp"] = int((temp_val - 32) * 5 / 9)
-                else:
-                    status["current_temp"] = temp_val
+                status["current_temp"] = int(val)
             except ValueError:
                 LOGGER.warning("Invalid InTemp value: %s", val)
 
-        # Parse boolean features using helper (handles case variations)
-        self._parse_bool_feature(status_msg, "OptECO", "eco_mode", status)
-        self._parse_bool_feature(status_msg, "OptDisplay", "display", status)
-        self._parse_bool_feature(status_msg, "OptHealthy", "health_mode", status)
-        self._parse_bool_feature(
-            status_msg, "Opt_sleepMode", "sleep_mode", status
-        )  # Java tag uses underscore
-        self._parse_bool_feature(status_msg, "Opt_super", "turbo_mode", status)
-        self._parse_bool_feature(status_msg, "BeepEnable", "beep", status)
-        # Parse fan speed (WindSpeed/windSpd)
-        node = status_msg.find("WindSpeed") or status_msg.find("windSpd")
+        # Parse outdoor temperature (OutTemp/outTemp/OutdoorTemp)
+        node = get_and_record(["OutTemp", "outTemp", "OutdoorTemp", "outdoorTemp"])
         val = self._get_node_value(node)
         if val:
-            # Map string values to HA integers or keep strings?
-            # Integration expects integers 0-3 usually? Let's check consumer.
-            # Wait, `fan_speed` in HA implies mode.
-            # Java values: high, middle, low, auto
-            # Mapping: high=3, middle=2, low=1, auto=0 (example)
+            try:
+                status["outdoor_temp"] = int(val)
+            except ValueError:
+                LOGGER.warning("Invalid OutTemp value: %s", val)
+
+        # Parse boolean features using local helper
+        def parse_bool(tags: list[str], key: str) -> None:
+            node = get_and_record(tags)
+            val = self._get_node_value(node)
+            if val is not None:
+                status[key] = val.lower() == "on" or val == "1"
+
+        parse_bool(["OptECO", "optECO", "Opt_ECO"], "eco_mode")
+        parse_bool(["OptDisplay", "optDisplay", "Opt_display"], "display")
+        parse_bool(["OptHealthy", "optHealthy", "Opt_healthy"], "health_mode")
+        parse_bool(["Opt_sleepMode", "sleepMode", "SleepMode"], "sleep_mode")
+        parse_bool(["Opt_super", "superMode", "SuperMode", "OptSuper"], "turbo_mode")
+        parse_bool(["BeepEnable", "beepEn", "BeepEn"], "beep")
+
+        # Parse fan speed (WindSpeed/windSpd)
+        node = get_and_record(["WindSpeed", "windSpd", "WindSpd"])
+        val = self._get_node_value(node)
+        if val:
             v = val.lower()
             if v == "high":
                 status["fan_speed"] = FAN_HIGH
@@ -292,29 +320,17 @@ class TclUdpApiClient:
             elif v == "auto":
                 status["fan_speed"] = FAN_AUTO
             else:
-                status["fan_speed"] = v  # Fallback
+                status["fan_speed"] = v
 
-        # Parse swing mode (WindDirection_H/V or directH/V)
-        node_h = status_msg.find("WindDirection_H") or status_msg.find("directH")
-        val_h = self._get_node_value(node_h)
-        if val_h:
-            status["swing_h"] = val_h.lower() == "on" or val_h == "1"
-
-        node_v = status_msg.find("WindDirection_V") or status_msg.find("directV")
-        val_v = self._get_node_value(node_v)
-        if val_v:
-            status["swing_v"] = val_v.lower() == "on" or val_v == "1"
+        # Parse swing mode
+        parse_bool(["WindDirection_H", "directH", "directh"], "swing_h")
+        parse_bool(["WindDirection_V", "directV", "directv"], "swing_v")
 
         # Parse mode (BaseMode/baseMode)
-        node = status_msg.find("BaseMode") or status_msg.find("baseMode")
+        node = get_and_record(["BaseMode", "baseMode", "Mode", "mode"])
         val = self._get_node_value(node)
         if val:
-            # Java values: cool, heat, fan, dehumi, selffeel
-            # Mapping to integers expected by Entity?
-            # Looking at previous code, it expected int(value).
-            # We need to map string back to int if entity expects int.
             v = val.lower()
-            # 1=cool, 2=heat, 3=fan, 4=dry, 5=auto (Standard guess)
             if v == "cool":
                 status["mode"] = MODE_COOL
             elif v == "heat":
@@ -326,7 +342,21 @@ class TclUdpApiClient:
             elif v == "selffeel":
                 status["mode"] = MODE_AUTO
             else:
-                status["mode"] = v  # Fallback
+                status["mode"] = v
+
+        # Log any unparsed tags for debugging
+        for child in status_msg:
+            if child.tag not in parsed_tags and child.tag not in [
+                "actionSource",
+                "action_source",
+            ]:
+                LOGGER.debug(
+                    "Unknown tag in statusUpdateMsg: %s = %s",
+                    child.tag,
+                    self._get_node_value(child),
+                )
+
+        return status
 
         return status
 
@@ -382,10 +412,9 @@ class TclUdpApiClient:
         await self.async_send_command("TurnOn", "on" if power else "off")
 
     async def async_set_temperature(self, temperature: int) -> None:
-        """Set target temperature (converts Celsius to Fahrenheit)."""
+        """Set target temperature."""
         # Java: <SetTemp>78</SetTemp> (Fahrenheit integer)
-        fahrenheit = int(temperature * 9 / 5 + 32)
-        await self.async_send_command("SetTemp", str(fahrenheit))
+        await self.async_send_command("SetTemp", str(temperature))
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
@@ -438,13 +467,25 @@ class TclUdpApiClient:
 
             LOGGER.debug("Sending Discovery: %s", xml_command)
 
+            # Send SearchDevice to broadcast
             self._listener_sock.sendto(
                 xml_command.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),  # 10075
             )
 
-            # JSON Discovery (Optional/Alternative seen in some packet dumps)
-            # Keeping it as a backup but Java source relies on XML.
+            # If we already have an IP, also send a SyncStatusReq directly to it
+            # This is syncMsg1 from UdpComm.java
+            if self._device_ip:
+                sync_xml = (
+                    f'<msg msgid="SyncStatusReq" type="Notify" seq="{self._sequence}">'
+                    f"<SyncStatusReq></SyncStatusReq></msg>"
+                )
+                self._listener_sock.sendto(
+                    sync_xml.encode("utf-8"),
+                    (self._device_ip, self._device_port),
+                )
+
+            # JSON Discovery (Optional/Alternative)
             json_search = json.dumps(
                 {
                     "msgId": str(random.randint(1000, 9999)),
@@ -456,13 +497,33 @@ class TclUdpApiClient:
                 json_search.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
-
-        except OSError as exception:
-            LOGGER.warning("Failed to send discovery packet: %s", exception)
-
             LOGGER.debug("Sent discovery (XML and JSON)")
+
         except OSError as exception:
             LOGGER.warning("Failed to send discovery packet: %s", exception)
+
+    async def async_request_status(self) -> None:
+        """Explicitly request a full status update from the device (SyncStatusReq)."""
+        if not self._device_ip:
+            await self.async_send_discovery()
+            return
+
+        try:
+            self._sequence += 1
+            # TclDeviceSendTool.java uses type="Control"
+            # UdpComm.java uses type="Notify"
+            # We send both to be sure
+            for msg_type in ["Control", "Notify"]:
+                xml = (
+                    f'<msg msgid="SyncStatusReq" type="{msg_type}" seq="{self._sequence}">'
+                    f"<SyncStatusReq></SyncStatusReq></msg>"
+                )
+                LOGGER.debug("Sending SyncStatusReq (%s) to %s", msg_type, self._device_ip)
+                self._listener_sock.sendto(
+                    xml.encode("utf-8"), (self._device_ip, self._device_port)
+                )
+        except OSError as exception:
+            LOGGER.error("Failed to send SyncStatusReq: %s", exception)
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
@@ -481,9 +542,6 @@ class TclUdpApiClient:
         self._tasks.clear()
 
         await self.async_stop_listener()
-        if self._command_sock:
-            self._command_sock.close()
-            self._command_sock = None
 
 
 class UDPListenerProtocol(asyncio.DatagramProtocol):
