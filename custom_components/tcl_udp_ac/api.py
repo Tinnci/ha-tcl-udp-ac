@@ -88,10 +88,24 @@ class TclUdpApiClient:
             parser.entity = {}  # Disable entity resolution
             root = ET.fromstring(message, parser=parser)  # noqa: S314
 
-            # Capture device MAC if available
+            # Check if it's a deviceInfo response (Discovery)
+            if root.tag == "deviceInfo":
+                dev_ip = root.findtext("devIP")
+                dev_mac = root.findtext("devMac")
+                
+                if dev_ip and self._device_ip != dev_ip:
+                    LOGGER.info("Device IP discovered via deviceInfo: %s -> %s", self._device_ip, dev_ip)
+                    self._device_ip = dev_ip
+                
+                if dev_mac and self._device_mac != dev_mac:
+                    LOGGER.info("Device MAC discovered via deviceInfo: %s", dev_mac)
+                    self._device_mac = dev_mac
+                return
+
+            # Capture device MAC if available (standard msg)
             dev_id = root.get("devid")
             if dev_id and dev_id != self._device_mac:
-                LOGGER.info("Device MAC discovered: %s", dev_id)
+                LOGGER.info("Device MAC discovered via header: %s", dev_id)
                 self._device_mac = dev_id
 
             # Check if it's a status message
@@ -199,8 +213,9 @@ class TclUdpApiClient:
             seq = str(self._sequence)
             
             # Construct full spoofed XML packet
+            # Strict ordering: cmd -> type -> seq -> devid
             xml_command = (
-                f'<msg cmd="control" seq="{seq}" devid="{self._device_mac}" type="control">'
+                f'<msg cmd="control" type="control" seq="{seq}" devid="{self._device_mac}">'
                 f'<control>'
                 f'<actionJid value="{self._action_jid}"/>'
                 f'<actionSource value="{self._action_source}"/>'
@@ -240,13 +255,25 @@ class TclUdpApiClient:
         """
         Get or create command socket.
 
-        Uses setblocking(False) for compatibility with asyncio's sock_sendto.
-        The socket is used with asyncio's sock_sendto method which requires
-        a non-blocking socket for async operations.
+        CRITICAL: Must bind to port 10074 (same as listener) because the AC
+        replies to the SOURCE PORT of the request. If we use a random ephemeral
+        port, the AC will reply there and our listener on 10074 won't receive it.
+        
+        Uses SO_REUSEADDR and SO_REUSEPORT to allow sharing port 10074 with listener.
         """
         if self._command_sock is None:
             self._command_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # SO_REUSEPORT allows multiple sockets to bind to same port
+            # Not available on all platforms but critical for this use case
+            try:
+                self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except AttributeError:
+                # SO_REUSEPORT not available on this platform
+                pass
             self._command_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            # Bind to port 10074 so replies come back here
+            self._command_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
             # Required for asyncio sock_sendto compatibility
             self._command_sock.setblocking(False)  # noqa: FBT003
         return self._command_sock
@@ -307,16 +334,10 @@ class TclUdpApiClient:
             # Discovery command
             # Using type="get" to request status. 
             # devid is unknown so using default or empty.
-            # We broadcast this to the network.
-            xml_command = (
-                f'<msg cmd="status" seq="{seq}" devid="00:00:00:00:00:00" type="get">'
-                f'<control>'
-                f'<actionJid value="{self._action_jid}"/>'
-                f'<actionSource value="{self._action_source}"/>'
-                f'<account value="{self._account}"/>'
-                f'</control>'
-                f'</msg>'
-            )
+            # Discovery command
+            # Confirmed via pcap: The device responds to <searchDevice></searchDevice>
+            # It also responds to JSON but we use XML.
+            xml_command = '<searchDevice></searchDevice>'
             
             LOGGER.debug("Sending discovery: %s", xml_command)
 
