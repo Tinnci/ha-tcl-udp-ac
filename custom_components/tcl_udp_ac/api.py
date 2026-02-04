@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
+import secrets
 import socket
 import xml.etree.ElementTree as ET
 from typing import Any
@@ -43,6 +43,8 @@ class TclUdpApiClient:
         account: str = "homeassistant",
     ) -> None:
         """Initialize the API client."""
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._bind_host: str | None = None
         self._listener_sock: socket.socket | None = None
         self._listener_transport: asyncio.DatagramTransport | None = (
             None  # Keep for compatibility
@@ -65,6 +67,7 @@ class TclUdpApiClient:
         self._status_callback = status_callback
         # Use get_running_loop() in async context - more reliable than get_event_loop()
         loop = asyncio.get_running_loop()
+        self._loop = loop
 
         try:
             # Create raw socket manually - more reliable than create_datagram_endpoint
@@ -72,12 +75,11 @@ class TclUdpApiClient:
             self._listener_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self._listener_sock.setblocking(False)
-            self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
+            self._listener_sock.setblocking(False)  # noqa: FBT003
+            bind_host = self._resolve_bind_host()
+            self._listener_sock.bind((bind_host, UDP_BROADCAST_PORT))
 
-            LOGGER.warning(
-                "!!! SOCKET CREATED: bound to %s !!!", self._listener_sock.getsockname()
-            )
+            LOGGER.debug("UDP socket bound to %s", self._listener_sock.getsockname())
 
             # Use add_reader for direct event loop integration
             # This bypasses asyncio's DatagramProtocol which may have issues
@@ -94,28 +96,62 @@ class TclUdpApiClient:
             raise TclUdpApiClientCommunicationError(msg) from exception
 
     def _on_socket_readable(self) -> None:
-        """Called when socket has data to read."""
+        """Handle readable socket events."""
+        if not self._listener_sock:
+            return
         try:
             data, addr = self._listener_sock.recvfrom(4096)
-            LOGGER.warning(
-                "!!! RAW SOCKET RECEIVED %d bytes from %s !!!", len(data), addr
-            )
+            LOGGER.debug("Received %d bytes from %s", len(data), addr)
             self._handle_status_update(data, addr)
         except BlockingIOError:
-            pass  # No data available
-        except Exception as e:
-            LOGGER.error("Error reading from socket: %s", e)
+            return
+        except OSError as exc:
+            LOGGER.error("Error reading from socket: %s", exc)
+
+    def _resolve_bind_host(self) -> str:
+        """Resolve the bind host for the UDP listener."""
+        if self._bind_host:
+            return self._bind_host
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.setblocking(False)  # noqa: FBT003
+            try:
+                probe.connect(("8.8.8.8", UDP_COMMAND_PORT))
+                self._bind_host = probe.getsockname()[0]
+            except OSError:
+                self._bind_host = None
+
+        if not self._bind_host or self._bind_host.startswith("127."):
+            self._bind_host = self._resolve_fallback_bind_host()
+
+        return self._bind_host
+
+    def _resolve_fallback_bind_host(self) -> str:
+        """Resolve a non-loopback bind host as a fallback."""
+        try:
+            _, _, addresses = socket.gethostbyname_ex(socket.gethostname())
+        except OSError:
+            addresses = []
+
+        for address in addresses:
+            if not address.startswith("127."):
+                return address
+
+        return "127.0.0.1"
 
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
         if self._listener_sock:
-            loop = asyncio.get_running_loop()
-            loop.remove_reader(self._listener_sock.fileno())
+            if self._loop:
+                self._loop.remove_reader(self._listener_sock.fileno())
             self._listener_sock.close()
             self._listener_sock = None
             LOGGER.info("UDP listener stopped")
+        self._bind_host = None
 
-    def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
+    def _handle_status_update(  # noqa: PLR0912
+        self, data: bytes, addr: tuple[str, int]
+    ) -> None:
         """Handle incoming status update from device."""
         try:
             message = data.decode("utf-8")
@@ -123,7 +159,6 @@ class TclUdpApiClient:
             LOGGER.debug("Received UDP message from %s: %s", addr, message)
 
             # Update Device IP from the sender's address
-            # addr is (ip, port)
             sender_ip = addr[0]
             if self._device_ip != sender_ip:
                 LOGGER.info(
@@ -137,8 +172,8 @@ class TclUdpApiClient:
 
             # Check if it's a deviceInfo response (Discovery)
             if root.tag == "deviceInfo":
-                # Java protocol uses PascalCase (DevIP, DevMac, DevPort) but old logs saw camelCase
-                # We check both for robustness
+                # Java protocol uses PascalCase (DevIP, DevMac, DevPort),
+                # but old logs saw camelCase. We check both for robustness.
                 dev_ip = root.findtext("DevIP") or root.findtext("devIP")
                 dev_mac = (
                     root.findtext("DevMAC")
@@ -216,7 +251,7 @@ class TclUdpApiClient:
     def _parse_bool_feature(
         self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
     ) -> None:
-        """Helper to parse boolean features from both XML formats."""
+        """Parse boolean features from multiple XML formats."""
         # Try PascalCase (Java) and camelCase (Old)
         node = status_msg.find(tag) or status_msg.find(tag[0].lower() + tag[1:])
         val = self._get_node_value(node)
@@ -225,7 +260,9 @@ class TclUdpApiClient:
             # Handle 'on'/'off' and '1'/'0'
             status[status_key] = val.lower() == "on" or val == "1"
 
-    def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
+    def _parse_status(  # noqa: PLR0912, PLR0915
+        self, status_msg: ET.Element
+    ) -> dict[str, Any]:
         """Parse status message XML, supporting multiple formats."""
         status = {}
 
@@ -236,18 +273,12 @@ class TclUdpApiClient:
             status["power"] = val.lower() == "on" or val == "1"
 
         # Parse set temperature (SetTemp/setTemp)
-        # Note: Java protocol sends/receives Fahrenheit. We need to detect reasonable range?
-        # Or assume if > 50 it's likely F.
         node = status_msg.find("SetTemp") or status_msg.find("setTemp")
         val = self._get_node_value(node)
         if val:
             try:
                 temp_val = int(val)
-                # Heuristic: If temp > 40, assume Fahrenheit and convert to Celsius for HA
-                if temp_val > 45:
-                    status["target_temp"] = int((temp_val - 32) * 5 / 9)
-                else:
-                    status["target_temp"] = temp_val
+                status["target_temp"] = temp_val
             except ValueError:
                 LOGGER.warning("Invalid SetTemp value: %s", val)
 
@@ -257,12 +288,19 @@ class TclUdpApiClient:
         if val:
             try:
                 temp_val = int(val)
-                if temp_val > 45:
-                    status["current_temp"] = int((temp_val - 32) * 5 / 9)
-                else:
-                    status["current_temp"] = temp_val
+                status["current_temp"] = temp_val
             except ValueError:
                 LOGGER.warning("Invalid InTemp value: %s", val)
+
+        # Parse outdoor temperature (OutTemp/outTemp) reported in Fahrenheit.
+        node = status_msg.find("OutTemp") or status_msg.find("outTemp")
+        val = self._get_node_value(node)
+        if val:
+            try:
+                temp_val = int(val)
+                status["outdoor_temp"] = temp_val
+            except ValueError:
+                LOGGER.warning("Invalid OutTemp value: %s", val)
 
         # Parse boolean features using helper (handles case variations)
         self._parse_bool_feature(status_msg, "OptECO", "eco_mode", status)
@@ -343,21 +381,29 @@ class TclUdpApiClient:
             self._sequence += 1
             seq = str(self._sequence)
 
-            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java)
-            # <msg tclid="MAC" msgid="SetMessage" type="Control" seq="123">
-            #   <SetMessage>
-            #     <TurnOn>on</TurnOn>
-            #   </SetMessage>
-            # </msg>
-            xml_command = (
-                f'<msg tclid="{self._device_mac}" msgid="SetMessage" type="Control" seq="{seq}">'
-                f"<SetMessage>"
-                f"<{command}>{value}</{command}>"
-                f"</SetMessage>"
-                f"</msg>"
+            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java).
+            msg = ET.Element(
+                "msg",
+                {
+                    "tclid": self._device_mac,
+                    "msgid": "SetMessage",
+                    "type": "Control",
+                    "seq": seq,
+                },
             )
+            set_message = ET.SubElement(msg, "SetMessage")
+            command_node = ET.SubElement(set_message, command)
+            command_node.text = value
+            xml_command = ET.tostring(msg, encoding="unicode")
 
             LOGGER.debug("Sending SetMessage: %s", xml_command)
+
+            if not self._listener_sock:
+                LOGGER.warning(
+                    "Cannot send command: UDP listener not initialized. "
+                    "Ensure async_start_listener() was called."
+                )
+                return
 
             # Send to discovered device port (mandatory per Java logic)
             if self._device_ip and self._device_port:
@@ -372,11 +418,10 @@ class TclUdpApiClient:
             if self._device_ip:
                 LOGGER.warning("Clearing discovered IP after failure")
                 self._device_ip = None
-            raise TclUdpApiClientCommunicationError(
-                f"Error sending command: {exception}"
-            ) from exception
+            msg = f"Send command failed: {exception}"
+            raise TclUdpApiClientCommunicationError(msg) from exception
 
-    async def async_set_power(self, power: bool) -> None:
+    async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
         # Java: <TurnOn>on</TurnOn> or <TurnOn>off</TurnOn>
         await self.async_send_command("TurnOn", "on" if power else "off")
@@ -392,7 +437,7 @@ class TclUdpApiClient:
         # Java: <WindSpeed>high</WindSpeed>
         await self.async_send_command("WindSpeed", speed_str)
 
-    async def async_set_swing(self, vertical: bool, horizontal: bool) -> None:
+    async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
         """Set swing mode."""
         # Java: <WindDirection_V>on</WindDirection_V>
         await self.async_send_command("WindDirection_V", "on" if vertical else "off")
@@ -403,34 +448,41 @@ class TclUdpApiClient:
         # Java: <BaseMode>cool</BaseMode>
         await self.async_send_command("BaseMode", mode_str)
 
-    async def async_set_eco_mode(self, enabled: bool) -> None:
+    async def async_set_eco_mode(self, *, enabled: bool) -> None:
         """Set ECO mode."""
         # Java: <Opt_ECO>on</Opt_ECO>
         await self.async_send_command("Opt_ECO", "on" if enabled else "off")
 
-    async def async_set_display(self, enabled: bool) -> None:
+    async def async_set_display(self, *, enabled: bool) -> None:
         """Set display on/off."""
         await self.async_send_command("OptDisplay", "on" if enabled else "off")
 
-    async def async_set_health_mode(self, enabled: bool) -> None:
+    async def async_set_health_mode(self, *, enabled: bool) -> None:
         """Set health mode."""
         await self.async_send_command("OptHealthy", "on" if enabled else "off")
 
-    async def async_set_sleep_mode(self, enabled: bool) -> None:
+    async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         """Set sleep mode."""
         await self.async_send_command("Opt_sleepMode", "on" if enabled else "off")
 
-    async def async_set_turbo_mode(self, enabled: bool) -> None:
+    async def async_set_turbo_mode(self, *, enabled: bool) -> None:
         """Set turbo (super) mode."""
         await self.async_send_command("Opt_super", "on" if enabled else "off")
 
-    async def async_set_beep(self, enabled: bool) -> None:
+    async def async_set_beep(self, *, enabled: bool) -> None:
         """Set beep on/off."""
         # Java: <BeepEnable>on</BeepEnable>
         await self.async_send_command("BeepEnable", "on" if enabled else "off")
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
+        if not self._listener_sock:
+            LOGGER.warning(
+                "Cannot send discovery: UDP listener not initialized. "
+                "Ensure async_start_listener() was called."
+            )
+            return
+
         try:
             self._sequence += 1
             # Java: sendMulticast() -> <message msgid="SearchDevice"></message>
@@ -445,9 +497,10 @@ class TclUdpApiClient:
 
             # JSON Discovery (Optional/Alternative seen in some packet dumps)
             # Keeping it as a backup but Java source relies on XML.
+            # Use secrets to avoid predictable IDs flagged by security linting.
             json_search = json.dumps(
                 {
-                    "msgId": str(random.randint(1000, 9999)),
+                    "msgId": str(secrets.randbelow(9000) + 1000),
                     "version": "123",
                     "method": "searchReq",
                 }
@@ -456,10 +509,6 @@ class TclUdpApiClient:
                 json_search.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
-
-        except OSError as exception:
-            LOGGER.warning("Failed to send discovery packet: %s", exception)
-
             LOGGER.debug("Sent discovery (XML and JSON)")
         except OSError as exception:
             LOGGER.warning("Failed to send discovery packet: %s", exception)
@@ -481,9 +530,8 @@ class TclUdpApiClient:
         self._tasks.clear()
 
         await self.async_stop_listener()
-        if self._command_sock:
-            self._command_sock.close()
-            self._command_sock = None
+        # Listener teardown clears the loop reader; reset loop reference.
+        self._loop = None
 
 
 class UDPListenerProtocol(asyncio.DatagramProtocol):
@@ -495,8 +543,5 @@ class UDPListenerProtocol(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle received datagram."""
-        # CRITICAL DEBUG: Log immediately to confirm this method is actually called
-        LOGGER.warning(
-            "!!! UDP DATAGRAM RECEIVED from %s, %d bytes !!!", addr, len(data)
-        )
+        LOGGER.debug("UDP datagram received from %s, %d bytes", addr, len(data))
         self._callback(data, addr)

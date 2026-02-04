@@ -49,6 +49,7 @@ from .const import (
 from .const import (
     MODE_HEAT as TCL_MODE_HEAT,
 )
+from .entity import TclUdpEntity
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -154,7 +155,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             return HVACMode.OFF
 
         # Read mode from device
-        mode_val = data.get("mode", MODE_COOL)  # Default to Cool if missing
+        mode_val = data.get("mode", TCL_MODE_COOL)  # Default to Cool if missing
         return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
 
     @property
@@ -163,7 +164,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         data = self.coordinator.data
         if not data:
             return None
-        speed_val = data.get("fan_speed", FAN_SPEED_AUTO)
+        speed_val = data.get("fan_speed", TCL_FAN_AUTO)
         return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
 
     @property

@@ -59,7 +59,7 @@ async def async_setup_entry(
 class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     """TCL UDP Switch class."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         coordinator: TclUdpDataUpdateCoordinator,
         api_key: str,
@@ -90,7 +90,7 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         client = self.coordinator.config_entry.runtime_data.client
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
-            await getattr(client, method_name)(True)
+            await getattr(client, method_name)(enabled=True)
             await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
@@ -98,5 +98,5 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         client = self.coordinator.config_entry.runtime_data.client
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
-            await getattr(client, method_name)(False)
+            await getattr(client, method_name)(enabled=False)
             await self.coordinator.async_request_refresh()
