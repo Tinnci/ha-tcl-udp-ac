@@ -74,7 +74,7 @@ class TclUdpApiClient:
             self._listener_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self._listener_sock.setblocking(flag=False)
+            self._listener_sock.setblocking(False)  # noqa: FBT003
             # Bind to all interfaces to receive broadcast packets from the LAN.
             self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))  # noqa: S104
 
