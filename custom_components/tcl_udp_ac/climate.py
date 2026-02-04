@@ -5,6 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from homeassistant.components.climate import (
+    FAN_AUTO,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MEDIUM,
+    SWING_BOTH,
+    SWING_HORIZONTAL,
+    SWING_OFF,
+    SWING_VERTICAL,
     ClimateEntity,
     ClimateEntityFeature,
     HVACMode,
@@ -20,6 +28,26 @@ if TYPE_CHECKING:
 
     from .coordinator import TclUdpDataUpdateCoordinator
     from .data import TclUdpConfigEntry
+
+# Protocol mappings
+# Fan Speed: 0=Auto, 1=Low, 2=Med, 3=High
+FAN_MODE_MAP = {
+    FAN_AUTO: 0,
+    FAN_LOW: 1,
+    FAN_MEDIUM: 2,
+    FAN_HIGH: 3,
+}
+FAN_MODE_MAP_REV = {v: k for k, v in FAN_MODE_MAP.items()}
+
+# mode: 0=Auto, 1=Cool, 2=Dry, 3=Fan, 4=Heat
+HVAC_MODE_MAP = {
+    HVACMode.AUTO: 0,
+    HVACMode.COOL: 1,
+    HVACMode.DRY: 2,
+    HVACMode.FAN_ONLY: 3,
+    HVACMode.HEAT: 4,
+}
+HVAC_MODE_MAP_REV = {v: k for k, v in HVAC_MODE_MAP.items()}
 
 
 async def async_setup_entry(
@@ -39,8 +67,29 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.TURN_ON
         | ClimateEntityFeature.TURN_OFF
+        | ClimateEntityFeature.FAN_MODE
+        | ClimateEntityFeature.SWING_MODE
     )
-    _attr_hvac_modes: ClassVar[list[HVACMode]] = [HVACMode.OFF, HVACMode.COOL]
+    _attr_hvac_modes: ClassVar[list[HVACMode]] = [
+        HVACMode.OFF,
+        HVACMode.AUTO,
+        HVACMode.COOL,
+        HVACMode.DRY,
+        HVACMode.FAN_ONLY,
+        HVACMode.HEAT,
+    ]
+    _attr_fan_modes: ClassVar[list[str]] = [
+        FAN_AUTO,
+        FAN_LOW,
+        FAN_MEDIUM,
+        FAN_HIGH,
+    ]
+    _attr_swing_modes: ClassVar[list[str]] = [
+        SWING_OFF,
+        SWING_VERTICAL,
+        SWING_HORIZONTAL,
+        SWING_BOTH,
+    ]
     _attr_min_temp = 60
     _attr_max_temp = 86
     _attr_target_temperature_step = 1
@@ -68,9 +117,44 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     @property
     def hvac_mode(self) -> HVACMode:
         """Return the current HVAC mode."""
-        if self.coordinator.data and "power" in self.coordinator.data:
-            return HVACMode.COOL if self.coordinator.data["power"] else HVACMode.OFF
-        return HVACMode.OFF
+        data = self.coordinator.data
+        if not data:
+            return HVACMode.OFF
+            
+        # If power is off, return OFF
+        if not data.get("power"):
+            return HVACMode.OFF
+
+        # Read mode from device
+        mode_val = data.get("mode", 1)  # Default to Cool if missing
+        return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
+
+    @property
+    def fan_mode(self) -> str | None:
+        """Return the fan setting."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        speed_val = data.get("fan_speed", 0)
+        return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
+
+    @property
+    def swing_mode(self) -> str | None:
+        """Return the swing setting."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        
+        swing_h = data.get("swing_h", False)
+        swing_v = data.get("swing_v", False)
+
+        if swing_h and swing_v:
+            return SWING_BOTH
+        if swing_h:
+            return SWING_HORIZONTAL
+        if swing_v:
+            return SWING_VERTICAL
+        return SWING_OFF
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -79,20 +163,51 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             LOGGER.debug("Setting temperature to %s", temperature)
             client = self.coordinator.config_entry.runtime_data.client
             await client.async_set_temperature(int(temperature))
-            # Optimistically update state
             await self.coordinator.async_request_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
         LOGGER.debug("Setting HVAC mode to %s", hvac_mode)
-        power_on = hvac_mode != HVACMode.OFF
         client = self.coordinator.config_entry.runtime_data.client
-        await client.async_set_power(power_on=power_on)
-        # Optimistically update state
+
+        if hvac_mode == HVACMode.OFF:
+            await client.async_set_power(power_on=False)
+        else:
+            # Ensure power is on
+            if not self.coordinator.data.get("power"):
+                await client.async_set_power(power_on=True)
+            
+            # Send mode command
+            udp_mode = HVAC_MODE_MAP.get(hvac_mode)
+            if udp_mode is not None:
+                await client.async_set_mode(udp_mode)
+
+        await self.coordinator.async_request_refresh()
+
+    async def async_set_fan_mode(self, fan_mode: str) -> None:
+        """Set new fan mode."""
+        LOGGER.debug("Setting fan mode to %s", fan_mode)
+        client = self.coordinator.config_entry.runtime_data.client
+        
+        speed_val = FAN_MODE_MAP.get(fan_mode)
+        if speed_val is not None:
+            await client.async_set_fan_speed(speed_val)
+            await self.coordinator.async_request_refresh()
+
+    async def async_set_swing_mode(self, swing_mode: str) -> None:
+        """Set new swing mode."""
+        LOGGER.debug("Setting swing mode to %s", swing_mode)
+        client = self.coordinator.config_entry.runtime_data.client
+        
+        vertical = swing_mode in (SWING_VERTICAL, SWING_BOTH)
+        horizontal = swing_mode in (SWING_HORIZONTAL, SWING_BOTH)
+        
+        await client.async_set_swing(vertical=vertical, horizontal=horizontal)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self) -> None:
         """Turn on the AC."""
+        # Restore last known mode or default to COOL
         await self.async_set_hvac_mode(HVACMode.COOL)
 
     async def async_turn_off(self) -> None:

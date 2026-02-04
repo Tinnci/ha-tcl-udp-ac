@@ -111,6 +111,34 @@ class TclUdpApiClient:
             except ValueError:
                 LOGGER.warning("Invalid inTemp value")
 
+        # Parse fan speed (windSpd)
+        wind_spd = status_msg.find("windSpd")
+        if wind_spd is not None:
+             try:
+                status["fan_speed"] = int(wind_spd.get("value", "0"))
+             except ValueError:
+                LOGGER.warning("Invalid windSpd value")
+
+        # Parse swing mode (directH/directV)
+        # Using simple boolean logic: if either is enabled, we consider swing on
+        # But for full control we might need to know which one.
+        # For now, let's just parse them.
+        direct_h = status_msg.find("directH")
+        if direct_h is not None:
+            status["swing_h"] = direct_h.get("value") == "1"
+
+        direct_v = status_msg.find("directV")
+        if direct_v is not None:
+            status["swing_v"] = direct_v.get("value") == "1"
+
+        # Parse mode (baseMode)
+        base_mode = status_msg.find("baseMode")
+        if base_mode is not None:
+            try:
+                status["mode"] = int(base_mode.get("value", "0"))
+            except ValueError:
+                LOGGER.warning("Invalid baseMode value")
+
         return status
 
     async def async_send_command(self, command: str, value: str) -> None:
@@ -154,6 +182,20 @@ class TclUdpApiClient:
     async def async_set_temperature(self, temperature: int) -> None:
         """Set target temperature."""
         await self.async_send_command("setTemp", str(temperature))
+
+    async def async_set_fan_speed(self, speed: int) -> None:
+        """Set fan speed."""
+        await self.async_send_command("windSpd", str(speed))
+
+    async def async_set_swing(self, vertical: bool, horizontal: bool) -> None:
+        """Set swing mode."""
+        # This might need refinement based on exact protocol behavior
+        await self.async_send_command("directV", "1" if vertical else "0")
+        await self.async_send_command("directH", "1" if horizontal else "0")
+
+    async def async_set_mode(self, mode: int) -> None:
+        """Set operation mode."""
+        await self.async_send_command("baseMode", str(mode))
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
