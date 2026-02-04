@@ -366,7 +366,10 @@ class TclUdpApiClient:
             LOGGER.debug("Sending SetMessage: %s", xml_command)
 
             if not self._listener_sock:
-                LOGGER.warning("UDP listener not started. Cannot send command.")
+                LOGGER.warning(
+                    "Cannot send command: UDP listener not initialized. "
+                    "Ensure async_start_listener() was called."
+                )
                 return
 
             # Send to discovered device port (mandatory per Java logic)
@@ -442,7 +445,10 @@ class TclUdpApiClient:
         """Send a discovery packet to find devices."""
         try:
             if not self._listener_sock:
-                LOGGER.warning("UDP listener not started. Cannot send discovery.")
+                LOGGER.warning(
+                    "Cannot send discovery: UDP listener not initialized. "
+                    "Ensure async_start_listener() was called."
+                )
                 return
 
             self._sequence += 1

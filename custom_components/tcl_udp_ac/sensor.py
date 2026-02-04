@@ -52,6 +52,6 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
         if self.coordinator.data and "outdoor_temp" in self.coordinator.data:
             # Check for valid range, sometimes devices report 176 or similar for invalid
             val = float(self.coordinator.data["outdoor_temp"])
-            if self._min_valid_temp < val < self._max_valid_temp:
+            if self._min_valid_temp <= val <= self._max_valid_temp:
                 return val
         return None
