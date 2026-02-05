@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import secrets
-import socket
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -16,10 +14,6 @@ from typing import Any
 import aiohttp
 
 from .const import (
-    FAN_AUTO,
-    FAN_HIGH,
-    FAN_LOW,
-    FAN_MIDDLE,
     DEFAULT_CLOUD_ACCEPT,
     DEFAULT_CLOUD_ACCEPT_ENCODING,
     DEFAULT_CLOUD_ACCEPT_LANGUAGE,
@@ -37,6 +31,10 @@ from .const import (
     DEFAULT_CLOUD_T_STORE_UUID,
     DEFAULT_CLOUD_USER_AGENT,
     DEFAULT_CLOUD_X_REQUESTED_WITH,
+    FAN_AUTO,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MIDDLE,
     LOGGER,
     MODE_AUTO,
     MODE_COOL,
@@ -194,7 +192,7 @@ class CloudClient:
         return str(val).lower() in {"1", "true", "on", "yes"}
 
     @staticmethod
-    def _cloud_int(val: str | int | float | None) -> int | None:
+    def _cloud_int(val: str | float | None) -> int | None:
         if val is None:
             return None
         try:
@@ -203,7 +201,7 @@ class CloudClient:
             return None
 
     @staticmethod
-    def _cloud_float(val: str | int | float | None) -> float | None:
+    def _cloud_float(val: str | float | None) -> float | None:
         if val is None:
             return None
         try:
@@ -320,10 +318,10 @@ class CloudClient:
             f'to="{self._to}" '
             f'type="chat" source="0">'
             f'<x xmlns="tcl:im:attribute">'
-            f'<sendtime>{sendtime}</sendtime>'
-            f'<apptype>0</apptype><msgtype>1</msgtype>'
-            f'</x>'
-            f'<body>'
+            f"<sendtime>{sendtime}</sendtime>"
+            f"<apptype>0</apptype><msgtype>1</msgtype>"
+            f"</x>"
+            f"<body>"
             f'<msg cmd="set" type="control" action="1" seq="{seq}" devid="{self._tid}">'
             f"{body_xml}"
             f"</msg>"
@@ -340,7 +338,9 @@ class CloudClient:
             f"{self._base_url}/device/getdevicestatus"
             f"?tid={self._tid}&category=AC&v={int(time.time() * 1000)}"
         )
-        headers = self._headers.build(token=self._token, include_token=bool(self._token))
+        headers = self._headers.build(
+            token=self._token, include_token=bool(self._token)
+        )
 
         try:
             async with self._session.get(url, headers=headers, timeout=10) as resp:
@@ -353,7 +353,7 @@ class CloudClient:
                         tid=self._tid,
                     )
                     return None
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             log_warning(LOGGER, "cloud_status_request_failed", error=exc)
             return None
 
@@ -427,9 +427,7 @@ class CloudClient:
             "optSuper",
             "optHeat",
             "beepEn",
-        }:
-            cloud_value = bool_map.get(value.lower(), value)
-        elif tag in {"directV", "directH"}:
+        } or tag in {"directV", "directH"}:
             cloud_value = bool_map.get(value.lower(), value)
         elif tag == "windSpd":
             cloud_value = wind_map.get(value.lower(), value)
@@ -466,7 +464,7 @@ class CloudClient:
                         command=command,
                     )
                     return False
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             log_warning(
                 LOGGER,
                 "cloud_control_request_failed",
