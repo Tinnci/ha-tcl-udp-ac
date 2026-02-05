@@ -92,9 +92,7 @@ class UdpClient:
             return
         try:
             data, addr = self._listener_sock.recvfrom(4096)
-            LOGGER.debug(
-                "UDP recv: %d bytes from %s:%d", len(data), addr[0], addr[1]
-            )
+            LOGGER.debug("UDP recv: %d bytes from %s:%d", len(data), addr[0], addr[1])
             self._handle_status_update(data, addr)
         except BlockingIOError:
             pass

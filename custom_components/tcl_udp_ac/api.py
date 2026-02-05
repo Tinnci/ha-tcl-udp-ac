@@ -4,22 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-import random
 import secrets
-import socket
 import time
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any
+from datetime import UTC, datetime
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
 from .const import (
-    FAN_AUTO,
-    FAN_HIGH,
-    FAN_LOW,
-    FAN_MIDDLE,
     DEFAULT_CLOUD_ACCEPT,
     DEFAULT_CLOUD_ACCEPT_ENCODING,
     DEFAULT_CLOUD_ACCEPT_LANGUAGE,
@@ -37,6 +31,10 @@ from .const import (
     DEFAULT_CLOUD_T_STORE_UUID,
     DEFAULT_CLOUD_USER_AGENT,
     DEFAULT_CLOUD_X_REQUESTED_WITH,
+    FAN_AUTO,
+    FAN_HIGH,
+    FAN_LOW,
+    FAN_MIDDLE,
     LOGGER,
     MODE_AUTO,
     MODE_COOL,
@@ -46,6 +44,9 @@ from .const import (
 )
 from .log_utils import log_debug, log_info, log_warning
 from .udp_client import UdpClient
+
+if TYPE_CHECKING:
+    import xml.etree.ElementTree as ET
 
 
 class TclUdpApiClientError(Exception):
@@ -90,6 +91,7 @@ class CloudHeaderProfile:
     def build(
         self,
         token: str | None,
+        *,
         include_token: bool = True,
         include_content_type: bool = False,
     ) -> dict[str, str]:
@@ -127,9 +129,10 @@ class CloudClient:
 
     _HALF_C_IN_F = 0.5 * 9 / 5
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         session: aiohttp.ClientSession | None,
+        *,
         enabled: bool,
         tid: str | None,
         token: str | None,
@@ -139,6 +142,7 @@ class CloudClient:
         control_enabled: bool,
         headers: CloudHeaderProfile,
     ) -> None:
+        """Initialize the cloud API client."""
         self._session = session
         self._enabled = enabled
         self._tid = tid
@@ -194,7 +198,7 @@ class CloudClient:
         return str(val).lower() in {"1", "true", "on", "yes"}
 
     @staticmethod
-    def _cloud_int(val: str | int | float | None) -> int | None:
+    def _cloud_int(val: str | float | None) -> int | None:
         if val is None:
             return None
         try:
@@ -203,7 +207,7 @@ class CloudClient:
             return None
 
     @staticmethod
-    def _cloud_float(val: str | int | float | None) -> float | None:
+    def _cloud_float(val: str | float | None) -> float | None:
         if val is None:
             return None
         try:
@@ -211,7 +215,9 @@ class CloudClient:
         except (TypeError, ValueError):
             return None
 
-    def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+    def _parse_cloud_status(  # noqa: PLR0912, PLR0915
+        self, cur_status: dict[str, Any]
+    ) -> dict[str, Any]:
         status: dict[str, Any] = {}
 
         power = self._cloud_bool(cur_status.get("turnOn"))
@@ -311,8 +317,8 @@ class CloudClient:
         if not self._tid or not self._from or not self._to:
             return None
 
-        sendtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        msg_id = f"ha_{random.randint(1000, 99999)}_{int(time.time() * 1000)}"
+        sendtime = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        msg_id = f"ha_{secrets.randbelow(99000) + 1000}_{int(time.time() * 1000)}"
 
         return (
             f'<message id="{msg_id}" '
@@ -320,10 +326,10 @@ class CloudClient:
             f'to="{self._to}" '
             f'type="chat" source="0">'
             f'<x xmlns="tcl:im:attribute">'
-            f'<sendtime>{sendtime}</sendtime>'
-            f'<apptype>0</apptype><msgtype>1</msgtype>'
-            f'</x>'
-            f'<body>'
+            f"<sendtime>{sendtime}</sendtime>"
+            f"<apptype>0</apptype><msgtype>1</msgtype>"
+            f"</x>"
+            f"<body>"
             f'<msg cmd="set" type="control" action="1" seq="{seq}" devid="{self._tid}">'
             f"{body_xml}"
             f"</msg>"
@@ -340,12 +346,14 @@ class CloudClient:
             f"{self._base_url}/device/getdevicestatus"
             f"?tid={self._tid}&category=AC&v={int(time.time() * 1000)}"
         )
-        headers = self._headers.build(token=self._token, include_token=bool(self._token))
+        headers = self._headers.build(
+            token=self._token, include_token=bool(self._token)
+        )
 
         try:
             async with self._session.get(url, headers=headers, timeout=10) as resp:
                 text = await resp.text()
-                if resp.status != 200:
+                if resp.status != HTTPStatus.OK:
                     log_warning(
                         LOGGER,
                         "cloud_status_http_error",
@@ -353,7 +361,7 @@ class CloudClient:
                         tid=self._tid,
                     )
                     return None
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             log_warning(LOGGER, "cloud_status_request_failed", error=exc)
             return None
 
@@ -427,9 +435,7 @@ class CloudClient:
             "optSuper",
             "optHeat",
             "beepEn",
-        }:
-            cloud_value = bool_map.get(value.lower(), value)
-        elif tag in {"directV", "directH"}:
+        } or tag in {"directV", "directH"}:
             cloud_value = bool_map.get(value.lower(), value)
         elif tag == "windSpd":
             cloud_value = wind_map.get(value.lower(), value)
@@ -457,7 +463,7 @@ class CloudClient:
             async with self._session.post(
                 url, headers=headers, json=payload, timeout=10
             ) as resp:
-                if resp.status != 200:
+                if resp.status != HTTPStatus.OK:
                     log_warning(
                         LOGGER,
                         "cloud_control_http_error",
@@ -466,7 +472,7 @@ class CloudClient:
                         command=command,
                     )
                     return False
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             log_warning(
                 LOGGER,
                 "cloud_control_request_failed",
@@ -492,12 +498,13 @@ class TclUdpApiClient:
 
     _HALF_C_IN_F = 0.5 * 9 / 5
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         action_jid: str = "homeassistant@tcl.com/ha-plugin",
         action_source: str = "1",
         account: str = "homeassistant",
         session: aiohttp.ClientSession | None = None,
+        *,
         cloud_enabled: bool = False,
         cloud_tid: str | None = None,
         cloud_token: str | None = None,
@@ -567,12 +574,12 @@ class TclUdpApiClient:
             raise TclUdpApiClientCommunicationError(msg) from exception
 
     def _on_socket_readable(self) -> None:
-        """Called when socket has data to read."""
-        self._udp._on_socket_readable()
+        """Handle socket data readiness."""
+        self._udp._on_socket_readable()  # noqa: SLF001
 
     def _on_send_socket_readable(self) -> None:
-        """Called when send socket has data to read (unicast replies)."""
-        self._udp._on_send_socket_readable()
+        """Handle send socket data readiness (unicast replies)."""
+        self._udp._on_send_socket_readable()  # noqa: SLF001
 
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
@@ -624,21 +631,23 @@ class TclUdpApiClient:
 
     def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle incoming status update from device."""
-        self._udp._handle_status_update(data, addr)
+        self._udp._handle_status_update(data, addr)  # noqa: SLF001
 
     def _get_node_value(self, node: ET.Element | None) -> str | None:
         """Extract value from node, handling both <tag value='x'> and <tag>x</tag>."""
-        return self._udp._get_node_value(node)
+        return self._udp._get_node_value(node)  # noqa: SLF001
 
     def _parse_bool_feature(
         self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
     ) -> None:
-        """Helper to parse boolean features from both XML formats."""
-        self._udp._parse_bool_feature(status_msg, tag, status_key, status)
+        """Parse boolean features from both XML formats."""
+        self._udp._parse_bool_feature(  # noqa: SLF001
+            status_msg, tag, status_key, status
+        )
 
     def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
         """Parse status message XML, supporting multiple formats."""
-        return self._udp._parse_status(status_msg)
+        return self._udp._parse_status(status_msg)  # noqa: SLF001
 
     async def async_send_command(
         self,
@@ -652,6 +661,7 @@ class TclUdpApiClient:
         Args:
             command: XML tag name (e.g., 'TurnOn', 'SetTemp', 'BaseMode')
             value: Tag value (e.g., 'on', 'off', '78', 'cool')
+            degree_half: Optional half-degree flag for cloud/UDP commands.
 
         """
         try:
@@ -672,11 +682,9 @@ class TclUdpApiClient:
 
         except OSError as exception:
             LOGGER.error("Failed to send command: %s", exception)
-            raise TclUdpApiClientCommunicationError(
-                f"Error sending command: {exception}"
-            ) from exception
+            raise TclUdpApiClientCommunicationError from exception
 
-    async def async_set_power(self, power: bool) -> None:
+    async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
         # Java: <TurnOn>on</TurnOn> or <TurnOn>off</TurnOn>
         await self.async_send_command("TurnOn", "on" if power else "off")
@@ -701,7 +709,7 @@ class TclUdpApiClient:
         """Map Fahrenheit input to setTemp integer + degreeH flag."""
         desired_c = cls._fahrenheit_to_celsius(temp_f)
         desired_c_rounded = round(desired_c * 2) / 2
-        base_f = int(round(temp_f))
+        base_f = round(temp_f)
 
         best: tuple[float, float, float, int, int] | None = None
         for f_int in range(base_f - 3, base_f + 4):
@@ -716,7 +724,7 @@ class TclUdpApiClient:
                     best = candidate
 
         if best is None:
-            return int(round(temp_f)), 0
+            return round(temp_f), 0
         return best[3], best[4]
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
@@ -724,7 +732,7 @@ class TclUdpApiClient:
         # Java: <WindSpeed>high</WindSpeed>
         await self.async_send_command("WindSpeed", speed_str)
 
-    async def async_set_swing(self, vertical: bool, horizontal: bool) -> None:
+    async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
         """Set swing mode."""
         # Java: <WindDirection_V>on</WindDirection_V>
         await self.async_send_command("WindDirection_V", "on" if vertical else "off")
@@ -735,32 +743,32 @@ class TclUdpApiClient:
         # Java: <BaseMode>cool</BaseMode>
         await self.async_send_command("BaseMode", mode_str)
 
-    async def async_set_eco_mode(self, enabled: bool) -> None:
+    async def async_set_eco_mode(self, *, enabled: bool) -> None:
         """Set ECO mode."""
         # Java: <Opt_ECO>on</Opt_ECO>
         await self.async_send_command("Opt_ECO", "on" if enabled else "off")
 
-    async def async_set_display(self, enabled: bool) -> None:
+    async def async_set_display(self, *, enabled: bool) -> None:
         """Set display on/off."""
         await self.async_send_command("OptDisplay", "on" if enabled else "off")
 
-    async def async_set_health_mode(self, enabled: bool) -> None:
+    async def async_set_health_mode(self, *, enabled: bool) -> None:
         """Set health mode."""
         await self.async_send_command("OptHealthy", "on" if enabled else "off")
 
-    async def async_set_sleep_mode(self, enabled: bool) -> None:
+    async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         """Set sleep mode."""
         await self.async_send_command("Opt_sleepMode", "on" if enabled else "off")
 
-    async def async_set_turbo_mode(self, enabled: bool) -> None:
+    async def async_set_turbo_mode(self, *, enabled: bool) -> None:
         """Set turbo (super) mode."""
         await self.async_send_command("Opt_super", "on" if enabled else "off")
 
-    async def async_set_aux_heat(self, enabled: bool) -> None:
+    async def async_set_aux_heat(self, *, enabled: bool) -> None:
         """Set auxiliary (electric) heat on/off."""
         await self.async_send_command("OptHeat", "on" if enabled else "off")
 
-    async def async_set_beep(self, enabled: bool) -> None:
+    async def async_set_beep(self, *, enabled: bool) -> None:
         """Set beep on/off."""
         # Java: <BeepEnable>on</BeepEnable>
         await self.async_send_command("BeepEnable", "on" if enabled else "off")

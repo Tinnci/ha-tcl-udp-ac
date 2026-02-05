@@ -12,17 +12,17 @@ from .const import (
     CONF_ACCOUNT,
     CONF_ACTION_JID,
     CONF_ACTION_SOURCE,
-    CONF_CLOUD_BASE_URL,
-    CONF_CLOUD_CONTROL,
-    CONF_CLOUD_ENABLED,
     CONF_CLOUD_ACCEPT,
     CONF_CLOUD_ACCEPT_ENCODING,
     CONF_CLOUD_ACCEPT_LANGUAGE,
     CONF_CLOUD_APP_BUILD_VERSION,
     CONF_CLOUD_APP_PACKAGE,
     CONF_CLOUD_APP_VERSION,
+    CONF_CLOUD_BASE_URL,
     CONF_CLOUD_BRAND,
     CONF_CLOUD_CHANNEL,
+    CONF_CLOUD_CONTROL,
+    CONF_CLOUD_ENABLED,
     CONF_CLOUD_FROM,
     CONF_CLOUD_ORIGIN,
     CONF_CLOUD_PLATFORM,
@@ -32,8 +32,8 @@ from .const import (
     CONF_CLOUD_T_PLATFORM_TYPE,
     CONF_CLOUD_T_STORE_UUID,
     CONF_CLOUD_TID,
-    CONF_CLOUD_TOKEN,
     CONF_CLOUD_TO,
+    CONF_CLOUD_TOKEN,
     CONF_CLOUD_USER_AGENT,
     CONF_CLOUD_X_REQUESTED_WITH,
     DEFAULT_ACCOUNT,
@@ -45,22 +45,22 @@ from .const import (
     DEFAULT_CLOUD_APP_BUILD_VERSION,
     DEFAULT_CLOUD_APP_PACKAGE,
     DEFAULT_CLOUD_APP_VERSION,
+    DEFAULT_CLOUD_BASE_URL,
     DEFAULT_CLOUD_BRAND,
     DEFAULT_CLOUD_CHANNEL,
-    DEFAULT_CLOUD_BASE_URL,
     DEFAULT_CLOUD_CONTROL,
     DEFAULT_CLOUD_ENABLED,
+    DEFAULT_CLOUD_FROM,
     DEFAULT_CLOUD_ORIGIN,
     DEFAULT_CLOUD_PLATFORM,
     DEFAULT_CLOUD_SDK_VERSION,
     DEFAULT_CLOUD_SYSTEM_VERSION,
     DEFAULT_CLOUD_T_APP_VERSION,
     DEFAULT_CLOUD_T_PLATFORM_TYPE,
-    DEFAULT_CLOUD_TID,
-    DEFAULT_CLOUD_TOKEN,
-    DEFAULT_CLOUD_FROM,
-    DEFAULT_CLOUD_TO,
     DEFAULT_CLOUD_T_STORE_UUID,
+    DEFAULT_CLOUD_TID,
+    DEFAULT_CLOUD_TO,
+    DEFAULT_CLOUD_TOKEN,
     DEFAULT_CLOUD_USER_AGENT,
     DEFAULT_CLOUD_X_REQUESTED_WITH,
     DOMAIN,
@@ -108,12 +108,8 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_CLOUD_ENABLED, default=DEFAULT_CLOUD_ENABLED
                     ): bool,
                     vol.Optional(CONF_CLOUD_TID, default=DEFAULT_CLOUD_TID): str,
-                    vol.Optional(
-                        CONF_CLOUD_TOKEN, default=DEFAULT_CLOUD_TOKEN
-                    ): str,
-                    vol.Optional(
-                        CONF_CLOUD_FROM, default=DEFAULT_CLOUD_FROM
-                    ): str,
+                    vol.Optional(CONF_CLOUD_TOKEN, default=DEFAULT_CLOUD_TOKEN): str,
+                    vol.Optional(CONF_CLOUD_FROM, default=DEFAULT_CLOUD_FROM): str,
                     vol.Optional(CONF_CLOUD_TO, default=DEFAULT_CLOUD_TO): str,
                     vol.Optional(
                         CONF_CLOUD_BASE_URL, default=DEFAULT_CLOUD_BASE_URL
@@ -134,9 +130,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_CLOUD_SYSTEM_VERSION,
                         default=DEFAULT_CLOUD_SYSTEM_VERSION,
                     ): str,
-                    vol.Optional(
-                        CONF_CLOUD_BRAND, default=DEFAULT_CLOUD_BRAND
-                    ): str,
+                    vol.Optional(CONF_CLOUD_BRAND, default=DEFAULT_CLOUD_BRAND): str,
                     vol.Optional(
                         CONF_CLOUD_APP_VERSION, default=DEFAULT_CLOUD_APP_VERSION
                     ): str,
@@ -160,16 +154,12 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Optional(
                         CONF_CLOUD_T_STORE_UUID, default=DEFAULT_CLOUD_T_STORE_UUID
                     ): str,
-                    vol.Optional(
-                        CONF_CLOUD_ORIGIN, default=DEFAULT_CLOUD_ORIGIN
-                    ): str,
+                    vol.Optional(CONF_CLOUD_ORIGIN, default=DEFAULT_CLOUD_ORIGIN): str,
                     vol.Optional(
                         CONF_CLOUD_X_REQUESTED_WITH,
                         default=DEFAULT_CLOUD_X_REQUESTED_WITH,
                     ): str,
-                    vol.Optional(
-                        CONF_CLOUD_ACCEPT, default=DEFAULT_CLOUD_ACCEPT
-                    ): str,
+                    vol.Optional(CONF_CLOUD_ACCEPT, default=DEFAULT_CLOUD_ACCEPT): str,
                     vol.Optional(
                         CONF_CLOUD_ACCEPT_ENCODING,
                         default=DEFAULT_CLOUD_ACCEPT_ENCODING,
@@ -263,9 +253,7 @@ class TclUdpOptionsFlowHandler(config_entries.OptionsFlow):
                         CONF_CLOUD_TO,
                         default=self.config_entry.options.get(
                             CONF_CLOUD_TO,
-                            self.config_entry.data.get(
-                                CONF_CLOUD_TO, DEFAULT_CLOUD_TO
-                            ),
+                            self.config_entry.data.get(CONF_CLOUD_TO, DEFAULT_CLOUD_TO),
                         ),
                     ): str,
                     vol.Optional(
