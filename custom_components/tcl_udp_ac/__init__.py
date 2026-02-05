@@ -15,21 +15,6 @@ from homeassistant.loader import async_get_loaded_integration
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import TclUdpApiClient
-from .const import DOMAIN, LOGGER
-from .coordinator import TclUdpDataUpdateCoordinator
-from .data import TclUdpData
-
-if TYPE_CHECKING:
-    from homeassistant.core import HomeAssistant
-
-    from .data import TclUdpConfigEntry
-
-PLATFORMS: list[Platform] = [
-    Platform.CLIMATE,
-    Platform.SWITCH,
-    Platform.SENSOR,
-]
-
 from .const import (
     CONF_ACCOUNT,
     CONF_ACTION_JID,
@@ -85,7 +70,22 @@ from .const import (
     DEFAULT_CLOUD_T_STORE_UUID,
     DEFAULT_CLOUD_USER_AGENT,
     DEFAULT_CLOUD_X_REQUESTED_WITH,
+    DOMAIN,
+    LOGGER,
 )
+from .coordinator import TclUdpDataUpdateCoordinator
+from .data import TclUdpData
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
+
+    from .data import TclUdpConfigEntry
+
+PLATFORMS: list[Platform] = [
+    Platform.CLIMATE,
+    Platform.SWITCH,
+    Platform.SENSOR,
+]
 
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry

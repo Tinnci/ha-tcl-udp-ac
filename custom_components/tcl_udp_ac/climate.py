@@ -21,36 +21,18 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .const import (
     FAN_AUTO as TCL_FAN_AUTO,
-)
-from .const import (
     FAN_HIGH as TCL_FAN_HIGH,
-)
-from .const import (
     FAN_LOW as TCL_FAN_LOW,
-)
-from .const import (
     FAN_MIDDLE as TCL_FAN_MIDDLE,
-)
-from .const import (
     LOGGER,
+    MODE_AUTO as TCL_MODE_AUTO,
+    MODE_COOL as TCL_MODE_COOL,
+    MODE_DEHUMI as TCL_MODE_DEHUMI,
+    MODE_FAN as TCL_MODE_FAN,
+    MODE_HEAT as TCL_MODE_HEAT,
 )
 from .entity import TclUdpEntity
 from .log_utils import log_info
-from .const import (
-    MODE_AUTO as TCL_MODE_AUTO,
-)
-from .const import (
-    MODE_COOL as TCL_MODE_COOL,
-)
-from .const import (
-    MODE_DEHUMI as TCL_MODE_DEHUMI,
-)
-from .const import (
-    MODE_FAN as TCL_MODE_FAN,
-)
-from .const import (
-    MODE_HEAT as TCL_MODE_HEAT,
-)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
