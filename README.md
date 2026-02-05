@@ -1,169 +1,110 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
-A Home Assistant integration for TCL air conditioners that communicate via UDP broadcast protocol.
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
-## Features
+A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
 
-- **Local Control**: Communicates directly with AC units on your local network via UDP
-- **Real-time Updates**: Receives status updates via UDP broadcast messages
-- **Climate Entity**: Full climate entity support with standard Home Assistant interface
-- **Power Control**: Turn AC on/off
-- **Temperature Control**: Set target temperature (60-86°F)
-- **Current Temperature**: Display current indoor temperature
+<p align="center">
+  <img src="icon.png" alt="Icon" width="128" height="128">
+</p>
 
-## Installation
+## ✨ Features
 
-### HACS (Recommended)
-1. Open HACS in Home Assistant
-2. Go to Integrations
-3. Click the three dots in the top right corner
-4. Select "Custom repositories"
-5. Add this repository URL
-6. Install "TCL UDP Air Conditioner"
-7. Restart Home Assistant
+- **🚀 100% Local Control**: Uses UDP broadcast (Port 10074/10075) for instant response and status updates.
+- **🌡️ Climate Control**:
+  - **Modes**: Auto, Cool, Heat, Dry (Dehumidifier), Fan Only.
+  - **Fan Speeds**: Auto, Low, Medium, High.
+  - **Swing Modes**: Vertical, Horizontal, Both, Off.
+  - **Target Temperature**: 60.8°F - 87.8°F (adjustable in 0.9°F steps).
+- **📟 Advanced Features (Switches)**:
+  - **Eco Mode**: Toggle energy-saving mode.
+  - **Turbo Mode**: Maximize cooling/heating performance.
+  - **Sleep Mode**: Optimize for sleeping comfort.
+  - **Health Mode**: Toggle health/ionization functions (if supported).
+  - **Aux Heat**: Auxiliary heating control.
+  - **Display**: Turn the unit's LED display on/off.
+  - **Beep**: Enable/disable command confirmation beeps.
+- **🌤️ Sensors**:
+  - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
 
-### Manual Installation
-1. Copy the `custom_components/tcl_udp_ac` directory to your Home Assistant's `custom_components` folder
-2. Restart Home Assistant
+## 📦 Installation
 
-## Configuration
+### Option 1: HACS (Recommended)
 
-1. Go to Settings → Devices & Services
-2. Click "+ Add Integration"
-3. Search for "TCL UDP Air Conditioner"
-4. Click to add the integration
-5. The integration will automatically discover TCL AC units broadcasting on your network
+1. Open **HACS** in Home Assistant.
+2. Go to **Integrations** > **Triple dots** (top right) > **Custom repositories**.
+3. Add this repository URL: `https://github.com/Tinnci/ha-tcl-udp-ac`.
+4. Select category: **Integration**.
+5. Click **Add**, then find "TCL UDP Air Conditioner" in the list and install it.
+6. Restart Home Assistant.
 
-## Protocol Details
+### Option 2: Manual Installation
 
-This integration implements the TCL UDP-based AC protocol:
-- **Broadcast Port**: 10074 (for receiving status updates)
-- **Command Port**: 10075 (for sending control commands)
-- **Protocol**: XML-based
+1. Download the `custom_components/tcl_udp_ac` folder from this repository.
+2. Copy it to your Home Assistant's `config/custom_components/` directory.
+3. Restart Home Assistant.
 
-### Supported Commands
-- `<turnOn value="0/1">` - Power on/off
-- `<setTemp value="XX">` - Set target temperature
-- `<inTemp value="XX">` - Current indoor temperature (read-only)
+## ⚙️ Configuration
 
-### Status Message Format
-```xml
-<msg cmd="status">
-  <statusUpdateMsg>
-    <turnOn value="1"/>
-    <setTemp value="75"/>
-    <inTemp value="67"/>
-  </statusUpdateMsg>
-</msg>
+1. Go to **Settings** > **Devices & Services**.
+2. Click **+ Add Integration**.
+3. Search for **TCL UDP Air Conditioner**.
+4. The integration should automatically discover devices on your network.
+   - If prompted, you can adjust settings like Cloud fallback options (though local control is preferred).
+
+### Network Requirements
+
+This integration communicates via **UDP Multicast/Broadcast**.
+- **Docker Users**: You **MUST** run Home Assistant in `host` networking mode.
+  ```yaml
+  # docker-compose.yml
+  services:
+    homeassistant:
+      network_mode: host
+  ```
+- **Firewall/VLANs**: Ensure UDP traffic on ports **10074** (Receive) and **10075** (Send) is allowed between Home Assistant and the AC units.
+
+## 🔧 Troubleshooting
+
+### Device Not Discovered / No Status Updates
+
+If you can control the AC but don't see status updates (temperature changes, etc.), your firewall is likely blocking incoming UDP packets on port 10074.
+
+**Test Network Connectivity:**
+Execute this command inside your Home Assistant environment/container to verify packet reception:
+
+```python
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.bind(('0.0.0.0', 10074))
+print("Listening on 10074...")
+while True:
+    data, addr = s.recvfrom(1024)
+    print(f"Received from {addr}: {data}")
 ```
 
-## Development
+**Linux/Firewall Fixes:**
 
-This integration is based on the Home Assistant integration blueprint and follows best practices for custom integrations.
-
-### Requirements
-- Python 3.13+
-- Home Assistant 2024.1.0+
-
-### Contributing
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Troubleshooting
-
-### UDP Packets Not Received (Discovery/Status Updates Fail)
-
-If the integration can send commands but cannot receive responses or status updates, your **firewall may be blocking UDP port 10074**.
-
-#### Check if firewall is blocking
-
-Run tcpdump to see if packets arrive at the network interface:
-```bash
-sudo tcpdump -i wlan0 -n udp port 10074
-```
-
-If you see packets in tcpdump but Home Assistant doesn't receive them, the firewall is likely blocking.
-
-#### Solution for nftables (postmarketOS, Alpine, modern Linux)
-
-```bash
-# Add firewall rules
-sudo nft add rule inet filter input iifname "wlan*" udp dport 10074 accept comment \"TCL AC UDP\"
-sudo nft add rule inet filter input iifname "wlan*" udp dport 10075 accept comment \"TCL AC UDP Response\"
-
-# Verify rules were added
-sudo nft list chain inet filter input | grep 10074
-```
-
-To make rules persistent across reboots:
-```bash
-# Create startup script
-echo '#!/bin/sh
-nft add rule inet filter input iifname "wlan*" udp dport 10074 accept comment "TCL AC UDP"
-nft add rule inet filter input iifname "wlan*" udp dport 10075 accept comment "TCL AC UDP"
-' | sudo tee /etc/local.d/tcl_ac.start
-sudo chmod +x /etc/local.d/tcl_ac.start
-```
-
-#### Solution for iptables (older Linux, Debian/Ubuntu)
-
+*For `iptables` (Debian/Ubuntu/Standard Linux):*
 ```bash
 sudo iptables -A INPUT -p udp --dport 10074 -j ACCEPT
 sudo iptables -A INPUT -p udp --dport 10075 -j ACCEPT
-
-# Save rules (Debian/Ubuntu)
-sudo iptables-save > /etc/iptables.rules
 ```
 
-### Test UDP Reception
-
-You can test if UDP packets are being received properly:
-
+*For `nftables` (Alpine/PostmarketOS/Modern Linux):*
 ```bash
-# In container
-docker exec -it homeassistant python3 -c "
-import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-s.bind(('0.0.0.0', 10074))
-s.settimeout(10)
-print('Waiting for UDP packet on port 10074...')
-try:
-    data, addr = s.recvfrom(4096)
-    print(f'SUCCESS! Received {len(data)} bytes from {addr}')
-except socket.timeout:
-    print('FAILED: No packet received (check firewall)')
-s.close()
-"
+nft add rule inet filter input udp dport 10074 accept comment "TCL AC Status"
 ```
 
-### Docker Networking
+## 🤝 Contributing
 
-This integration requires Docker to use **host networking** mode:
+Contributions are welcome!
+1. Fork the repo.
+2. Create a feature branch.
+3. Submit a Pull Request.
 
-```yaml
-# docker-compose.yml
-services:
-  homeassistant:
-    network_mode: host
-```
+## 📄 License
 
-If using bridge networking, UDP broadcast packets may not be properly forwarded.
-
-### Debug Logging
-
-Enable debug logging in `configuration.yaml`:
-
-```yaml
-logger:
-  default: info
-  logs:
-    custom_components.tcl_udp_ac: debug
-```
-
-## Credits
-
-Built with the [Home Assistant Integration Blueprint](https://github.com/ludeeus/integration_blueprint)
+MIT License. See [LICENSE](LICENSE) for more information.
