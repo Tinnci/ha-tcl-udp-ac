@@ -21,14 +21,32 @@ from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .const import (
     FAN_AUTO as TCL_FAN_AUTO,
+)
+from .const import (
     FAN_HIGH as TCL_FAN_HIGH,
+)
+from .const import (
     FAN_LOW as TCL_FAN_LOW,
+)
+from .const import (
     FAN_MIDDLE as TCL_FAN_MIDDLE,
+)
+from .const import (
     LOGGER,
+)
+from .const import (
     MODE_AUTO as TCL_MODE_AUTO,
+)
+from .const import (
     MODE_COOL as TCL_MODE_COOL,
+)
+from .const import (
     MODE_DEHUMI as TCL_MODE_DEHUMI,
+)
+from .const import (
     MODE_FAN as TCL_MODE_FAN,
+)
+from .const import (
     MODE_HEAT as TCL_MODE_HEAT,
 )
 from .entity import TclUdpEntity
@@ -155,7 +173,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if "target_temp" in data or "fan_speed" in data:
             return HVACMode.COOL
 
-        # If we only have indoor temp, we can't be sure, but let's assume OFF 
+        # If we only have indoor temp, we can't be sure, but let's assume OFF
         # until a real status packet arrives
         return HVACMode.OFF
 
