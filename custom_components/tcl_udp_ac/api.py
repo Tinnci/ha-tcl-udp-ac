@@ -5,24 +5,44 @@ from __future__ import annotations
 import asyncio
 import json
 import random
-import socket
-import xml.etree.ElementTree as ET
+import time
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
+
+import aiohttp
 
 from .const import (
     FAN_AUTO,
     FAN_HIGH,
     FAN_LOW,
     FAN_MIDDLE,
+    DEFAULT_CLOUD_ACCEPT,
+    DEFAULT_CLOUD_ACCEPT_ENCODING,
+    DEFAULT_CLOUD_ACCEPT_LANGUAGE,
+    DEFAULT_CLOUD_APP_BUILD_VERSION,
+    DEFAULT_CLOUD_APP_PACKAGE,
+    DEFAULT_CLOUD_APP_VERSION,
+    DEFAULT_CLOUD_BRAND,
+    DEFAULT_CLOUD_CHANNEL,
+    DEFAULT_CLOUD_ORIGIN,
+    DEFAULT_CLOUD_PLATFORM,
+    DEFAULT_CLOUD_SDK_VERSION,
+    DEFAULT_CLOUD_SYSTEM_VERSION,
+    DEFAULT_CLOUD_T_APP_VERSION,
+    DEFAULT_CLOUD_T_PLATFORM_TYPE,
+    DEFAULT_CLOUD_T_STORE_UUID,
+    DEFAULT_CLOUD_USER_AGENT,
+    DEFAULT_CLOUD_X_REQUESTED_WITH,
     LOGGER,
     MODE_AUTO,
     MODE_COOL,
     MODE_DEHUMI,
     MODE_FAN,
     MODE_HEAT,
-    UDP_BROADCAST_PORT,
-    UDP_COMMAND_PORT,
 )
+from .log_utils import log_debug, log_info, log_warning
+from .udp_client import UdpClient
 
 
 class TclUdpApiClientError(Exception):
@@ -33,334 +53,596 @@ class TclUdpApiClientCommunicationError(TclUdpApiClientError):
     """Exception to indicate a communication error."""
 
 
+@dataclass(frozen=True)
+class CloudHeaderProfile:
+    """Cloud header profile to keep request headers consistent."""
+
+    platform: str
+    user_agent: str
+    app_package: str
+    system_version: str
+    brand: str
+    app_version: str
+    sdk_version: str
+    channel: str
+    app_build_version: str
+    t_app_version: str
+    t_platform_type: str
+    t_store_uuid: str
+    origin: str
+    x_requested_with: str
+    accept: str
+    accept_encoding: str
+    accept_language: str
+
+    @staticmethod
+    def _add_header(headers: dict[str, str], name: str, value: str | None) -> None:
+        if value is None:
+            return
+        value_str = str(value).strip()
+        if not value_str:
+            return
+        headers[name] = value_str
+
+    def build(
+        self,
+        token: str | None,
+        include_token: bool = True,
+        include_content_type: bool = False,
+    ) -> dict[str, str]:
+        """Build headers for cloud requests."""
+        headers: dict[str, str] = {}
+
+        self._add_header(headers, "platform", self.platform)
+        self._add_header(headers, "user-agent", self.user_agent)
+        self._add_header(headers, "apppackagename", self.app_package)
+        self._add_header(headers, "systemversion", self.system_version)
+        self._add_header(headers, "brand", self.brand)
+        self._add_header(headers, "appversion", self.app_version)
+        self._add_header(headers, "sdkversion", self.sdk_version)
+        self._add_header(headers, "channel", self.channel)
+        self._add_header(headers, "appbuildversion", self.app_build_version)
+        self._add_header(headers, "t-app-version", self.t_app_version)
+        self._add_header(headers, "t-platform-type", self.t_platform_type)
+        self._add_header(headers, "t-store-uuid", self.t_store_uuid)
+        self._add_header(headers, "origin", self.origin)
+        self._add_header(headers, "x-requested-with", self.x_requested_with)
+        self._add_header(headers, "accept", self.accept)
+        self._add_header(headers, "accept-encoding", self.accept_encoding)
+        self._add_header(headers, "accept-language", self.accept_language)
+
+        if include_content_type:
+            headers["content-type"] = "application/json; charset=UTF-8"
+        if include_token and token:
+            headers["accesstoken"] = token
+
+        return headers
+
+
+class CloudClient:
+    """Cloud API client to isolate HTTP behavior from UDP logic."""
+
+    _HALF_C_IN_F = 0.5 * 9 / 5
+
+    def __init__(
+        self,
+        session: aiohttp.ClientSession | None,
+        enabled: bool,
+        tid: str | None,
+        token: str | None,
+        from_jid: str | None,
+        to_jid: str | None,
+        base_url: str,
+        control_enabled: bool,
+        headers: CloudHeaderProfile,
+    ) -> None:
+        self._session = session
+        self._enabled = enabled
+        self._tid = tid
+        self._token = token
+        self._from = from_jid
+        self._to = to_jid
+        self._base_url = base_url.rstrip("/")
+        self._control_enabled = control_enabled
+        self._headers = headers
+
+    @property
+    def status_enabled(self) -> bool:
+        """Return True when status fetch is enabled and configured."""
+        return bool(self._enabled and self._tid and self._session)
+
+    @property
+    def control_enabled(self) -> bool:
+        """Return True when cloud control is enabled and configured."""
+        return bool(
+            self._enabled
+            and self._control_enabled
+            and self._tid
+            and self._token
+            and self._from
+            and self._to
+            and self._session
+        )
+
+    def _control_unavailable_reason(self) -> str:
+        if not self._enabled:
+            return "cloud disabled"
+        if not self._control_enabled:
+            return "cloud control disabled"
+        missing = []
+        if not self._tid:
+            missing.append("cloud_tid")
+        if not self._token:
+            missing.append("cloud_access_token")
+        if not self._from:
+            missing.append("cloud_from")
+        if not self._to:
+            missing.append("cloud_to")
+        if missing:
+            return f"missing config: {', '.join(missing)}"
+        if not self._session:
+            return "http session not ready"
+        return "unknown"
+
+    @staticmethod
+    def _cloud_bool(val: str | int | None) -> bool | None:
+        if val is None:
+            return None
+        return str(val).lower() in {"1", "true", "on", "yes"}
+
+    @staticmethod
+    def _cloud_int(val: str | int | float | None) -> int | None:
+        if val is None:
+            return None
+        try:
+            return int(float(val))
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _cloud_float(val: str | int | float | None) -> float | None:
+        if val is None:
+            return None
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
+
+    def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status: dict[str, Any] = {}
+
+        power = self._cloud_bool(cur_status.get("turnOn"))
+        if power is not None:
+            status["power"] = power
+
+        target_c = self._cloud_float(cur_status.get("celsiusSetTemp"))
+        if target_c is not None:
+            status["target_temp"] = round(target_c * 9 / 5 + 32, 1)
+        else:
+            target_temp = self._cloud_int(cur_status.get("setTemp"))
+            if target_temp is not None:
+                status["target_temp"] = float(target_temp)
+
+            degree_half = self._cloud_bool(cur_status.get("degreeH"))
+            if degree_half and "target_temp" in status:
+                status["target_temp"] = round(
+                    float(status["target_temp"]) + self._HALF_C_IN_F,
+                    1,
+                )
+
+        current_temp = self._cloud_int(cur_status.get("inTemp"))
+        if current_temp is not None:
+            status["current_temp"] = current_temp
+
+        outdoor_temp = self._cloud_int(cur_status.get("outTemp"))
+        if outdoor_temp is not None:
+            status["outdoor_temp"] = outdoor_temp
+
+        wind_map = {
+            "0": FAN_AUTO,
+            "1": FAN_HIGH,
+            "2": FAN_MIDDLE,
+            "3": FAN_LOW,
+            "4": FAN_HIGH,
+            "5": FAN_HIGH,
+        }
+        wind_spd = cur_status.get("windSpd")
+        if wind_spd is not None:
+            status["fan_speed"] = wind_map.get(str(wind_spd), FAN_AUTO)
+
+        mode_map = {
+            "1": MODE_HEAT,
+            "2": MODE_DEHUMI,
+            "3": MODE_COOL,
+            "4": MODE_HEAT,
+            "7": MODE_FAN,
+            "8": MODE_AUTO,
+        }
+        base_mode = cur_status.get("baseMode")
+        if base_mode is not None:
+            mapped = mode_map.get(str(base_mode))
+            if mapped:
+                status["mode"] = mapped
+            else:
+                LOGGER.debug("Unknown cloud baseMode: %s", base_mode)
+
+        swing_h = self._cloud_bool(cur_status.get("directH"))
+        if swing_h is not None:
+            status["swing_h"] = swing_h
+
+        swing_v = self._cloud_bool(cur_status.get("directV"))
+        if swing_v is not None:
+            status["swing_v"] = swing_v
+
+        eco = self._cloud_bool(cur_status.get("optECO"))
+        if eco is not None:
+            status["eco_mode"] = eco
+
+        sleep = cur_status.get("optSleepMd")
+        if sleep is not None:
+            status["sleep_mode"] = str(sleep) != "0"
+
+        turbo = self._cloud_bool(cur_status.get("optSuper"))
+        if turbo is not None:
+            status["turbo_mode"] = turbo
+
+        aux_heat = self._cloud_bool(cur_status.get("optHeat"))
+        if aux_heat is not None:
+            status["aux_heat"] = aux_heat
+
+        healthy = self._cloud_bool(cur_status.get("optHealthy"))
+        if healthy is not None:
+            status["health_mode"] = healthy
+
+        display = self._cloud_bool(cur_status.get("optDisplay"))
+        if display is not None:
+            status["display"] = display
+
+        beep = self._cloud_bool(cur_status.get("beepEn"))
+        if beep is not None:
+            status["beep"] = beep
+
+        return status
+
+    def _build_cloud_message(self, body_xml: str, seq: str) -> str | None:
+        if not self._tid or not self._from or not self._to:
+            return None
+
+        sendtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msg_id = f"ha_{random.randint(1000, 99999)}_{int(time.time() * 1000)}"
+
+        return (
+            f'<message id="{msg_id}" '
+            f'from="{self._from}" '
+            f'to="{self._to}" '
+            f'type="chat" source="0">'
+            f'<x xmlns="tcl:im:attribute">'
+            f'<sendtime>{sendtime}</sendtime>'
+            f'<apptype>0</apptype><msgtype>1</msgtype>'
+            f'</x>'
+            f'<body>'
+            f'<msg cmd="set" type="control" action="1" seq="{seq}" devid="{self._tid}">'
+            f"{body_xml}"
+            f"</msg>"
+            f"</body>"
+            f"</message>"
+        )
+
+    async def async_fetch_status(self) -> dict[str, Any] | None:
+        """Fetch device status from cloud API when enabled."""
+        if not self.status_enabled:
+            return None
+
+        url = (
+            f"{self._base_url}/device/getdevicestatus"
+            f"?tid={self._tid}&category=AC&v={int(time.time() * 1000)}"
+        )
+        headers = self._headers.build(token=self._token, include_token=bool(self._token))
+
+        try:
+            async with self._session.get(url, headers=headers, timeout=10) as resp:
+                text = await resp.text()
+                if resp.status != 200:
+                    log_warning(
+                        LOGGER,
+                        "cloud_status_http_error",
+                        status=resp.status,
+                        tid=self._tid,
+                    )
+                    return None
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            log_warning(LOGGER, "cloud_status_request_failed", error=exc)
+            return None
+
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            log_debug(LOGGER, "cloud_status_not_json")
+            return None
+
+        cur_status = payload.get("curStatus") or {}
+        return self._parse_cloud_status(cur_status)
+
+    async def async_send_command(
+        self,
+        command: str,
+        value: str,
+        seq: str,
+        degree_half: int | None = None,
+    ) -> bool:
+        """Send a control command via cloud convertMqtt API."""
+        if not self.control_enabled:
+            if self._control_enabled:
+                log_warning(
+                    LOGGER,
+                    "cloud_control_unavailable",
+                    reason=self._control_unavailable_reason(),
+                )
+            return False
+
+        tag_map = {
+            "TurnOn": "turnOn",
+            "SetTemp": "setTemp",
+            "WindSpeed": "windSpd",
+            "WindDirection_V": "directV",
+            "WindDirection_H": "directH",
+            "BaseMode": "baseMode",
+            "Opt_ECO": "optECO",
+            "OptDisplay": "optDisplay",
+            "OptHealthy": "optHealthy",
+            "Opt_sleepMode": "optSleepMd",
+            "Opt_super": "optSuper",
+            "OptHeat": "optHeat",
+            "BeepEnable": "beepEn",
+        }
+
+        tag = tag_map.get(command)
+        if not tag:
+            return False
+
+        bool_map = {"on": "1", "off": "0", "1": "1", "0": "0"}
+        wind_map = {
+            "auto": "0",
+            "low": "3",
+            "middle": "2",
+            "high": "1",
+        }
+        mode_map = {
+            MODE_HEAT: "1",
+            MODE_DEHUMI: "2",
+            MODE_COOL: "3",
+            MODE_FAN: "7",
+            MODE_AUTO: "8",
+        }
+
+        cloud_value = value
+        if tag in {
+            "turnOn",
+            "optECO",
+            "optDisplay",
+            "optHealthy",
+            "optSuper",
+            "optHeat",
+            "beepEn",
+        }:
+            cloud_value = bool_map.get(value.lower(), value)
+        elif tag in {"directV", "directH"}:
+            cloud_value = bool_map.get(value.lower(), value)
+        elif tag == "windSpd":
+            cloud_value = wind_map.get(value.lower(), value)
+        elif tag == "baseMode":
+            cloud_value = mode_map.get(value, value)
+
+        body_xml = f'<{tag} value="{cloud_value}"></{tag}>'
+        if tag == "setTemp":
+            degree_value = "0" if degree_half is None else str(degree_half)
+            body_xml += f'<degreeH value="{degree_value}"></degreeH>'
+
+        message = self._build_cloud_message(body_xml, seq)
+        if not message:
+            return False
+
+        payload = {"source": "APP", "params": message}
+        url = f"{self._base_url}/v1/control/convertMqtt/{self._tid}"
+        headers = self._headers.build(
+            token=self._token,
+            include_token=True,
+            include_content_type=True,
+        )
+
+        try:
+            async with self._session.post(
+                url, headers=headers, json=payload, timeout=10
+            ) as resp:
+                if resp.status != 200:
+                    log_warning(
+                        LOGGER,
+                        "cloud_control_http_error",
+                        status=resp.status,
+                        tid=self._tid,
+                        command=command,
+                    )
+                    return False
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            log_warning(
+                LOGGER,
+                "cloud_control_request_failed",
+                error=exc,
+                tid=self._tid,
+                command=command,
+            )
+            return False
+
+        log_info(
+            LOGGER,
+            "cloud_control_sent",
+            tid=self._tid,
+            command=command,
+            value=value,
+            seq=seq,
+        )
+        return True
+
+
 class TclUdpApiClient:
     """TCL UDP API Client for local communication."""
+
+    _HALF_C_IN_F = 0.5 * 9 / 5
 
     def __init__(
         self,
         action_jid: str = "homeassistant@tcl.com/ha-plugin",
         action_source: str = "1",
         account: str = "homeassistant",
+        session: aiohttp.ClientSession | None = None,
+        cloud_enabled: bool = False,
+        cloud_tid: str | None = None,
+        cloud_token: str | None = None,
+        cloud_from: str | None = None,
+        cloud_to: str | None = None,
+        cloud_base_url: str = "https://io.zx.tcljd.com",
+        cloud_control: bool = False,
+        cloud_user_agent: str = DEFAULT_CLOUD_USER_AGENT,
+        cloud_platform: str = DEFAULT_CLOUD_PLATFORM,
+        cloud_app_package: str = DEFAULT_CLOUD_APP_PACKAGE,
+        cloud_system_version: str = DEFAULT_CLOUD_SYSTEM_VERSION,
+        cloud_brand: str = DEFAULT_CLOUD_BRAND,
+        cloud_app_version: str = DEFAULT_CLOUD_APP_VERSION,
+        cloud_sdk_version: str = DEFAULT_CLOUD_SDK_VERSION,
+        cloud_channel: str = DEFAULT_CLOUD_CHANNEL,
+        cloud_app_build_version: str = DEFAULT_CLOUD_APP_BUILD_VERSION,
+        cloud_t_app_version: str = DEFAULT_CLOUD_T_APP_VERSION,
+        cloud_t_platform_type: str = DEFAULT_CLOUD_T_PLATFORM_TYPE,
+        cloud_t_store_uuid: str = DEFAULT_CLOUD_T_STORE_UUID,
+        cloud_origin: str = DEFAULT_CLOUD_ORIGIN,
+        cloud_x_requested_with: str = DEFAULT_CLOUD_X_REQUESTED_WITH,
+        cloud_accept: str = DEFAULT_CLOUD_ACCEPT,
+        cloud_accept_encoding: str = DEFAULT_CLOUD_ACCEPT_ENCODING,
+        cloud_accept_language: str = DEFAULT_CLOUD_ACCEPT_LANGUAGE,
     ) -> None:
         """Initialize the API client."""
-        self._listener_sock: socket.socket | None = None
-        self._listener_transport: asyncio.DatagramTransport | None = (
-            None  # Keep for compatibility
+        self._udp = UdpClient(action_jid, action_source, account)
+        self._session = session
+        header_profile = CloudHeaderProfile(
+            platform=cloud_platform,
+            user_agent=cloud_user_agent,
+            app_package=cloud_app_package,
+            system_version=cloud_system_version,
+            brand=cloud_brand,
+            app_version=cloud_app_version,
+            sdk_version=cloud_sdk_version,
+            channel=cloud_channel,
+            app_build_version=cloud_app_build_version,
+            t_app_version=cloud_t_app_version,
+            t_platform_type=cloud_t_platform_type,
+            t_store_uuid=cloud_t_store_uuid,
+            origin=cloud_origin,
+            x_requested_with=cloud_x_requested_with,
+            accept=cloud_accept,
+            accept_encoding=cloud_accept_encoding,
+            accept_language=cloud_accept_language,
         )
-        self._status_callback: Any = None
-        self._last_status: dict[str, Any] = {}
-        self._tasks: set[asyncio.Task] = set()
-
-        # Configurable protocol fields
-        self._action_jid = action_jid
-        self._action_source = action_source
-        self._account = account
-        self._sequence = 0
-        self._last_received_seq: str | None = None
-        self._device_mac = "00:00:00:00:00:00"  # Will be discovered
-        self._device_ip: str | None = None  # Will be discovered
-        self._device_port: int = 10075  # Default, may be updated from deviceInfo
+        self._cloud = CloudClient(
+            session=session,
+            enabled=cloud_enabled,
+            tid=cloud_tid,
+            token=cloud_token,
+            from_jid=cloud_from,
+            to_jid=cloud_to,
+            base_url=cloud_base_url,
+            control_enabled=cloud_control,
+            headers=header_profile,
+        )
+        self._cloud_sequence = 0
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
-        self._status_callback = status_callback
-        # Use get_running_loop() in async context - more reliable than get_event_loop()
-        loop = asyncio.get_running_loop()
-
         try:
-            # Create raw socket manually - more reliable than create_datagram_endpoint
-            # in some environments (especially Docker containers)
-            self._listener_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._listener_sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            self._listener_sock.setblocking(False)
-            self._listener_sock.bind(("0.0.0.0", UDP_BROADCAST_PORT))
-
-            LOGGER.warning(
-                "!!! SOCKET CREATED: bound to %s !!!", self._listener_sock.getsockname()
-            )
-
-            # Use add_reader for direct event loop integration
-            # This bypasses asyncio's DatagramProtocol which may have issues
-            loop.add_reader(self._listener_sock.fileno(), self._on_socket_readable)
-
-            # Store transport reference for sending (will use the same socket)
-            self._listener_transport = None  # Not using transport anymore
-
-            LOGGER.info(
-                "UDP listener started on port %s (using raw socket)", UDP_BROADCAST_PORT
-            )
+            await self._udp.async_start_listener(status_callback)
         except OSError as exception:
             msg = f"Failed to start UDP listener: {exception}"
             raise TclUdpApiClientCommunicationError(msg) from exception
 
     def _on_socket_readable(self) -> None:
         """Called when socket has data to read."""
-        try:
-            data, addr = self._listener_sock.recvfrom(4096)
-            LOGGER.warning(
-                "!!! RAW SOCKET RECEIVED %d bytes from %s !!!", len(data), addr
-            )
-            self._handle_status_update(data, addr)
-        except BlockingIOError:
-            pass  # No data available
-        except Exception as e:
-            LOGGER.error("Error reading from socket: %s", e)
+        self._udp._on_socket_readable()
+
+    def _on_send_socket_readable(self) -> None:
+        """Called when send socket has data to read (unicast replies)."""
+        self._udp._on_send_socket_readable()
 
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
-        if self._listener_sock:
-            loop = asyncio.get_running_loop()
-            loop.remove_reader(self._listener_sock.fileno())
-            self._listener_sock.close()
-            self._listener_sock = None
-            LOGGER.info("UDP listener stopped")
+        await self._udp.async_stop_listener()
+
+    @property
+    def cloud_enabled(self) -> bool:
+        """Return True if cloud status fetch is enabled and configured."""
+        return self._cloud.status_enabled
+
+    def merge_status(self, status: dict[str, Any]) -> None:
+        """Merge status into the last known status."""
+        self._udp.merge_status(status)
+
+    async def async_fetch_cloud_status(
+        self,
+        retries: int = 1,
+        retry_delay: float = 1.0,
+    ) -> dict[str, Any] | None:
+        """Fetch device status from cloud API when enabled (with retry)."""
+        attempt = 0
+        while True:
+            status = await self._cloud.async_fetch_status()
+            if status:
+                self.merge_status(status)
+                return status
+
+            if attempt >= retries:
+                if retries:
+                    LOGGER.warning(
+                        "Cloud status fetch failed after %d attempt(s)",
+                        attempt + 1,
+                    )
+                return None
+
+            attempt += 1
+            LOGGER.warning(
+                "Cloud status fetch failed, retrying in %.1fs (%d/%d)",
+                retry_delay,
+                attempt,
+                retries,
+            )
+            await asyncio.sleep(retry_delay)
+
+    async def async_send_cloud_command(self, command: str, value: str) -> bool:
+        """Send a control command via cloud convertMqtt API."""
+        seq = str(self._cloud_sequence + 1)
+        return await self._cloud.async_send_command(command, value, seq)
 
     def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle incoming status update from device."""
-        try:
-            message = data.decode("utf-8")
-            # Log to verify packets are being received
-            LOGGER.debug("Received UDP message from %s: %s", addr, message)
-
-            # Update Device IP from the sender's address
-            # addr is (ip, port)
-            sender_ip = addr[0]
-            sender_port = addr[1]
-
-            if self._device_ip != sender_ip:
-                LOGGER.info(
-                    "Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip
-                )
-                self._device_ip = sender_ip
-
-            # Most TCL devices send status from their control port (usually 10075)
-            # If we don't have a port yet, or it's different, update it.
-            if sender_port and sender_port != self._device_port:
-                LOGGER.info(
-                    "Device port discovered from sender: %d -> %d",
-                    self._device_port,
-                    sender_port,
-                )
-                self._device_port = sender_port
-
-            # Parse XML - Local network only
-            # Using defusedxml would be safer but for local network this is acceptable
-            root = ET.fromstring(message)  # noqa: S314
-
-            # Check if it's a deviceInfo response (Discovery)
-            if root.tag == "deviceInfo":
-                # Java protocol uses PascalCase (DevIP, DevMac, DevPort) but old logs saw camelCase
-                # We check both for robustness
-                dev_ip = root.findtext("DevIP") or root.findtext("devIP")
-                dev_mac = (
-                    root.findtext("DevMAC")
-                    or root.findtext("devMac")
-                    or root.findtext("devMAC")
-                )
-
-                if dev_ip and self._device_ip != dev_ip:
-                    LOGGER.info(
-                        "Device IP discovered via deviceInfo: %s -> %s",
-                        self._device_ip,
-                        dev_ip,
-                    )
-                    self._device_ip = dev_ip
-
-                if dev_mac and self._device_mac != dev_mac:
-                    LOGGER.info("Device MAC discovered via deviceInfo: %s", dev_mac)
-                    self._device_mac = dev_mac
-
-                # Save device port from deviceInfo (CRITICAL for control)
-                dev_port_str = root.findtext("DevPort") or root.findtext("devPort")
-                if dev_port_str:
-                    try:
-                        dev_port = int(dev_port_str)
-                        if self._device_port != dev_port:
-                            LOGGER.info(
-                                "Device port discovered via deviceInfo: %d", dev_port
-                            )
-                            self._device_port = dev_port
-                    except ValueError:
-                        pass
-                return
-
-            # Capture device MAC if available in msg header
-            # Java: tclid, Old: devid
-            dev_id = root.get("tclid") or root.get("devid")
-            if dev_id and dev_id != self._device_mac:
-                LOGGER.info("Device MAC discovered via header: %s", dev_id)
-                self._device_mac = dev_id
-
-            # Check if it's a status message
-            # Matches cmd="status" (old) or type="Notify" (new/Java)
-            msg_type = (root.get("type") or "").lower()
-            if root.get("cmd") == "status" or msg_type == "notify":
-                # De-duplicate identical packets (often arrive in bursts)
-                current_seq = root.get("seq")
-                if current_seq is not None and current_seq == self._last_received_seq:
-                    return
-                self._last_received_seq = current_seq
-
-                status_msg = root.find("statusUpdateMsg") or root.find(
-                    "StatusUpdateMsg"
-                )
-                if status_msg is not None:
-                    status = self._parse_status(status_msg)
-                    # Merge with existing status to preserve missing fields in partial updates
-                    self._last_status.update(status)
-                    LOGGER.debug("Parsed status: %s (merged)", self._last_status)
-
-                    # Call the callback with the full current status
-                    if self._status_callback:
-                        task = asyncio.create_task(self._status_callback(self._last_status))
-                        self._tasks.add(task)
-                        task.add_done_callback(self._tasks.discard)
-        except ET.ParseError as exception:
-            LOGGER.error("Error parsing XML status message: %s", exception)
-        except UnicodeDecodeError as exception:
-            LOGGER.error("Error decoding status message: %s", exception)
-        except (KeyError, AttributeError) as exception:
-            LOGGER.error("Error processing status message: %s", exception)
+        self._udp._handle_status_update(data, addr)
 
     def _get_node_value(self, node: ET.Element | None) -> str | None:
         """Extract value from node, handling both <tag value='x'> and <tag>x</tag>."""
-        if node is None:
-            return None
-        # Try attribute first (old style)
-        val = node.get("value")
-        if val is None:
-            # Try text content (new/Java style)
-            val = node.text
-        return val
+        return self._udp._get_node_value(node)
 
     def _parse_bool_feature(
         self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
     ) -> None:
         """Helper to parse boolean features from both XML formats."""
-        # Try PascalCase (Java) and camelCase (Old)
-        node = status_msg.find(tag) or status_msg.find(tag[0].lower() + tag[1:])
-        val = self._get_node_value(node)
-
-        if val is not None:
-            # Handle 'on'/'off' and '1'/'0'
-            status[status_key] = val.lower() == "on" or val == "1"
+        self._udp._parse_bool_feature(status_msg, tag, status_key, status)
 
     def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:
         """Parse status message XML, supporting multiple formats."""
-        status = {}
-        parsed_tags = set()
+        return self._udp._parse_status(status_msg)
 
-        def get_and_record(tag_names: list[str]) -> ET.Element | None:
-            for name in tag_names:
-                node = status_msg.find(name)
-                if node is not None:
-                    parsed_tags.add(node.tag)
-                    return node
-            return None
-
-        # Parse power state (TurnOn/turnOn)
-        node = get_and_record(["TurnOn", "turnOn", "Power", "power"])
-        val = self._get_node_value(node)
-        if val:
-            status["power"] = val.lower() == "on" or val == "1"
-
-        # Parse set temperature (SetTemp/setTemp)
-        node = get_and_record(["SetTemp", "setTemp"])
-        val = self._get_node_value(node)
-        if val:
-            try:
-                status["target_temp"] = int(val)
-            except ValueError:
-                LOGGER.warning("Invalid SetTemp value: %s", val)
-
-        # Parse indoor temperature (InTemp/inTemp/IndoorTemp)
-        node = get_and_record(["InTemp", "inTemp", "IndoorTemp", "indoorTemp"])
-        val = self._get_node_value(node)
-        if val:
-            try:
-                status["current_temp"] = int(val)
-            except ValueError:
-                LOGGER.warning("Invalid InTemp value: %s", val)
-
-        # Parse outdoor temperature (OutTemp/outTemp/OutdoorTemp)
-        node = get_and_record(["OutTemp", "outTemp", "OutdoorTemp", "outdoorTemp"])
-        val = self._get_node_value(node)
-        if val:
-            try:
-                status["outdoor_temp"] = int(val)
-            except ValueError:
-                LOGGER.warning("Invalid OutTemp value: %s", val)
-
-        # Parse boolean features using local helper
-        def parse_bool(tags: list[str], key: str) -> None:
-            node = get_and_record(tags)
-            val = self._get_node_value(node)
-            if val is not None:
-                status[key] = val.lower() == "on" or val == "1"
-
-        parse_bool(["OptECO", "optECO", "Opt_ECO"], "eco_mode")
-        parse_bool(["OptDisplay", "optDisplay", "Opt_display"], "display")
-        parse_bool(["OptHealthy", "optHealthy", "Opt_healthy"], "health_mode")
-        parse_bool(["Opt_sleepMode", "sleepMode", "SleepMode"], "sleep_mode")
-        parse_bool(["Opt_super", "superMode", "SuperMode", "OptSuper"], "turbo_mode")
-        parse_bool(["BeepEnable", "beepEn", "BeepEn"], "beep")
-
-        # Parse fan speed (WindSpeed/windSpd)
-        node = get_and_record(["WindSpeed", "windSpd", "WindSpd"])
-        val = self._get_node_value(node)
-        if val:
-            v = val.lower()
-            if v == "high":
-                status["fan_speed"] = FAN_HIGH
-            elif v == "middle":
-                status["fan_speed"] = FAN_MIDDLE
-            elif v == "low":
-                status["fan_speed"] = FAN_LOW
-            elif v == "auto":
-                status["fan_speed"] = FAN_AUTO
-            else:
-                status["fan_speed"] = v
-
-        # Parse swing mode
-        parse_bool(["WindDirection_H", "directH", "directh"], "swing_h")
-        parse_bool(["WindDirection_V", "directV", "directv"], "swing_v")
-
-        # Parse mode (BaseMode/baseMode)
-        node = get_and_record(["BaseMode", "baseMode", "Mode", "mode"])
-        val = self._get_node_value(node)
-        if val:
-            v = val.lower()
-            if v == "cool":
-                status["mode"] = MODE_COOL
-            elif v == "heat":
-                status["mode"] = MODE_HEAT
-            elif v == "fan":
-                status["mode"] = MODE_FAN
-            elif v == "dehumi":
-                status["mode"] = MODE_DEHUMI
-            elif v == "selffeel":
-                status["mode"] = MODE_AUTO
-            else:
-                status["mode"] = v
-
-        # Log any unparsed tags for debugging
-        for child in status_msg:
-            if child.tag not in parsed_tags and child.tag not in [
-                "actionSource",
-                "action_source",
-            ]:
-                LOGGER.debug(
-                    "Unknown tag in statusUpdateMsg: %s = %s",
-                    child.tag,
-                    self._get_node_value(child),
-                )
-
-        return status
-
-        return status
-
-    async def async_send_command(self, command: str, value: str) -> None:
+    async def async_send_command(
+        self,
+        command: str,
+        value: str,
+        degree_half: int | None = None,
+    ) -> None:
         """
         Send a command using SetMessage XML format (per Java source code).
 
@@ -370,38 +652,23 @@ class TclUdpApiClient:
 
         """
         try:
-            self._sequence += 1
-            seq = str(self._sequence)
-
-            # Construct SetMessage XML (from UdpComm.java / TclDeviceSendTool.java)
-            # <msg tclid="MAC" msgid="SetMessage" type="Control" seq="123">
-            #   <SetMessage>
-            #     <TurnOn>on</TurnOn>
-            #   </SetMessage>
-            # </msg>
-            xml_command = (
-                f'<msg tclid="{self._device_mac}" msgid="SetMessage" type="Control" seq="{seq}">'
-                f"<SetMessage>"
-                f"<{command}>{value}</{command}>"
-                f"</SetMessage>"
-                f"</msg>"
+            next_seq = str(self._cloud_sequence + 1)
+            if self._cloud.control_enabled:
+                await self._cloud.async_send_command(
+                    command,
+                    value,
+                    next_seq,
+                    degree_half=degree_half,
+                )
+            self._cloud_sequence += 1
+            await self._udp.async_send_command(
+                command,
+                value,
+                degree_half=degree_half,
             )
-
-            LOGGER.debug("Sending SetMessage: %s", xml_command)
-
-            # Send to discovered device port (mandatory per Java logic)
-            if self._device_ip and self._device_port:
-                target_addr = (self._device_ip, self._device_port)
-                LOGGER.debug("Sending to %s:%d", target_addr[0], target_addr[1])
-                self._listener_sock.sendto(xml_command.encode("utf-8"), target_addr)
-            else:
-                LOGGER.warning("Device not discovered. Cannot send command.")
 
         except OSError as exception:
             LOGGER.error("Failed to send command: %s", exception)
-            if self._device_ip:
-                LOGGER.warning("Clearing discovered IP after failure")
-                self._device_ip = None
             raise TclUdpApiClientCommunicationError(
                 f"Error sending command: {exception}"
             ) from exception
@@ -411,10 +678,43 @@ class TclUdpApiClient:
         # Java: <TurnOn>on</TurnOn> or <TurnOn>off</TurnOn>
         await self.async_send_command("TurnOn", "on" if power else "off")
 
-    async def async_set_temperature(self, temperature: int) -> None:
+    async def async_set_temperature(self, temperature: float) -> None:
         """Set target temperature."""
         # Java: <SetTemp>78</SetTemp> (Fahrenheit integer)
-        await self.async_send_command("SetTemp", str(temperature))
+        temp_value = float(temperature)
+        temp_int, degree_half = self._map_set_temp(temp_value)
+        await self.async_send_command(
+            "SetTemp",
+            str(temp_int),
+            degree_half=degree_half,
+        )
+
+    @staticmethod
+    def _fahrenheit_to_celsius(temp_f: float) -> float:
+        return (temp_f - 32.0) / 1.8
+
+    @classmethod
+    def _map_set_temp(cls, temp_f: float) -> tuple[int, int]:
+        """Map Fahrenheit input to setTemp integer + degreeH flag."""
+        desired_c = cls._fahrenheit_to_celsius(temp_f)
+        desired_c_rounded = round(desired_c * 2) / 2
+        base_f = int(round(temp_f))
+
+        best: tuple[float, float, float, int, int] | None = None
+        for f_int in range(base_f - 3, base_f + 4):
+            for degree_half in (0, 1):
+                c_val = cls._fahrenheit_to_celsius(f_int) + 0.5 * degree_half
+                c_rounded = round(c_val * 2) / 2
+                diff = abs(c_rounded - desired_c_rounded)
+                diff_raw = abs(c_val - desired_c)
+                diff_f = abs(f_int - temp_f)
+                candidate = (diff, diff_raw, diff_f, f_int, degree_half)
+                if best is None or candidate < best:
+                    best = candidate
+
+        if best is None:
+            return int(round(temp_f)), 0
+        return best[3], best[4]
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
@@ -453,6 +753,10 @@ class TclUdpApiClient:
         """Set turbo (super) mode."""
         await self.async_send_command("Opt_super", "on" if enabled else "off")
 
+    async def async_set_aux_heat(self, enabled: bool) -> None:
+        """Set auxiliary (electric) heat on/off."""
+        await self.async_send_command("OptHeat", "on" if enabled else "off")
+
     async def async_set_beep(self, enabled: bool) -> None:
         """Set beep on/off."""
         # Java: <BeepEnable>on</BeepEnable>
@@ -460,88 +764,19 @@ class TclUdpApiClient:
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
-        try:
-            self._sequence += 1
-            # Java: sendMulticast() -> <message msgid="SearchDevice"></message>
-            xml_command = '<message msgid="SearchDevice"></message>'
-
-            LOGGER.debug("Sending Discovery: %s", xml_command)
-
-            # Send SearchDevice to broadcast
-            self._listener_sock.sendto(
-                xml_command.encode("utf-8"),
-                ("<broadcast>", UDP_COMMAND_PORT),  # 10075
-            )
-
-            # If we already have an IP, also send a SyncStatusReq directly to it
-            # This is syncMsg1 from UdpComm.java
-            if self._device_ip:
-                sync_xml = (
-                    f'<msg msgid="SyncStatusReq" type="Notify" seq="{self._sequence}">'
-                    f"<SyncStatusReq></SyncStatusReq></msg>"
-                )
-                self._listener_sock.sendto(
-                    sync_xml.encode("utf-8"),
-                    (self._device_ip, self._device_port),
-                )
-
-            # JSON Discovery (Optional/Alternative)
-            json_search = json.dumps(
-                {
-                    "msgId": str(random.randint(1000, 9999)),
-                    "version": "123",
-                    "method": "searchReq",
-                }
-            )
-            self._listener_sock.sendto(
-                json_search.encode("utf-8"),
-                ("<broadcast>", UDP_COMMAND_PORT),
-            )
-            LOGGER.debug("Sent discovery (XML and JSON)")
-
-        except OSError as exception:
-            LOGGER.warning("Failed to send discovery packet: %s", exception)
+        await self._udp.async_send_discovery()
 
     async def async_request_status(self) -> None:
         """Explicitly request a full status update from the device (SyncStatusReq)."""
-        if not self._device_ip:
-            await self.async_send_discovery()
-            return
-
-        try:
-            self._sequence += 1
-            # TclDeviceSendTool.java uses type="Control"
-            # UdpComm.java uses type="Notify"
-            # We send both to be sure
-            for msg_type in ["Control", "Notify"]:
-                xml = (
-                    f'<msg msgid="SyncStatusReq" type="{msg_type}" seq="{self._sequence}">'
-                    f"<SyncStatusReq></SyncStatusReq></msg>"
-                )
-                LOGGER.debug("Sending SyncStatusReq (%s) to %s", msg_type, self._device_ip)
-                self._listener_sock.sendto(
-                    xml.encode("utf-8"), (self._device_ip, self._device_port)
-                )
-        except OSError as exception:
-            LOGGER.error("Failed to send SyncStatusReq: %s", exception)
+        await self._udp.async_request_status()
 
     def get_last_status(self) -> dict[str, Any]:
         """Get the last received status."""
-        return self._last_status
+        return self._udp.get_last_status()
 
     async def async_close(self) -> None:
         """Close the API client."""
-        # Cancel all pending tasks
-        for task in self._tasks:
-            if not task.done():
-                task.cancel()
-
-        # Wait for all tasks to complete/cancel
-        if self._tasks:
-            await asyncio.gather(*self._tasks, return_exceptions=True)
-        self._tasks.clear()
-
-        await self.async_stop_listener()
+        await self._udp.async_close()
 
 
 class UDPListenerProtocol(asyncio.DatagramProtocol):

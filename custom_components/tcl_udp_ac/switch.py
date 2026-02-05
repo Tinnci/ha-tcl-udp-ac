@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.entity import EntityCategory
 
+from .const import LOGGER
 from .entity import TclUdpEntity
+from .log_utils import log_info
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -26,6 +28,7 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
         [
+            TclUdpSwitch(coordinator, "turnOn", "power", "Power", "mdi:power"),
             TclUdpSwitch(coordinator, "optECO", "eco_mode", "Eco Mode", "mdi:leaf"),
             TclUdpSwitch(
                 coordinator,
@@ -43,6 +46,13 @@ async def async_setup_entry(
             ),
             TclUdpSwitch(
                 coordinator, "optSuper", "turbo_mode", "Turbo Mode", "mdi:rocket"
+            ),
+            TclUdpSwitch(
+                coordinator,
+                "optHeat",
+                "aux_heat",
+                "Aux Heat",
+                "mdi:radiator",
             ),
             TclUdpSwitch(
                 coordinator,
@@ -71,6 +81,7 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         """Initialize the switch."""
         super().__init__(coordinator)
         self._api_key = api_key
+        self._key = api_key
         self._data_key = data_key
         self._attr_name = f"TCL AC {name}"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{data_key}"
@@ -87,6 +98,12 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
+        log_info(
+            LOGGER,
+            "entity_switch_turn_on",
+            entity=self.entity_id,
+            key=self._key,
+        )
         client = self.coordinator.config_entry.runtime_data.client
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
@@ -95,6 +112,12 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
+        log_info(
+            LOGGER,
+            "entity_switch_turn_off",
+            entity=self.entity_id,
+            key=self._key,
+        )
         client = self.coordinator.config_entry.runtime_data.client
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):

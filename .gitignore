@@ -17,3 +17,6 @@ coverage.xml
 config/*
 !config/configuration.yaml
 protocol_extract/*
+
+# local traffic captures (may contain sensitive data)
+tcl_*.jsonl

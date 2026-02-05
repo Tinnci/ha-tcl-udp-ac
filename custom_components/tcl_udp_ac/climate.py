@@ -35,6 +35,7 @@ from .const import (
     LOGGER,
 )
 from .entity import TclUdpEntity
+from .log_utils import log_info
 from .const import (
     MODE_AUTO as TCL_MODE_AUTO,
 )
@@ -119,9 +120,10 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         SWING_HORIZONTAL,
         SWING_BOTH,
     ]
-    _attr_min_temp = 60
-    _attr_max_temp = 86
-    _attr_target_temperature_step = 1
+    _attr_min_temp = 60.8
+    _attr_max_temp = 87.8
+    _attr_target_temperature_step = 0.9
+    _attr_precision = 0.1
 
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the climate entity."""
@@ -150,25 +152,29 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if not data:
             return HVACMode.OFF
 
-        # If power is explicitly OFF, return OFF
-        if data.get("power") is False:
-            return HVACMode.OFF
-
         # Read mode from device
         mode_val = data.get("mode")
-        if mode_val:
+        pwr_val = data.get("power")
+
+        # If we have an explicit mode, use it (unless power is explicitly off)
+        if mode_val and pwr_val is not False:
             return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
 
+        # If power is explicitly OFF, return OFF
+        if pwr_val is False:
+            return HVACMode.OFF
+
         # If power is explicitly ON but no mode, default to COOL
-        if data.get("power") is True:
+        if pwr_val is True:
             return HVACMode.COOL
 
-        # If we have other signs of life (like target temp) but no power/mode tag,
+        # If we have other signs of life but no power/mode tag,
         # it's likely ON (most partial updates don't include power/mode)
         if "target_temp" in data or "fan_speed" in data:
             return HVACMode.COOL
 
-        # Default to OFF for unknown state
+        # If we only have indoor temp, we can't be sure, but let's assume OFF 
+        # until a real status packet arrives
         return HVACMode.OFF
 
     @property
@@ -202,14 +208,24 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is not None:
-            LOGGER.debug("Setting temperature to %s", temperature)
+            log_info(
+                LOGGER,
+                "entity_set_temperature",
+                entity=self.entity_id,
+                temperature=temperature,
+            )
             client = self.coordinator.config_entry.runtime_data.client
-            await client.async_set_temperature(int(temperature))
+            await client.async_set_temperature(float(temperature))
             await self.coordinator.async_request_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
-        LOGGER.debug("Setting HVAC mode to %s", hvac_mode)
+        log_info(
+            LOGGER,
+            "entity_set_hvac_mode",
+            entity=self.entity_id,
+            hvac_mode=hvac_mode,
+        )
         client = self.coordinator.config_entry.runtime_data.client
 
         if hvac_mode == HVACMode.OFF:
@@ -228,7 +244,12 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new fan mode."""
-        LOGGER.debug("Setting fan mode to %s", fan_mode)
+        log_info(
+            LOGGER,
+            "entity_set_fan_mode",
+            entity=self.entity_id,
+            fan_mode=fan_mode,
+        )
         client = self.coordinator.config_entry.runtime_data.client
 
         speed_val = FAN_MODE_MAP.get(fan_mode)
@@ -238,7 +259,12 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new swing mode."""
-        LOGGER.debug("Setting swing mode to %s", swing_mode)
+        log_info(
+            LOGGER,
+            "entity_set_swing_mode",
+            entity=self.entity_id,
+            swing_mode=swing_mode,
+        )
         client = self.coordinator.config_entry.runtime_data.client
 
         vertical = swing_mode in (SWING_VERTICAL, SWING_BOTH)
@@ -249,9 +275,11 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
     async def async_turn_on(self) -> None:
         """Turn on the AC."""
+        log_info(LOGGER, "entity_turn_on", entity=self.entity_id)
         # Restore last known mode or default to COOL
         await self.async_set_hvac_mode(HVACMode.COOL)
 
     async def async_turn_off(self) -> None:
         """Turn off the AC."""
+        log_info(LOGGER, "entity_turn_off", entity=self.entity_id)
         await self.async_set_hvac_mode(HVACMode.OFF)

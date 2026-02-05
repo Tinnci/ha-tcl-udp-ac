@@ -24,8 +24,12 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         # But we also trigger a SyncStatusReq as a manual poll fallback
         try:
             await self.config_entry.runtime_data.client.async_request_status()
+            if self.config_entry.runtime_data.client.cloud_enabled:
+                await self.config_entry.runtime_data.client.async_fetch_cloud_status()
             return self.config_entry.runtime_data.client.get_last_status()
         except TclUdpApiClientError:
+            if self.config_entry.runtime_data.client.cloud_enabled:
+                await self.config_entry.runtime_data.client.async_fetch_cloud_status()
             return self.config_entry.runtime_data.client.get_last_status()
 
     async def async_handle_status_update(self, status: dict[str, Any]) -> None:
