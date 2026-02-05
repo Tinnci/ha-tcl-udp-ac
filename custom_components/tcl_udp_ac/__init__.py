@@ -247,7 +247,8 @@ async def async_setup_entry(
     await client.async_start_listener(coordinator.async_handle_status_update)
 
     # Trigger active discovery
-    # This sends a broadcast query so we don't have to wait for the next spontaneous heartbeat
+    # This sends a broadcast query so we don't have to wait for the next
+    # spontaneous heartbeat.
     await client.async_send_discovery()
 
     # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
