@@ -1,5 +1,20 @@
 # Findings: Home Assistant Integration Search
 
+## Translation Expansion
+- Official Home Assistant custom integration localization docs say custom integrations read translation JSON from the integration-adjacent `translations` directory, named `<language_code>.json`, with BCP47 language codes.
+- The same docs say custom integrations must not use `strings.json` or Home Assistant Core placeholder syntax; each translation file needs full text for each key.
+- Added eight locale files beyond English: German `de`, Spanish `es`, French `fr`, Italian `it`, Japanese `ja`, Korean `ko`, Brazilian Portuguese `pt-BR`, and Simplified Chinese `zh-Hans`.
+
+## Mode-Aware Switch Controls
+- User confirmed Aux Heat should not be usable while cooling, but Turbo and Sleep may still be valid in Dry/Fan or other modes depending on device behavior.
+- Implemented conservative mode-awareness in switch entities: switches can now declare `available_modes` and `requires_power`; Aux Heat declares `available_modes={"heat"}` and `requires_power=True`.
+- Sleep and Turbo intentionally remain unrestricted until live captures prove narrower mode constraints.
+
+## Outdoor Temperature Placeholder Handling
+- Home Assistant official guidance says if an integration cannot fetch data, mark the entity unavailable; if the device/service is reached but an individual data field is missing, the entity state should be unknown rather than a fabricated value.
+- The TCL protocol can report `outTemp=32°F`, which converts to `0.0°C`; for this device that is a placeholder when outdoor temperature cannot be read, not a trustworthy outdoor reading.
+- Added parser-level filtering so cloud and UDP status parsers do not store placeholder outdoor readings, and sensor-level availability so Home Assistant/HomeKit receive unavailable/unknown instead of fake `0°C`.
+
 ## Coordinator / Orchestrator Review
 - Review started 2026-05-12 for current Home Assistant integration orchestration: setup entry, coordinator refresh, UDP listener callbacks, client lifecycle, and entity command refresh paths.
 - Current orchestration is simple and mostly coherent: `async_setup_entry()` creates one `TclUdpApiClient`, one `TclUdpDataUpdateCoordinator`, stores both in `entry.runtime_data`, starts the UDP listener, sends discovery, performs first refresh, then forwards climate/switch/sensor platforms.
@@ -93,3 +108,18 @@
 - Current legacy mapping: Cool is `baseMode=1`, Dry is `baseMode=2`, Heat is `baseMode=4`. Treat old `baseMode=3` Cool notes as superseded.
 - Grouped `turnOn=1 + baseMode=7` and `turnOn=1 + baseMode=8` returned API success but status stayed in heat. Treat `baseMode=7/8` as unsupported for legacy device `2743138`.
 - Live `temp-experiment` on 2026-05-12 with a 20-second wait still failed for legacy temperature control: `setTemp=75` was acknowledged but status stayed at `setTemp=73`, `celsiusSetTemp=23.0`, `degreeH=0`.
+
+## Versatile Thermostat Compatibility Check
+- Interpreted "versatile summer start" as Versatile Thermostat's `over_climate` / cooling auto-start use case, where this integration is the underlying climate entity.
+- Versatile Thermostat's over-climate setup expects a controllable underlying thermostat/climate entity; Home Assistant climate docs define the needed contract as HVAC modes, target temperature support, turn on/off support, and set-temperature methods.
+- `TclUdpClimate` exposes Celsius, `HVACMode.COOL`, `HVACMode.OFF`, `ClimateEntityFeature.TARGET_TEMPERATURE`, `TURN_ON`, and `TURN_OFF`, and implements `async_set_temperature`, `async_set_hvac_mode`, `async_turn_on`, and `async_turn_off`.
+- Interface-level compatibility for summer cooling start is therefore present: Versatile Thermostat should be able to select this climate entity, turn it on, request Cool, and call set-temperature services.
+- Real-device compatibility remains qualified for legacy device `2743138`: live temperature experiments show `setTemp` writes are API-accepted but not reflected in verified status, so a thermostat algorithm that depends on changing the underlying AC setpoint may not actually move the device setpoint until that protocol path is solved.
+- The outdoor-temperature placeholder fix improves compatibility with thermostat/HomeKit consumers by exporting unavailable/unknown instead of a fake `0.0°C` reading when no valid outdoor reading exists.
+- The mode-aware Aux Heat switch change is compatible with the summer use case because it hides heat-only auxiliary behavior during Cool instead of exposing irrelevant control state.
+- Added `hvac_action` for better Versatile Thermostat over-climate feedback. It reports `off`, `cooling`, `heating`, `drying`, `fan`, or `idle` from the current mode and current/target temperature, giving VTherm a direct action signal instead of forcing it to simulate one.
+- Added a contract regression test for the Versatile over-climate requirements: `COOL`, `OFF`, target-temperature feature, turn-on feature, turn-off feature, and non-null `hvac_action`.
+- Optimized combined Home Assistant `climate.set_temperature` compatibility: when `hvac_mode` is supplied with the temperature, `TclUdpClimate.async_set_temperature()` now routes to the grouped mode profile, so calls such as "set Cool to 23.5°C" can power/mode the AC and carry the requested setpoint together.
+- If a combined set-temperature call supplies `hvac_mode=off`, the entity now routes to power-off and does not emit a stale/irrelevant temperature write.
+- Versatile Thermostat's `UnderlyingClimate` sends `climate.set_hvac_mode` and then, after a short delay, sends `climate.set_temperature` without `hvac_mode`. That meant our earlier combined `temperature + hvac_mode` optimization did not cover the actual over-climate follow-up setpoint call.
+- Changed TCL `async_set_temperature()` so a standalone setpoint update while the AC is already in a mapped non-off HVAC mode also uses the grouped current-mode profile. This avoids falling back to the legacy standalone temperature write path that live tests classified as cloud-accepted but not reflected in verified status.

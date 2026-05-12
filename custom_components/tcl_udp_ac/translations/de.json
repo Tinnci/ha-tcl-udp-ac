@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Richte eine TCL-Klimaanlage mit lokaler UDP-Steuerung und optionalem TCL+-Cloud-Fallback ein. Cloud-Zugriffstoken laufen ab; aktualisiere sie aus einem neuen TCL+-Mitschnitt, wenn Cloud-Anfragen fehlschlagen.",
+        "data": {
+          "action_jid": "Lokale Aktions-JID",
+          "action_source": "Lokale Aktionsquelle",
+          "account": "Lokale Konto-ID",
+          "cloud_enabled": "Cloud-Status-Fallback aktivieren",
+          "cloud_tid": "Cloud-Geräte-TID",
+          "cloud_access_token": "Cloud-Zugriffstoken",
+          "cloud_from": "Cloud-Absender-JID",
+          "cloud_to": "Cloud-Geräte-JID",
+          "cloud_base_url": "Cloud-Basis-URL",
+          "cloud_control": "Cloud-Steuerung aktivieren",
+          "cloud_user_agent": "Cloud-User-Agent",
+          "cloud_platform": "Cloud-Plattform",
+          "cloud_app_package": "Cloud-App-Paket",
+          "cloud_system_version": "Cloud-Systemversion",
+          "cloud_brand": "Cloud-Gerätemarke",
+          "cloud_app_version": "Cloud-App-Version",
+          "cloud_sdk_version": "Cloud-SDK-Version",
+          "cloud_channel": "Cloud-App-Kanal",
+          "cloud_app_build_version": "Cloud-App-Build-Version",
+          "cloud_t_app_version": "Cloud-T-App-Version",
+          "cloud_t_platform_type": "Cloud-T-Plattformtyp",
+          "cloud_t_store_uuid": "Cloud-T-Store-UUID",
+          "cloud_origin": "Cloud-Origin-Header",
+          "cloud_x_requested_with": "Cloud-Requested-With-Header",
+          "cloud_accept": "Cloud-Accept-Header",
+          "cloud_accept_encoding": "Cloud-Accept-Encoding-Header",
+          "cloud_accept_language": "Cloud-Accept-Language-Header",
+          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
+          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+        }
+      }
+    },
+    "error": {
+      "connection": "UDP-Listener konnte nicht gestartet werden.",
+      "unknown": "Unbekannter Fehler aufgetreten."
+    },
+    "abort": {
+      "already_configured": "Dieser Eintrag ist bereits konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Aktualisiere lokale UDP-, TCL+-Cloud- und experimentelle Moduseinstellungen. Lasse Nur Lüften und Auto/KI deaktiviert, bis Live-Modustests die Unterstützung auf diesem Gerät bestätigen.",
+        "data": {
+          "action_jid": "Lokale Aktions-JID",
+          "action_source": "Lokale Aktionsquelle",
+          "account": "Lokale Konto-ID",
+          "cloud_enabled": "Cloud-Status-Fallback aktivieren",
+          "cloud_tid": "Cloud-Geräte-TID",
+          "cloud_access_token": "Cloud-Zugriffstoken",
+          "cloud_from": "Cloud-Absender-JID",
+          "cloud_to": "Cloud-Geräte-JID",
+          "cloud_base_url": "Cloud-Basis-URL",
+          "cloud_control": "Cloud-Steuerung aktivieren",
+          "cloud_user_agent": "Cloud-User-Agent",
+          "cloud_platform": "Cloud-Plattform",
+          "cloud_app_package": "Cloud-App-Paket",
+          "cloud_system_version": "Cloud-Systemversion",
+          "cloud_brand": "Cloud-Gerätemarke",
+          "cloud_app_version": "Cloud-App-Version",
+          "cloud_sdk_version": "Cloud-SDK-Version",
+          "cloud_channel": "Cloud-App-Kanal",
+          "cloud_app_build_version": "Cloud-App-Build-Version",
+          "cloud_t_app_version": "Cloud-T-App-Version",
+          "cloud_t_platform_type": "Cloud-T-Plattformtyp",
+          "cloud_t_store_uuid": "Cloud-T-Store-UUID",
+          "cloud_origin": "Cloud-Origin-Header",
+          "cloud_x_requested_with": "Cloud-Requested-With-Header",
+          "cloud_accept": "Cloud-Accept-Header",
+          "cloud_accept_encoding": "Cloud-Accept-Encoding-Header",
+          "cloud_accept_language": "Cloud-Accept-Language-Header",
+          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
+          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+        }
+      }
+    }
+  }
+}

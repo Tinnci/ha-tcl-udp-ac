@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "ローカル UDP 制御と任意の TCL+ クラウドフォールバックを使って TCL エアコンを設定します。クラウドアクセストークンには有効期限があります。クラウド要求が失敗し始めたら、新しい TCL+ キャプチャから更新してください。",
+        "data": {
+          "action_jid": "ローカルアクション JID",
+          "action_source": "ローカルアクションソース",
+          "account": "ローカルアカウント ID",
+          "cloud_enabled": "クラウド状態フォールバックを有効にする",
+          "cloud_tid": "クラウドデバイス TID",
+          "cloud_access_token": "クラウドアクセストークン",
+          "cloud_from": "クラウド送信元 JID",
+          "cloud_to": "クラウドデバイス JID",
+          "cloud_base_url": "クラウドベース URL",
+          "cloud_control": "クラウド制御を有効にする",
+          "cloud_user_agent": "クラウドユーザーエージェント",
+          "cloud_platform": "クラウドプラットフォーム",
+          "cloud_app_package": "クラウドアプリパッケージ",
+          "cloud_system_version": "クラウドシステムバージョン",
+          "cloud_brand": "クラウドデバイスブランド",
+          "cloud_app_version": "クラウドアプリバージョン",
+          "cloud_sdk_version": "クラウド SDK バージョン",
+          "cloud_channel": "クラウドアプリチャンネル",
+          "cloud_app_build_version": "クラウドアプリビルドバージョン",
+          "cloud_t_app_version": "クラウド T アプリバージョン",
+          "cloud_t_platform_type": "クラウド T プラットフォーム種別",
+          "cloud_t_store_uuid": "クラウド T ストア UUID",
+          "cloud_origin": "クラウド Origin ヘッダー",
+          "cloud_x_requested_with": "クラウド Requested-With ヘッダー",
+          "cloud_accept": "クラウド Accept ヘッダー",
+          "cloud_accept_encoding": "クラウド Accept-Encoding ヘッダー",
+          "cloud_accept_language": "クラウド Accept-Language ヘッダー",
+          "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
+          "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
+        }
+      }
+    },
+    "error": {
+      "connection": "UDP リスナーを開始できません。",
+      "unknown": "不明なエラーが発生しました。"
+    },
+    "abort": {
+      "already_configured": "このエントリはすでに設定されています。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "ローカル UDP、TCL+ クラウド、実験的なモード設定を更新します。このデバイスでライブモードテストにより対応が確認されるまで、送風のみと自動/AI は無効のままにしてください。",
+        "data": {
+          "action_jid": "ローカルアクション JID",
+          "action_source": "ローカルアクションソース",
+          "account": "ローカルアカウント ID",
+          "cloud_enabled": "クラウド状態フォールバックを有効にする",
+          "cloud_tid": "クラウドデバイス TID",
+          "cloud_access_token": "クラウドアクセストークン",
+          "cloud_from": "クラウド送信元 JID",
+          "cloud_to": "クラウドデバイス JID",
+          "cloud_base_url": "クラウドベース URL",
+          "cloud_control": "クラウド制御を有効にする",
+          "cloud_user_agent": "クラウドユーザーエージェント",
+          "cloud_platform": "クラウドプラットフォーム",
+          "cloud_app_package": "クラウドアプリパッケージ",
+          "cloud_system_version": "クラウドシステムバージョン",
+          "cloud_brand": "クラウドデバイスブランド",
+          "cloud_app_version": "クラウドアプリバージョン",
+          "cloud_sdk_version": "クラウド SDK バージョン",
+          "cloud_channel": "クラウドアプリチャンネル",
+          "cloud_app_build_version": "クラウドアプリビルドバージョン",
+          "cloud_t_app_version": "クラウド T アプリバージョン",
+          "cloud_t_platform_type": "クラウド T プラットフォーム種別",
+          "cloud_t_store_uuid": "クラウド T ストア UUID",
+          "cloud_origin": "クラウド Origin ヘッダー",
+          "cloud_x_requested_with": "クラウド Requested-With ヘッダー",
+          "cloud_accept": "クラウド Accept ヘッダー",
+          "cloud_accept_encoding": "クラウド Accept-Encoding ヘッダー",
+          "cloud_accept_language": "クラウド Accept-Language ヘッダー",
+          "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
+          "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
+        }
+      }
+    }
+  }
+}

@@ -45,6 +45,7 @@ from .const import (
 from .log_utils import log_debug, log_info, log_warning
 from .command_bundles import TclCommandBundle
 from .protocol_profiles import UnsupportedModeError, resolve_protocol_profile
+from .temperature_validity import is_valid_outdoor_temperature
 from .udp_client import UdpClient
 
 if TYPE_CHECKING:
@@ -259,10 +260,12 @@ class CloudClient:
 
         outdoor_temp = self._cloud_int(cur_status.get("outTemp"))
         if outdoor_temp is not None:
-            status["outdoor_temp"] = round(
+            outdoor_c = round(
                 self._fahrenheit_to_celsius(float(outdoor_temp)),
                 1,
             )
+            if is_valid_outdoor_temperature(outdoor_c):
+                status["outdoor_temp"] = outdoor_c
 
         wind_map = {
             "0": FAN_AUTO,

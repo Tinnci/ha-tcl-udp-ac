@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configure um ar-condicionado TCL usando controle UDP local e fallback opcional da nuvem TCL+. Os tokens de acesso da nuvem expiram; atualize-os a partir de uma nova captura do TCL+ quando as solicitações à nuvem começarem a falhar.",
+        "data": {
+          "action_jid": "JID de ação local",
+          "action_source": "Origem de ação local",
+          "account": "ID da conta local",
+          "cloud_enabled": "Ativar fallback de status da nuvem",
+          "cloud_tid": "TID do dispositivo na nuvem",
+          "cloud_access_token": "Token de acesso da nuvem",
+          "cloud_from": "JID remetente da nuvem",
+          "cloud_to": "JID do dispositivo na nuvem",
+          "cloud_base_url": "URL base da nuvem",
+          "cloud_control": "Ativar controle pela nuvem",
+          "cloud_user_agent": "Agente de usuário da nuvem",
+          "cloud_platform": "Plataforma da nuvem",
+          "cloud_app_package": "Pacote do app da nuvem",
+          "cloud_system_version": "Versão do sistema da nuvem",
+          "cloud_brand": "Marca do dispositivo da nuvem",
+          "cloud_app_version": "Versão do app da nuvem",
+          "cloud_sdk_version": "Versão do SDK da nuvem",
+          "cloud_channel": "Canal do app da nuvem",
+          "cloud_app_build_version": "Versão de build do app da nuvem",
+          "cloud_t_app_version": "Versão do app T da nuvem",
+          "cloud_t_platform_type": "Tipo de plataforma T da nuvem",
+          "cloud_t_store_uuid": "UUID da loja T da nuvem",
+          "cloud_origin": "Cabeçalho Origin da nuvem",
+          "cloud_x_requested_with": "Cabeçalho Requested-With da nuvem",
+          "cloud_accept": "Cabeçalho Accept da nuvem",
+          "cloud_accept_encoding": "Cabeçalho Accept-Encoding da nuvem",
+          "cloud_accept_language": "Cabeçalho Accept-Language da nuvem",
+          "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
+          "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
+        }
+      }
+    },
+    "error": {
+      "connection": "Não foi possível iniciar o listener UDP.",
+      "unknown": "Ocorreu um erro desconhecido."
+    },
+    "abort": {
+      "already_configured": "Esta entrada já está configurada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Atualize as configurações de UDP local, nuvem TCL+ e modos experimentais. Mantenha Somente ventilador e Auto/IA desativados até que testes ao vivo confirmem o suporte neste dispositivo.",
+        "data": {
+          "action_jid": "JID de ação local",
+          "action_source": "Origem de ação local",
+          "account": "ID da conta local",
+          "cloud_enabled": "Ativar fallback de status da nuvem",
+          "cloud_tid": "TID do dispositivo na nuvem",
+          "cloud_access_token": "Token de acesso da nuvem",
+          "cloud_from": "JID remetente da nuvem",
+          "cloud_to": "JID do dispositivo na nuvem",
+          "cloud_base_url": "URL base da nuvem",
+          "cloud_control": "Ativar controle pela nuvem",
+          "cloud_user_agent": "Agente de usuário da nuvem",
+          "cloud_platform": "Plataforma da nuvem",
+          "cloud_app_package": "Pacote do app da nuvem",
+          "cloud_system_version": "Versão do sistema da nuvem",
+          "cloud_brand": "Marca do dispositivo da nuvem",
+          "cloud_app_version": "Versão do app da nuvem",
+          "cloud_sdk_version": "Versão do SDK da nuvem",
+          "cloud_channel": "Canal do app da nuvem",
+          "cloud_app_build_version": "Versão de build do app da nuvem",
+          "cloud_t_app_version": "Versão do app T da nuvem",
+          "cloud_t_platform_type": "Tipo de plataforma T da nuvem",
+          "cloud_t_store_uuid": "UUID da loja T da nuvem",
+          "cloud_origin": "Cabeçalho Origin da nuvem",
+          "cloud_x_requested_with": "Cabeçalho Requested-With da nuvem",
+          "cloud_accept": "Cabeçalho Accept da nuvem",
+          "cloud_accept_encoding": "Cabeçalho Accept-Encoding da nuvem",
+          "cloud_accept_language": "Cabeçalho Accept-Language da nuvem",
+          "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
+          "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
+        }
+      }
+    }
+  }
+}

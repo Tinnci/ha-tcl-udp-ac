@@ -5,9 +5,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import LOGGER
+from .const import LOGGER, MODE_HEAT
 from .entity import TclUdpEntity
 from .log_utils import log_info
 
@@ -52,6 +53,8 @@ async def async_setup_entry(
                 "aux_heat",
                 "Aux Heat",
                 "mdi:radiator",
+                available_modes={MODE_HEAT},
+                requires_power=True,
             ),
             TclUdpSwitch(
                 coordinator,
@@ -76,6 +79,8 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         name: str,
         icon: str,
         category: EntityCategory | None = None,
+        available_modes: set[str] | None = None,
+        requires_power: bool = False,
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator)
@@ -85,8 +90,26 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         self._attr_name = f"TCL AC {name}"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{data_key}"
         self._attr_icon = icon
+        self._available_modes = available_modes
+        self._requires_power = requires_power
         if category:
             self._attr_entity_category = category
+
+    @property
+    def available(self) -> bool:
+        """Return if this switch is valid in the current device state."""
+        base_available = getattr(super(), "available", True)
+        if not base_available:
+            return False
+
+        data = self.coordinator.data or {}
+        if self._requires_power and data.get("power") is not True:
+            return False
+
+        if self._available_modes is not None and data.get("mode") not in self._available_modes:
+            return False
+
+        return True
 
     @property
     def is_on(self) -> bool | None:
@@ -97,6 +120,10 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
+        if not self.available:
+            raise HomeAssistantError(
+                f"{self._attr_name} is not available in the current HVAC mode"
+            )
         log_info(
             LOGGER,
             "entity_switch_turn_on",

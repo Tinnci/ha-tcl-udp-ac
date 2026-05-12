@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configura un climatizzatore TCL usando il controllo UDP locale e un fallback cloud TCL+ opzionale. I token di accesso cloud scadono; aggiornali da una nuova cattura TCL+ quando le richieste cloud iniziano a fallire.",
+        "data": {
+          "action_jid": "JID azione locale",
+          "action_source": "Origine azione locale",
+          "account": "ID account locale",
+          "cloud_enabled": "Abilita fallback stato cloud",
+          "cloud_tid": "TID dispositivo cloud",
+          "cloud_access_token": "Token di accesso cloud",
+          "cloud_from": "JID mittente cloud",
+          "cloud_to": "JID dispositivo cloud",
+          "cloud_base_url": "URL base cloud",
+          "cloud_control": "Abilita controllo cloud",
+          "cloud_user_agent": "User agent cloud",
+          "cloud_platform": "Piattaforma cloud",
+          "cloud_app_package": "Pacchetto app cloud",
+          "cloud_system_version": "Versione sistema cloud",
+          "cloud_brand": "Marca dispositivo cloud",
+          "cloud_app_version": "Versione app cloud",
+          "cloud_sdk_version": "Versione SDK cloud",
+          "cloud_channel": "Canale app cloud",
+          "cloud_app_build_version": "Versione build app cloud",
+          "cloud_t_app_version": "Versione app T cloud",
+          "cloud_t_platform_type": "Tipo piattaforma T cloud",
+          "cloud_t_store_uuid": "UUID store T cloud",
+          "cloud_origin": "Header Origin cloud",
+          "cloud_x_requested_with": "Header Requested-With cloud",
+          "cloud_accept": "Header Accept cloud",
+          "cloud_accept_encoding": "Header Accept-Encoding cloud",
+          "cloud_accept_language": "Header Accept-Language cloud",
+          "enable_fan_only_mode": "Abilita modalità HVAC sperimentale Solo ventilatore",
+          "enable_auto_mode": "Abilita modalità HVAC sperimentale Auto/IA"
+        }
+      }
+    },
+    "error": {
+      "connection": "Impossibile avviare il listener UDP.",
+      "unknown": "Si è verificato un errore sconosciuto."
+    },
+    "abort": {
+      "already_configured": "Questa voce è già configurata."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Aggiorna le impostazioni UDP locali, cloud TCL+ e delle modalità sperimentali. Mantieni Solo ventilatore e Auto/IA disabilitati finché i test live non confermano il supporto su questo dispositivo.",
+        "data": {
+          "action_jid": "JID azione locale",
+          "action_source": "Origine azione locale",
+          "account": "ID account locale",
+          "cloud_enabled": "Abilita fallback stato cloud",
+          "cloud_tid": "TID dispositivo cloud",
+          "cloud_access_token": "Token di accesso cloud",
+          "cloud_from": "JID mittente cloud",
+          "cloud_to": "JID dispositivo cloud",
+          "cloud_base_url": "URL base cloud",
+          "cloud_control": "Abilita controllo cloud",
+          "cloud_user_agent": "User agent cloud",
+          "cloud_platform": "Piattaforma cloud",
+          "cloud_app_package": "Pacchetto app cloud",
+          "cloud_system_version": "Versione sistema cloud",
+          "cloud_brand": "Marca dispositivo cloud",
+          "cloud_app_version": "Versione app cloud",
+          "cloud_sdk_version": "Versione SDK cloud",
+          "cloud_channel": "Canale app cloud",
+          "cloud_app_build_version": "Versione build app cloud",
+          "cloud_t_app_version": "Versione app T cloud",
+          "cloud_t_platform_type": "Tipo piattaforma T cloud",
+          "cloud_t_store_uuid": "UUID store T cloud",
+          "cloud_origin": "Header Origin cloud",
+          "cloud_x_requested_with": "Header Requested-With cloud",
+          "cloud_accept": "Header Accept cloud",
+          "cloud_accept_encoding": "Header Accept-Encoding cloud",
+          "cloud_accept_language": "Header Accept-Language cloud",
+          "enable_fan_only_mode": "Abilita modalità HVAC sperimentale Solo ventilatore",
+          "enable_auto_mode": "Abilita modalità HVAC sperimentale Auto/IA"
+        }
+      }
+    }
+  }
+}

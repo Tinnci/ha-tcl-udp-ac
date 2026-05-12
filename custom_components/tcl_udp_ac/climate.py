@@ -15,6 +15,7 @@ from homeassistant.components.climate import (
     SWING_VERTICAL,
     ClimateEntity,
     ClimateEntityFeature,
+    HVACAction,
     HVACMode,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
@@ -200,6 +201,28 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         return HVACMode.OFF
 
     @property
+    def hvac_action(self) -> HVACAction | None:
+        """Return what the climate device is currently doing."""
+        mode = self.hvac_mode
+        if mode == HVACMode.OFF:
+            return HVACAction.OFF
+        if mode == HVACMode.DRY:
+            return HVACAction.DRYING
+        if mode == HVACMode.FAN_ONLY:
+            return HVACAction.FAN
+
+        current = self.current_temperature
+        target = self.target_temperature
+        if current is None or target is None:
+            return HVACAction.IDLE
+
+        if mode == HVACMode.COOL and current > target:
+            return HVACAction.COOLING
+        if mode == HVACMode.HEAT and current < target:
+            return HVACAction.HEATING
+        return HVACAction.IDLE
+
+    @property
     def fan_mode(self) -> str | None:
         """Return the fan setting."""
         data = self.coordinator.data
@@ -229,6 +252,34 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
+        hvac_mode = kwargs.get("hvac_mode")
+        client = self.coordinator.config_entry.runtime_data.client
+
+        if hvac_mode is not None:
+            try:
+                ha_mode = HVACMode(hvac_mode)
+            except ValueError:
+                return
+
+            if ha_mode == HVACMode.OFF:
+                await client.async_set_power(power=False)
+                await self.coordinator.async_request_refresh()
+                return
+
+            udp_mode = HVAC_MODE_MAP.get(ha_mode)
+            if udp_mode is None:
+                return
+
+            target_temperature = (
+                float(temperature) if temperature is not None else self.target_temperature
+            )
+            await client.async_set_mode_profile(
+                udp_mode,
+                target_temperature=target_temperature,
+            )
+            await self.coordinator.async_request_refresh()
+            return
+
         if temperature is not None:
             log_info(
                 LOGGER,
@@ -236,7 +287,15 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                 entity=self.entity_id,
                 temperature=temperature,
             )
-            client = self.coordinator.config_entry.runtime_data.client
+            udp_mode = HVAC_MODE_MAP.get(self.hvac_mode)
+            if self.hvac_mode != HVACMode.OFF and udp_mode is not None:
+                await client.async_set_mode_profile(
+                    udp_mode,
+                    target_temperature=float(temperature),
+                )
+                await self.coordinator.async_request_refresh()
+                return
+
             await client.async_set_temperature(float(temperature))
             await self.coordinator.async_request_refresh()
 

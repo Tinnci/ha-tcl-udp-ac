@@ -7,6 +7,13 @@ Build a safer, repeatable Home Assistant integration testing pipeline that cover
 
 | Phase | Status | Notes |
 |---|---|---|
+| Versatile over-climate standalone setpoint compatibility | complete | VTherm sends setpoint separately after mode changes; TCL now groups standalone setpoint writes with the current HVAC mode when on. |
+| Combined climate service compatibility | complete | `set_temperature` now respects supplied `hvac_mode`, including grouped Cool+setpoint and Off handling. |
+| Versatile Thermostat action feedback optimization | complete | Added `hvac_action` plus contract tests so over-climate consumers can observe cooling/heating/dry/fan/idle/off action. |
+| Versatile Thermostat summer-start compatibility check | complete | Interface-level HA climate contract is compatible for Cool start/stop; live legacy setpoint writes remain the main caveat. |
+| Outdoor temperature placeholder handling | complete | Dropped protocol placeholder outdoor readings and made the outdoor sensor unavailable instead of exporting fake 0°C. |
+| Mode-aware switch controls | complete | Added switch availability metadata and applied the first conservative policy: Aux Heat requires powered Heat mode; uncertain Sleep/Turbo behavior remains unrestricted. |
+| Translation locale expansion | complete | Added eight BCP47 translation files beyond English and verified each mirrors the complete Home Assistant config/options translation shape. |
 | Coordinator/orchestrator fixes | complete | Added regression coverage and fixed setup retry semantics, empty-refresh failure, unload ordering, status snapshots, sensor Celsius unit, and XML element truthiness warning. |
 | Coordinator/orchestrator architecture review | complete | Found coherent one-client/one-coordinator shape, plus risks in setup failure semantics, unload order, mutable status payloads, sensor units, and HA-realistic tests. |
 | Baseline review | complete | Existing findings show real HA issues: duplicate Power control, grouped command mismatches, weak config UI, entry_id unique IDs, and no HA entity tests. |

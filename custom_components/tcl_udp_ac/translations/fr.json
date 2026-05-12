@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configurez un climatiseur TCL avec le contrôle UDP local et un repli cloud TCL+ facultatif. Les jetons d'accès cloud expirent ; actualisez-les depuis une nouvelle capture TCL+ lorsque les requêtes cloud commencent à échouer.",
+        "data": {
+          "action_jid": "JID d'action local",
+          "action_source": "Source d'action locale",
+          "account": "ID de compte local",
+          "cloud_enabled": "Activer le repli d'état cloud",
+          "cloud_tid": "TID de l'appareil cloud",
+          "cloud_access_token": "Jeton d'accès cloud",
+          "cloud_from": "JID expéditeur cloud",
+          "cloud_to": "JID de l'appareil cloud",
+          "cloud_base_url": "URL de base du cloud",
+          "cloud_control": "Activer le contrôle cloud",
+          "cloud_user_agent": "Agent utilisateur cloud",
+          "cloud_platform": "Plateforme cloud",
+          "cloud_app_package": "Package de l'application cloud",
+          "cloud_system_version": "Version système cloud",
+          "cloud_brand": "Marque de l'appareil cloud",
+          "cloud_app_version": "Version de l'application cloud",
+          "cloud_sdk_version": "Version du SDK cloud",
+          "cloud_channel": "Canal de l'application cloud",
+          "cloud_app_build_version": "Version de build de l'application cloud",
+          "cloud_t_app_version": "Version de l'application T cloud",
+          "cloud_t_platform_type": "Type de plateforme T cloud",
+          "cloud_t_store_uuid": "UUID du store T cloud",
+          "cloud_origin": "En-tête Origin cloud",
+          "cloud_x_requested_with": "En-tête Requested-With cloud",
+          "cloud_accept": "En-tête Accept cloud",
+          "cloud_accept_encoding": "En-tête Accept-Encoding cloud",
+          "cloud_accept_language": "En-tête Accept-Language cloud",
+          "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
+          "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
+        }
+      }
+    },
+    "error": {
+      "connection": "Impossible de démarrer l'écouteur UDP.",
+      "unknown": "Une erreur inconnue s'est produite."
+    },
+    "abort": {
+      "already_configured": "Cette entrée est déjà configurée."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Mettez à jour les paramètres UDP local, cloud TCL+ et modes expérimentaux. Gardez Ventilation seule et Auto/IA désactivés jusqu'à ce que des tests en direct confirment leur prise en charge sur cet appareil.",
+        "data": {
+          "action_jid": "JID d'action local",
+          "action_source": "Source d'action locale",
+          "account": "ID de compte local",
+          "cloud_enabled": "Activer le repli d'état cloud",
+          "cloud_tid": "TID de l'appareil cloud",
+          "cloud_access_token": "Jeton d'accès cloud",
+          "cloud_from": "JID expéditeur cloud",
+          "cloud_to": "JID de l'appareil cloud",
+          "cloud_base_url": "URL de base du cloud",
+          "cloud_control": "Activer le contrôle cloud",
+          "cloud_user_agent": "Agent utilisateur cloud",
+          "cloud_platform": "Plateforme cloud",
+          "cloud_app_package": "Package de l'application cloud",
+          "cloud_system_version": "Version système cloud",
+          "cloud_brand": "Marque de l'appareil cloud",
+          "cloud_app_version": "Version de l'application cloud",
+          "cloud_sdk_version": "Version du SDK cloud",
+          "cloud_channel": "Canal de l'application cloud",
+          "cloud_app_build_version": "Version de build de l'application cloud",
+          "cloud_t_app_version": "Version de l'application T cloud",
+          "cloud_t_platform_type": "Type de plateforme T cloud",
+          "cloud_t_store_uuid": "UUID du store T cloud",
+          "cloud_origin": "En-tête Origin cloud",
+          "cloud_x_requested_with": "En-tête Requested-With cloud",
+          "cloud_accept": "En-tête Accept cloud",
+          "cloud_accept_encoding": "En-tête Accept-Encoding cloud",
+          "cloud_accept_language": "En-tête Accept-Language cloud",
+          "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
+          "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
+        }
+      }
+    }
+  }
+}

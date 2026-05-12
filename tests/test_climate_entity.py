@@ -93,6 +93,17 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertEqual(entity._attr_max_temp, 31)
         self.assertEqual(entity._attr_target_temperature_step, 0.5)
 
+    def test_exposes_over_climate_contract_for_versatile_thermostat(self) -> None:
+        entity = self.climate.TclUdpClimate(FakeCoordinator())
+        features = entity._attr_supported_features
+
+        self.assertIn(self.climate.HVACMode.OFF, entity.hvac_modes)
+        self.assertIn(self.climate.HVACMode.COOL, entity.hvac_modes)
+        self.assertTrue(features & self.climate.ClimateEntityFeature.TARGET_TEMPERATURE)
+        self.assertTrue(features & self.climate.ClimateEntityFeature.TURN_ON)
+        self.assertTrue(features & self.climate.ClimateEntityFeature.TURN_OFF)
+        self.assertIsNotNone(entity.hvac_action)
+
     def test_default_hvac_modes_exclude_unverified_fan_and_auto(self) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator())
 
@@ -128,8 +139,97 @@ class ClimateEntityTest(unittest.TestCase):
             ],
         )
 
-    def test_set_temperature_passes_celsius_to_client(self) -> None:
-        coordinator = FakeCoordinator({"power": True})
+    def test_hvac_action_reports_off_when_powered_off(self) -> None:
+        entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
+
+        self.assertEqual(entity.hvac_action, self.climate.HVACAction.OFF)
+
+    def test_hvac_action_reports_cooling_when_above_cooling_setpoint(self) -> None:
+        entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                {
+                    "power": True,
+                    "mode": "cool",
+                    "current_temp": 27.0,
+                    "target_temp": 24.0,
+                }
+            )
+        )
+
+        self.assertEqual(entity.hvac_action, self.climate.HVACAction.COOLING)
+
+    def test_hvac_action_reports_heating_when_below_heating_setpoint(self) -> None:
+        entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                {
+                    "power": True,
+                    "mode": "heat",
+                    "current_temp": 20.0,
+                    "target_temp": 24.0,
+                }
+            )
+        )
+
+        self.assertEqual(entity.hvac_action, self.climate.HVACAction.HEATING)
+
+    def test_hvac_action_reports_idle_when_setpoint_is_reached(self) -> None:
+        cool_entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                {
+                    "power": True,
+                    "mode": "cool",
+                    "current_temp": 23.0,
+                    "target_temp": 24.0,
+                }
+            )
+        )
+        heat_entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                {
+                    "power": True,
+                    "mode": "heat",
+                    "current_temp": 25.0,
+                    "target_temp": 24.0,
+                }
+            )
+        )
+
+        self.assertEqual(cool_entity.hvac_action, self.climate.HVACAction.IDLE)
+        self.assertEqual(heat_entity.hvac_action, self.climate.HVACAction.IDLE)
+
+    def test_hvac_action_reports_mode_actions_for_dry_and_fan(self) -> None:
+        dry_entity = self.climate.TclUdpClimate(
+            FakeCoordinator({"power": True, "mode": "dehumi"})
+        )
+        fan_entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                {"power": True, "mode": "fan"},
+                options={"enable_fan_only_mode": True},
+            )
+        )
+
+        self.assertEqual(dry_entity.hvac_action, self.climate.HVACAction.DRYING)
+        self.assertEqual(fan_entity.hvac_action, self.climate.HVACAction.FAN)
+
+    def test_set_temperature_while_on_uses_grouped_current_mode_profile(self) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        asyncio.run(entity.async_set_temperature(temperature=23.5))
+
+        self.assertEqual(
+            coordinator.client.calls,
+            [
+                (
+                    "async_set_mode_profile",
+                    {"mode_str": "cool", "target_temperature": 23.5},
+                )
+            ],
+        )
+        self.assertEqual(coordinator.refresh_count, 1)
+
+    def test_set_temperature_without_current_mode_uses_temperature_service(self) -> None:
+        coordinator = FakeCoordinator({"power": False})
         entity = self.climate.TclUdpClimate(coordinator)
 
         asyncio.run(entity.async_set_temperature(temperature=23.5))
@@ -137,6 +237,45 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertEqual(
             coordinator.client.calls,
             [("async_set_temperature", {"temperature": 23.5})],
+        )
+        self.assertEqual(coordinator.refresh_count, 1)
+
+    def test_set_temperature_with_hvac_mode_uses_grouped_mode_profile(self) -> None:
+        coordinator = FakeCoordinator({"power": False})
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        asyncio.run(
+            entity.async_set_temperature(
+                temperature=23.5,
+                hvac_mode=self.climate.HVACMode.COOL,
+            )
+        )
+
+        self.assertEqual(
+            coordinator.client.calls,
+            [
+                (
+                    "async_set_mode_profile",
+                    {"mode_str": "cool", "target_temperature": 23.5},
+                )
+            ],
+        )
+        self.assertEqual(coordinator.refresh_count, 1)
+
+    def test_set_temperature_with_off_hvac_mode_turns_off_without_temp_write(self) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        asyncio.run(
+            entity.async_set_temperature(
+                temperature=23.5,
+                hvac_mode=self.climate.HVACMode.OFF,
+            )
+        )
+
+        self.assertEqual(
+            coordinator.client.calls,
+            [("async_set_power", {"power": False})],
         )
         self.assertEqual(coordinator.refresh_count, 1)
 

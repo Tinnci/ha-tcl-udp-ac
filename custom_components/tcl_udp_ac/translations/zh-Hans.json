@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "使用本地 UDP 控制和可选的 TCL+ 云端回退来设置 TCL 空调。云端访问令牌会过期；当云端请求开始失败时，请从新的 TCL+ 抓包中刷新令牌。",
+        "data": {
+          "action_jid": "本地操作 JID",
+          "action_source": "本地操作来源",
+          "account": "本地账户 ID",
+          "cloud_enabled": "启用云端状态回退",
+          "cloud_tid": "云端设备 TID",
+          "cloud_access_token": "云端访问令牌",
+          "cloud_from": "云端发送方 JID",
+          "cloud_to": "云端设备 JID",
+          "cloud_base_url": "云端基础 URL",
+          "cloud_control": "启用云端控制",
+          "cloud_user_agent": "云端 User-Agent",
+          "cloud_platform": "云端平台",
+          "cloud_app_package": "云端应用包名",
+          "cloud_system_version": "云端系统版本",
+          "cloud_brand": "云端设备品牌",
+          "cloud_app_version": "云端应用版本",
+          "cloud_sdk_version": "云端 SDK 版本",
+          "cloud_channel": "云端应用渠道",
+          "cloud_app_build_version": "云端应用构建版本",
+          "cloud_t_app_version": "云端 T 应用版本",
+          "cloud_t_platform_type": "云端 T 平台类型",
+          "cloud_t_store_uuid": "云端 T 商店 UUID",
+          "cloud_origin": "云端 Origin 请求头",
+          "cloud_x_requested_with": "云端 Requested-With 请求头",
+          "cloud_accept": "云端 Accept 请求头",
+          "cloud_accept_encoding": "云端 Accept-Encoding 请求头",
+          "cloud_accept_language": "云端 Accept-Language 请求头",
+          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
+          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+        }
+      }
+    },
+    "error": {
+      "connection": "无法启动 UDP 监听器。",
+      "unknown": "发生未知错误。"
+    },
+    "abort": {
+      "already_configured": "此条目已配置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "更新本地 UDP、TCL+ 云端和实验性模式设置。在实时模式测试确认此设备支持之前，请保持仅送风和自动/AI 关闭。",
+        "data": {
+          "action_jid": "本地操作 JID",
+          "action_source": "本地操作来源",
+          "account": "本地账户 ID",
+          "cloud_enabled": "启用云端状态回退",
+          "cloud_tid": "云端设备 TID",
+          "cloud_access_token": "云端访问令牌",
+          "cloud_from": "云端发送方 JID",
+          "cloud_to": "云端设备 JID",
+          "cloud_base_url": "云端基础 URL",
+          "cloud_control": "启用云端控制",
+          "cloud_user_agent": "云端 User-Agent",
+          "cloud_platform": "云端平台",
+          "cloud_app_package": "云端应用包名",
+          "cloud_system_version": "云端系统版本",
+          "cloud_brand": "云端设备品牌",
+          "cloud_app_version": "云端应用版本",
+          "cloud_sdk_version": "云端 SDK 版本",
+          "cloud_channel": "云端应用渠道",
+          "cloud_app_build_version": "云端应用构建版本",
+          "cloud_t_app_version": "云端 T 应用版本",
+          "cloud_t_platform_type": "云端 T 平台类型",
+          "cloud_t_store_uuid": "云端 T 商店 UUID",
+          "cloud_origin": "云端 Origin 请求头",
+          "cloud_x_requested_with": "云端 Requested-With 请求头",
+          "cloud_accept": "云端 Accept 请求头",
+          "cloud_accept_encoding": "云端 Accept-Encoding 请求头",
+          "cloud_accept_language": "云端 Accept-Language 请求头",
+          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
+          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+        }
+      }
+    }
+  }
+}

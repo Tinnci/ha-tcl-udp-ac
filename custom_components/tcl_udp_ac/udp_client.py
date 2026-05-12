@@ -26,6 +26,7 @@ from .const import (
 )
 from .log_utils import log_info, log_warning
 from .protocol_profiles import ProtocolProfile, resolve_protocol_profile
+from .temperature_validity import is_valid_outdoor_temperature
 
 SYNC_THROTTLE_SECONDS = 2.0
 
@@ -332,10 +333,12 @@ class UdpClient:
         val = self._get_node_value(node)
         if val:
             try:
-                status["outdoor_temp"] = round(
+                outdoor_c = round(
                     self._fahrenheit_to_celsius(float(val)),
                     1,
                 )
+                if is_valid_outdoor_temperature(outdoor_c):
+                    status["outdoor_temp"] = outdoor_c
             except ValueError:
                 LOGGER.warning("Invalid OutTemp value: %s", val)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import unittest
 from types import SimpleNamespace
 
@@ -21,6 +22,9 @@ class FakeClient:
 
     async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         self.calls.append(("async_set_sleep_mode", {"enabled": enabled}))
+
+    async def async_set_aux_heat(self, *, enabled: bool) -> None:
+        self.calls.append(("async_set_aux_heat", {"enabled": enabled}))
 
 
 class FakeCoordinator:
@@ -81,6 +85,79 @@ class SwitchEntityTest(unittest.TestCase):
             ],
         )
         self.assertEqual(coordinator.refresh_count, 2)
+
+    def test_aux_heat_is_only_available_when_powered_heat_mode(self) -> None:
+        cool_entity = self.switch.TclUdpSwitch(
+            FakeCoordinator({"power": True, "mode": "cool"}),
+            "optHeat",
+            "aux_heat",
+            "Aux Heat",
+            "mdi:radiator",
+            available_modes={"heat"},
+            requires_power=True,
+        )
+        heat_entity = self.switch.TclUdpSwitch(
+            FakeCoordinator({"power": True, "mode": "heat"}),
+            "optHeat",
+            "aux_heat",
+            "Aux Heat",
+            "mdi:radiator",
+            available_modes={"heat"},
+            requires_power=True,
+        )
+        off_entity = self.switch.TclUdpSwitch(
+            FakeCoordinator({"power": False, "mode": "heat"}),
+            "optHeat",
+            "aux_heat",
+            "Aux Heat",
+            "mdi:radiator",
+            available_modes={"heat"},
+            requires_power=True,
+        )
+
+        self.assertFalse(cool_entity.available)
+        self.assertTrue(heat_entity.available)
+        self.assertFalse(off_entity.available)
+
+    def test_aux_heat_turn_on_is_blocked_when_mode_unavailable(self) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        entity = self.switch.TclUdpSwitch(
+            coordinator,
+            "optHeat",
+            "aux_heat",
+            "Aux Heat",
+            "mdi:radiator",
+            available_modes={"heat"},
+            requires_power=True,
+        )
+        exceptions = sys.modules["homeassistant.exceptions"]
+
+        with self.assertRaises(exceptions.HomeAssistantError):
+            asyncio.run(entity.async_turn_on())
+
+        self.assertEqual(coordinator.client.calls, [])
+        self.assertEqual(coordinator.refresh_count, 0)
+
+    def test_sleep_and_turbo_remain_available_in_cool_mode(self) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+
+        sleep = self.switch.TclUdpSwitch(
+            coordinator,
+            "optSleepMd",
+            "sleep_mode",
+            "Sleep Mode",
+            "mdi:sleep",
+        )
+        turbo = self.switch.TclUdpSwitch(
+            coordinator,
+            "optSuper",
+            "turbo_mode",
+            "Turbo Mode",
+            "mdi:rocket",
+        )
+
+        self.assertTrue(sleep.available)
+        self.assertTrue(turbo.available)
 
 
 if __name__ == "__main__":

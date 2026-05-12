@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "로컬 UDP 제어와 선택적 TCL+ 클라우드 대체 상태 조회를 사용해 TCL 에어컨을 설정합니다. 클라우드 액세스 토큰은 만료됩니다. 클라우드 요청이 실패하기 시작하면 새 TCL+ 캡처에서 토큰을 갱신하세요.",
+        "data": {
+          "action_jid": "로컬 작업 JID",
+          "action_source": "로컬 작업 소스",
+          "account": "로컬 계정 ID",
+          "cloud_enabled": "클라우드 상태 대체 조회 활성화",
+          "cloud_tid": "클라우드 장치 TID",
+          "cloud_access_token": "클라우드 액세스 토큰",
+          "cloud_from": "클라우드 발신자 JID",
+          "cloud_to": "클라우드 장치 JID",
+          "cloud_base_url": "클라우드 기본 URL",
+          "cloud_control": "클라우드 제어 활성화",
+          "cloud_user_agent": "클라우드 사용자 에이전트",
+          "cloud_platform": "클라우드 플랫폼",
+          "cloud_app_package": "클라우드 앱 패키지",
+          "cloud_system_version": "클라우드 시스템 버전",
+          "cloud_brand": "클라우드 장치 브랜드",
+          "cloud_app_version": "클라우드 앱 버전",
+          "cloud_sdk_version": "클라우드 SDK 버전",
+          "cloud_channel": "클라우드 앱 채널",
+          "cloud_app_build_version": "클라우드 앱 빌드 버전",
+          "cloud_t_app_version": "클라우드 T 앱 버전",
+          "cloud_t_platform_type": "클라우드 T 플랫폼 유형",
+          "cloud_t_store_uuid": "클라우드 T 스토어 UUID",
+          "cloud_origin": "클라우드 Origin 헤더",
+          "cloud_x_requested_with": "클라우드 Requested-With 헤더",
+          "cloud_accept": "클라우드 Accept 헤더",
+          "cloud_accept_encoding": "클라우드 Accept-Encoding 헤더",
+          "cloud_accept_language": "클라우드 Accept-Language 헤더",
+          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
+          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+        }
+      }
+    },
+    "error": {
+      "connection": "UDP 리스너를 시작할 수 없습니다.",
+      "unknown": "알 수 없는 오류가 발생했습니다."
+    },
+    "abort": {
+      "already_configured": "이 항목은 이미 구성되어 있습니다."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "로컬 UDP, TCL+ 클라우드 및 실험적 모드 설정을 업데이트합니다. 이 장치에서 라이브 모드 테스트로 지원이 확인될 때까지 송풍 전용 및 자동/AI는 비활성화 상태로 두세요.",
+        "data": {
+          "action_jid": "로컬 작업 JID",
+          "action_source": "로컬 작업 소스",
+          "account": "로컬 계정 ID",
+          "cloud_enabled": "클라우드 상태 대체 조회 활성화",
+          "cloud_tid": "클라우드 장치 TID",
+          "cloud_access_token": "클라우드 액세스 토큰",
+          "cloud_from": "클라우드 발신자 JID",
+          "cloud_to": "클라우드 장치 JID",
+          "cloud_base_url": "클라우드 기본 URL",
+          "cloud_control": "클라우드 제어 활성화",
+          "cloud_user_agent": "클라우드 사용자 에이전트",
+          "cloud_platform": "클라우드 플랫폼",
+          "cloud_app_package": "클라우드 앱 패키지",
+          "cloud_system_version": "클라우드 시스템 버전",
+          "cloud_brand": "클라우드 장치 브랜드",
+          "cloud_app_version": "클라우드 앱 버전",
+          "cloud_sdk_version": "클라우드 SDK 버전",
+          "cloud_channel": "클라우드 앱 채널",
+          "cloud_app_build_version": "클라우드 앱 빌드 버전",
+          "cloud_t_app_version": "클라우드 T 앱 버전",
+          "cloud_t_platform_type": "클라우드 T 플랫폼 유형",
+          "cloud_t_store_uuid": "클라우드 T 스토어 UUID",
+          "cloud_origin": "클라우드 Origin 헤더",
+          "cloud_x_requested_with": "클라우드 Requested-With 헤더",
+          "cloud_accept": "클라우드 Accept 헤더",
+          "cloud_accept_encoding": "클라우드 Accept-Encoding 헤더",
+          "cloud_accept_language": "클라우드 Accept-Language 헤더",
+          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
+          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+        }
+      }
+    }
+  }
+}

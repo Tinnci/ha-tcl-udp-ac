@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
 from homeassistant.const import UnitOfTemperature
 
 from .entity import TclUdpEntity
+from .temperature_validity import is_valid_outdoor_temperature
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -34,8 +35,6 @@ async def async_setup_entry(
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     """TCL UDP Outdoor Temperature Sensor."""
 
-    _MIN_VALID_TEMP_C = -40
-    _MAX_VALID_TEMP_C = 71
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
@@ -47,11 +46,17 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_outdoor_temp"
 
     @property
+    def available(self) -> bool:
+        """Return true if the outdoor temperature has a valid reading."""
+        base_available = getattr(super(), "available", True)
+        return base_available and self.native_value is not None
+
+    @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
         if self.coordinator.data and "outdoor_temp" in self.coordinator.data:
             # Check for valid range, sometimes devices report placeholder values.
             val = float(self.coordinator.data["outdoor_temp"])
-            if self._MIN_VALID_TEMP_C <= val <= self._MAX_VALID_TEMP_C:
+            if is_valid_outdoor_temperature(val):
                 return val
         return None

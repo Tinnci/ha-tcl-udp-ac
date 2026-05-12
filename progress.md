@@ -1,6 +1,33 @@
 # Progress: Home Assistant Integration Search
 
 ## 2026-05-12
+- Investigated outdoor temperature zero readouts. Home Assistant docs recommend unavailable/unknown states rather than fabricated numeric values when data is missing.
+- Added regression tests for missing outdoor readings, `0.0°C` placeholder readings, valid outdoor readings, and cloud/UDP parser filtering of `outTemp=32°F`.
+- Added `temperature_validity.py`; cloud/UDP parsers now skip placeholder outdoor readings and the outdoor temperature sensor reports unavailable when no valid reading exists.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 109 tests; compileall and `git diff --check` also pass.
+- Checked Versatile Thermostat over-climate / summer-cooling compatibility against current `TclUdpClimate`.
+- Confirmed the Home Assistant entity contract is present for summer start: Celsius climate entity, Cool/Off modes, target temperature feature, turn on/off support, and service handlers for HVAC mode and setpoint changes.
+- Recorded the remaining compatibility caveat: legacy live temperature writes are still unresolved, so thermostat-driven setpoint changes may be accepted by cloud transport without changing the AC's verified target temperature.
+- Re-verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 109 tests; compileall and `git diff --check` also pass.
+- Added failing climate tests for a Versatile Thermostat over-climate contract and `hvac_action` behavior; focused run failed because `TclUdpClimate` had no `hvac_action`.
+- Implemented `hvac_action` in `TclUdpClimate` and updated Home Assistant stubs with `HVACAction`.
+- Verified focused climate tests pass with 15 tests.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 115 tests; compileall and `git diff --check` also pass.
+- Added failing tests for combined `async_set_temperature(temperature=..., hvac_mode=...)` calls, then implemented grouped handling for mode+setpoint and off+setpoint service shapes.
+- Verified focused climate tests pass with 17 tests.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 117 tests; compileall and `git diff --check` also pass.
+- Reviewed Versatile Thermostat `UnderlyingClimate`: it sends `set_hvac_mode` first, then standalone `set_temperature`, so TCL's prior combined-call handling did not cover the real over-climate sequence.
+- Added a failing regression test for standalone `set_temperature` while TCL is already on in Cool, then routed that call through the grouped current-mode profile.
+- Verified focused climate tests pass with 18 tests.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 118 tests; compileall and `git diff --check` also pass.
+- Added mode-aware switch tests for Aux Heat availability, blocked Aux Heat turn-on outside Heat, and continued Sleep/Turbo availability in Cool.
+- Implemented switch availability metadata and applied it only to Aux Heat for now.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 104 tests; compileall and `git diff --check` also pass.
+- Started translation locale expansion for eight primary languages besides English.
+- Checked Home Assistant custom integration localization docs: translation files belong under `translations/`, use BCP47 language-code filenames, must contain full flattened text, and must not rely on `strings.json` or placeholder syntax.
+- Added `de`, `es`, `fr`, `it`, `ja`, `ko`, `pt-BR`, and `zh-Hans` translation files under `custom_components/tcl_udp_ac/translations/`.
+- Added tests to require those eight locale files, require matching leaf-key structure with `en.json`, reject Home Assistant Core placeholder syntax, and ensure no `strings.json` exists for this custom integration.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 101 tests; compileall and `git diff --check` also pass.
 - Started fixes for coordinator/orchestrator review findings.
 - Added red regression tests for setup retry mapping, unload ordering, empty coordinator data, UDP status snapshots, outdoor sensor Celsius units, and XML element truthiness.
 - Patched integration lifecycle/coordinator/UDP/sensor code and expanded test stubs.

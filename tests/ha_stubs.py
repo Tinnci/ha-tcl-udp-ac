@@ -40,6 +40,14 @@ def install_homeassistant_stubs() -> None:
         FAN_ONLY = "fan_only"
         HEAT = "heat"
 
+    class HVACAction(enum.StrEnum):
+        OFF = "off"
+        IDLE = "idle"
+        COOLING = "cooling"
+        HEATING = "heating"
+        DRYING = "drying"
+        FAN = "fan"
+
     class ClimateEntityFeature(enum.IntFlag):
         TARGET_TEMPERATURE = 1
         TURN_ON = 2
@@ -93,6 +101,9 @@ def install_homeassistant_stubs() -> None:
     class ConfigEntryNotReady(Exception):
         pass
 
+    class HomeAssistantError(Exception):
+        pass
+
     class SensorDeviceClass(enum.StrEnum):
         TEMPERATURE = "temperature"
 
@@ -112,6 +123,7 @@ def install_homeassistant_stubs() -> None:
     climate.SWING_VERTICAL = "vertical"
     climate.ClimateEntity = ClimateEntity
     climate.ClimateEntityFeature = ClimateEntityFeature
+    climate.HVACAction = HVACAction
     climate.HVACMode = HVACMode
 
     sensor.SensorDeviceClass = SensorDeviceClass
@@ -126,6 +138,7 @@ def install_homeassistant_stubs() -> None:
 
     config_entries.ConfigEntry = object
     exceptions.ConfigEntryNotReady = ConfigEntryNotReady
+    exceptions.HomeAssistantError = HomeAssistantError
     aiohttp_client.async_get_clientsession = lambda _hass: None
     entity.EntityCategory = EntityCategory
     device_registry.DeviceInfo = DeviceInfo

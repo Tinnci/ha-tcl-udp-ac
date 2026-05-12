@@ -1,0 +1,85 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Configura un aire acondicionado TCL con control UDP local y respaldo opcional en la nube TCL+. Los tokens de acceso a la nube caducan; actualízalos desde una nueva captura de TCL+ cuando las solicitudes a la nube empiecen a fallar.",
+        "data": {
+          "action_jid": "JID de acción local",
+          "action_source": "Origen de acción local",
+          "account": "ID de cuenta local",
+          "cloud_enabled": "Activar respaldo de estado en la nube",
+          "cloud_tid": "TID del dispositivo en la nube",
+          "cloud_access_token": "Token de acceso a la nube",
+          "cloud_from": "JID remitente de la nube",
+          "cloud_to": "JID del dispositivo en la nube",
+          "cloud_base_url": "URL base de la nube",
+          "cloud_control": "Activar control en la nube",
+          "cloud_user_agent": "Agente de usuario de la nube",
+          "cloud_platform": "Plataforma de la nube",
+          "cloud_app_package": "Paquete de la app de la nube",
+          "cloud_system_version": "Versión del sistema de la nube",
+          "cloud_brand": "Marca del dispositivo de la nube",
+          "cloud_app_version": "Versión de la app de la nube",
+          "cloud_sdk_version": "Versión del SDK de la nube",
+          "cloud_channel": "Canal de la app de la nube",
+          "cloud_app_build_version": "Versión de compilación de la app de la nube",
+          "cloud_t_app_version": "Versión de la app T de la nube",
+          "cloud_t_platform_type": "Tipo de plataforma T de la nube",
+          "cloud_t_store_uuid": "UUID de tienda T de la nube",
+          "cloud_origin": "Encabezado Origin de la nube",
+          "cloud_x_requested_with": "Encabezado Requested-With de la nube",
+          "cloud_accept": "Encabezado Accept de la nube",
+          "cloud_accept_encoding": "Encabezado Accept-Encoding de la nube",
+          "cloud_accept_language": "Encabezado Accept-Language de la nube",
+          "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
+          "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
+        }
+      }
+    },
+    "error": {
+      "connection": "No se pudo iniciar el receptor UDP.",
+      "unknown": "Se produjo un error desconocido."
+    },
+    "abort": {
+      "already_configured": "Esta entrada ya está configurada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Actualiza la configuración de UDP local, nube TCL+ y modos experimentales. Mantén Solo ventilador y Auto/IA desactivados hasta que las pruebas en vivo confirmen la compatibilidad en este dispositivo.",
+        "data": {
+          "action_jid": "JID de acción local",
+          "action_source": "Origen de acción local",
+          "account": "ID de cuenta local",
+          "cloud_enabled": "Activar respaldo de estado en la nube",
+          "cloud_tid": "TID del dispositivo en la nube",
+          "cloud_access_token": "Token de acceso a la nube",
+          "cloud_from": "JID remitente de la nube",
+          "cloud_to": "JID del dispositivo en la nube",
+          "cloud_base_url": "URL base de la nube",
+          "cloud_control": "Activar control en la nube",
+          "cloud_user_agent": "Agente de usuario de la nube",
+          "cloud_platform": "Plataforma de la nube",
+          "cloud_app_package": "Paquete de la app de la nube",
+          "cloud_system_version": "Versión del sistema de la nube",
+          "cloud_brand": "Marca del dispositivo de la nube",
+          "cloud_app_version": "Versión de la app de la nube",
+          "cloud_sdk_version": "Versión del SDK de la nube",
+          "cloud_channel": "Canal de la app de la nube",
+          "cloud_app_build_version": "Versión de compilación de la app de la nube",
+          "cloud_t_app_version": "Versión de la app T de la nube",
+          "cloud_t_platform_type": "Tipo de plataforma T de la nube",
+          "cloud_t_store_uuid": "UUID de tienda T de la nube",
+          "cloud_origin": "Encabezado Origin de la nube",
+          "cloud_x_requested_with": "Encabezado Requested-With de la nube",
+          "cloud_accept": "Encabezado Accept de la nube",
+          "cloud_accept_encoding": "Encabezado Accept-Encoding de la nube",
+          "cloud_accept_language": "Encabezado Accept-Language de la nube",
+          "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
+          "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
+        }
+      }
+    }
+  }
+}
