@@ -86,6 +86,7 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.SENSOR,
 ]
+SCAN_INTERVAL = timedelta(minutes=1)
 
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
@@ -98,8 +99,10 @@ async def async_setup_entry(
         hass=hass,
         logger=LOGGER,
         name=DOMAIN,
-        # For push-based updates, we set a long interval as backup
-        update_interval=timedelta(minutes=30),
+        # UDP push is primary, but some networks miss broadcasts. Keep a
+        # practical backup poll so external app/remote changes do not leave
+        # Home Assistant stale for a long time.
+        update_interval=SCAN_INTERVAL,
     )
 
     # Get config or options, falling back to defaults

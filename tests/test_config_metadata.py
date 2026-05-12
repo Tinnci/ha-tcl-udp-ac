@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -69,6 +70,13 @@ class ConfigMetadataTest(unittest.TestCase):
 
         self.assertEqual(CONFIG_KEYS - set(data), set())
         self.assertEqual(CONFIG_KEYS - set(options_data), set())
+
+    def test_backup_poll_interval_is_short_enough_for_external_state_changes(self) -> None:
+        init_text = (ROOT / "custom_components/tcl_udp_ac/__init__.py").read_text()
+        match = re.search(r"SCAN_INTERVAL\s*=\s*timedelta\(minutes=(\d+)\)", init_text)
+
+        self.assertIsNotNone(match)
+        self.assertLessEqual(int(match.group(1)), 1)
 
 
 if __name__ == "__main__":
