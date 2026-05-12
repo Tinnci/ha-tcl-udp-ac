@@ -34,11 +34,11 @@ async def async_setup_entry(
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     """TCL UDP Outdoor Temperature Sensor."""
 
-    _MIN_VALID_TEMP_F = -40
-    _MAX_VALID_TEMP_F = 160
+    _MIN_VALID_TEMP_C = -40
+    _MAX_VALID_TEMP_C = 71
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
 
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
@@ -50,8 +50,8 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
         if self.coordinator.data and "outdoor_temp" in self.coordinator.data:
-            # Check for valid range, sometimes devices report 176 or similar for invalid
+            # Check for valid range, sometimes devices report placeholder values.
             val = float(self.coordinator.data["outdoor_temp"])
-            if self._MIN_VALID_TEMP_F <= val <= self._MAX_VALID_TEMP_F:
+            if self._MIN_VALID_TEMP_C <= val <= self._MAX_VALID_TEMP_C:
                 return val
         return None

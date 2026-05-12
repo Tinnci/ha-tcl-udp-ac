@@ -1,5 +1,18 @@
 # Findings: Home Assistant Integration Search
 
+## Coordinator / Orchestrator Review
+- Review started 2026-05-12 for current Home Assistant integration orchestration: setup entry, coordinator refresh, UDP listener callbacks, client lifecycle, and entity command refresh paths.
+- Current orchestration is simple and mostly coherent: `async_setup_entry()` creates one `TclUdpApiClient`, one `TclUdpDataUpdateCoordinator`, stores both in `entry.runtime_data`, starts the UDP listener, sends discovery, performs first refresh, then forwards climate/switch/sensor platforms.
+- Coordinator refresh is UDP-first, then cloud-status merge when cloud is configured. UDP push callbacks call `async_set_updated_data()` directly.
+- Entity command paths are centralized through the runtime client, then they request a coordinator refresh. Climate owns power; feature switches route to specific `async_set_*` client methods.
+- Finding: setup/refresh has weak failure semantics. With no UDP discovery/status and no usable cloud status, `_async_update_data()` returns stale or empty last status instead of raising an update failure. That allows first setup to succeed with default/off-looking entities even when the device was never reached.
+- Finding: listener startup failures bubble as `TclUdpApiClientCommunicationError`, not Home Assistant `ConfigEntryNotReady`. A port bind failure or temporary network setup issue will likely be treated as setup failure rather than a retryable not-ready state.
+- Finding: unload order closes the client before unloading platforms. If platform unload fails, the config entry can remain partially loaded with a closed UDP client. Safer order is unload platforms first, then close the client only after successful platform unload.
+- Finding: UDP push handling passes the mutable `_last_status` dictionary to the async coordinator callback. Subsequent merges mutate the same object reference. Passing a copy would make update boundaries clearer and reduce stale/diff ambiguity.
+- Finding: sensor unit is now inconsistent with parsed data. Cloud and UDP parsers convert outdoor temperature to Celsius, but `TclUdpOutdoorTempSensor` still declares `UnitOfTemperature.FAHRENHEIT` and validates against Fahrenheit bounds.
+- Test coverage note: the unit suite passes, but coordinator tests bypass real `DataUpdateCoordinator` initialization with `object.__new__()` and the Home Assistant stubs do not currently cover setup-entry retry semantics, unload ordering, or the sensor module.
+- Fix pass: added lifecycle/sensor/UDP regression coverage in `tests/test_orchestrator_lifecycle.py`, expanded Home Assistant stubs for setup and sensor imports, mapped listener startup communication failures to `ConfigEntryNotReady`, made empty coordinator refreshes raise `UpdateFailed`, changed unload to close the client only after platform unload succeeds, passed UDP status snapshots to callbacks, changed outdoor sensor metadata/range to Celsius, and removed deprecated XML element truthiness checks.
+
 ## Initial Discovery
 - Repository path: `/Users/driezy/ha-tcl-udp-ac`
 - File inventory contains a Home Assistant-style custom integration directory: `custom_components/tcl_udp_ac/`.

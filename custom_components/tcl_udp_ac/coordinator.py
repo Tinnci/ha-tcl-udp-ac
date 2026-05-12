@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import TclUdpApiClientError
 
@@ -26,11 +26,15 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             await self.config_entry.runtime_data.client.async_request_status()
             if self.config_entry.runtime_data.client.cloud_enabled:
                 await self.config_entry.runtime_data.client.async_fetch_cloud_status()
-            return self.config_entry.runtime_data.client.get_last_status()
+            status = self.config_entry.runtime_data.client.get_last_status()
         except TclUdpApiClientError:
             if self.config_entry.runtime_data.client.cloud_enabled:
                 await self.config_entry.runtime_data.client.async_fetch_cloud_status()
-            return self.config_entry.runtime_data.client.get_last_status()
+            status = self.config_entry.runtime_data.client.get_last_status()
+
+        if not status:
+            raise UpdateFailed("No status received from TCL UDP AC")
+        return status
 
     async def async_handle_status_update(self, status: dict[str, Any]) -> None:
         """Handle status update from UDP broadcast."""

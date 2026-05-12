@@ -21,3 +21,7 @@ protocol_extract/*
 
 # local traffic captures (may contain sensitive data)
 tcl_*.jsonl
+Device C.txt
+
+# local reference checkout; do not vendor into this integration
+brands_repo/

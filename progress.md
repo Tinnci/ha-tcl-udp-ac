@@ -1,6 +1,16 @@
 # Progress: Home Assistant Integration Search
 
 ## 2026-05-12
+- Started fixes for coordinator/orchestrator review findings.
+- Added red regression tests for setup retry mapping, unload ordering, empty coordinator data, UDP status snapshots, outdoor sensor Celsius units, and XML element truthiness.
+- Patched integration lifecycle/coordinator/UDP/sensor code and expanded test stubs.
+- Verified focused lifecycle tests pass: `/usr/local/bin/uv run python -m unittest tests.test_orchestrator_lifecycle` ran 7 tests OK.
+- Verified full suite passes: `/usr/local/bin/uv run python -m unittest discover -s tests` ran 99 tests OK.
+- Verified compile and diff hygiene: `/usr/local/bin/uv run python -m compileall -q custom_components/tcl_udp_ac tests tools` and `git diff --check` both passed.
+- Started coordinator/orchestrator architecture review.
+- Inspected `__init__.py`, `coordinator.py`, `api.py`, `udp_client.py`, `climate.py`, `switch.py`, `sensor.py`, shared entity base, protocol profiles, and coordinator/entity tests.
+- Ran `/usr/local/bin/uv run python -m unittest discover -s tests`; 92 tests passed.
+- Recorded review findings around setup failure semantics, unload order, mutable status payloads, sensor unit mismatch, and test coverage gaps.
 - Loaded required skill instructions.
 - Ran initial repository file inventory.
 - Found likely Home Assistant custom integration at `custom_components/tcl_udp_ac/`.

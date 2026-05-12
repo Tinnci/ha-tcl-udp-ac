@@ -222,9 +222,9 @@ class UdpClient:
                 self._last_received_seq = current_seq
                 LOGGER.debug("UDP Raw Payload from %s: %s", addr[0], message)
 
-                status_msg = root.find("statusUpdateMsg") or root.find(
-                    "StatusUpdateMsg"
-                )
+                status_msg = root.find("statusUpdateMsg")
+                if status_msg is None:
+                    status_msg = root.find("StatusUpdateMsg")
                 if status_msg is not None:
                     status = self._parse_status(status_msg)
                     self.merge_status(status)
@@ -233,7 +233,7 @@ class UdpClient:
 
                     if self._status_callback:
                         task = asyncio.create_task(
-                            self._status_callback(self._last_status)
+                            self._status_callback(dict(self._last_status))
                         )
                         self._tasks.add(task)
                         task.add_done_callback(self._tasks.discard)
@@ -273,7 +273,9 @@ class UdpClient:
         self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
     ) -> None:
         """Parse boolean features from both XML formats."""
-        node = status_msg.find(tag) or status_msg.find(tag[0].lower() + tag[1:])
+        node = status_msg.find(tag)
+        if node is None:
+            node = status_msg.find(tag[0].lower() + tag[1:])
         val = self._get_node_value(node)
         if val is not None:
             status[status_key] = val.lower() == "on" or val == "1"

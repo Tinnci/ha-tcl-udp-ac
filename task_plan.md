@@ -7,6 +7,8 @@ Build a safer, repeatable Home Assistant integration testing pipeline that cover
 
 | Phase | Status | Notes |
 |---|---|---|
+| Coordinator/orchestrator fixes | complete | Added regression coverage and fixed setup retry semantics, empty-refresh failure, unload ordering, status snapshots, sensor Celsius unit, and XML element truthiness warning. |
+| Coordinator/orchestrator architecture review | complete | Found coherent one-client/one-coordinator shape, plus risks in setup failure semantics, unload order, mutable status payloads, sensor units, and HA-realistic tests. |
 | Baseline review | complete | Existing findings show real HA issues: duplicate Power control, grouped command mismatches, weak config UI, entry_id unique IDs, and no HA entity tests. |
 | Plan testing strategy | complete | Defined layers: pure protocol tests, fake-client entity tests, coordinator tests, config-flow/options tests, dry-run/live harness split. |
 | Implement HA test scaffolding | complete | Added lightweight Home Assistant stubs for entity/coordinator tests without full HA deps. |

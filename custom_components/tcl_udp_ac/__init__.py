@@ -10,11 +10,12 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import Platform
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
-from .api import TclUdpApiClient
+from .api import TclUdpApiClient, TclUdpApiClientCommunicationError
 from .const import (
     CONF_ACCOUNT,
     CONF_ACTION_JID,
@@ -99,11 +100,13 @@ async def async_setup_entry(
         hass=hass,
         logger=LOGGER,
         name=DOMAIN,
+        config_entry=entry,
         # UDP push is primary, but some networks miss broadcasts. Keep a
         # practical backup poll so external app/remote changes do not leave
         # Home Assistant stale for a long time.
         update_interval=SCAN_INTERVAL,
     )
+    coordinator.config_entry = entry
 
     # Get config or options, falling back to defaults
     action_jid = entry.options.get(
@@ -246,16 +249,20 @@ async def async_setup_entry(
         coordinator=coordinator,
     )
 
-    # Start UDP listener with callback to coordinator
-    await client.async_start_listener(coordinator.async_handle_status_update)
+    try:
+        # Start UDP listener with callback to coordinator
+        await client.async_start_listener(coordinator.async_handle_status_update)
 
-    # Trigger active discovery
-    # This sends a broadcast query so we don't have to wait for the next
-    # spontaneous heartbeat.
-    await client.async_send_discovery()
+        # Trigger active discovery
+        # This sends a broadcast query so we don't have to wait for the next
+        # spontaneous heartbeat.
+        await client.async_send_discovery()
 
-    # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
-    await coordinator.async_config_entry_first_refresh()
+        # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
+        await coordinator.async_config_entry_first_refresh()
+    except TclUdpApiClientCommunicationError as exception:
+        await client.async_close()
+        raise ConfigEntryNotReady("TCL UDP listener is not ready") from exception
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
@@ -268,10 +275,10 @@ async def async_unload_entry(
     entry: TclUdpConfigEntry,
 ) -> bool:
     """Handle removal of an entry."""
-    # Stop UDP listener
-    await entry.runtime_data.client.async_close()
-
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unload_ok:
+        await entry.runtime_data.client.async_close()
+    return unload_ok
 
 
 async def async_reload_entry(
