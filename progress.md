@@ -24,7 +24,7 @@
 - Sent app-captured shutdown group and verified `turnOn=0`; final follow-up status also verified the AC is off.
 - Added tests for shutdown group and heat mode mapping; verified they failed before code/tool changes and pass after.
 - Patched integration power-off to use the app shutdown group.
-- Patched switch entity power routing so the Home Assistant Power switch calls `async_set_power(power=...)`.
+- Removed the duplicate Home Assistant Power switch; climate is now the single on/off source of truth.
 - Hardened `tools/test_control_api.py`: live tests require `--allow-live`, stop on first mismatch by default, and run final safe power-off cleanup unless `--leave-on` is set.
 - Added `tools/README.md` and README notes for safe test usage.
 - Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes.
@@ -46,7 +46,7 @@
 - Added `tests/test_control_tool.py` for the live-control harness: capability extraction, temperature experiment planning, unsupported-mode known-limitation handling, and `mode-matrix` dispatch.
 - Verified the new harness tests fail before implementation on missing capability parsing, missing mode matrix dispatch, and premature `LiveTestFailure` for fan mode mismatch.
 - Added capture parsing for `user_devices` metadata, safe temperature experiment planning, `mode-matrix`, `temp-experiment`, and known-limitation handling for unverified fan/auto mode values.
-- Updated README and `tools/README.md` to document native climate-first UX, disabled duplicate Power switch, experimental Fan Only/Auto options, mode matrix, and temperature experiment usage.
+- Updated README and `tools/README.md` to document native climate-first UX, experimental Fan Only/Auto options, mode matrix, and temperature experiment usage.
 - Ran live single-command mode matrix with `--allow-live --delay 5`: cool verified, bare dry `baseMode=2` was acknowledged but stayed at cool. Final cleanup verified `turnOn=0`.
 - Added failing climate test for mode changes while on, then changed HA mode switching to use grouped `turnOn=1 + BaseMode` for on-state mode changes too.
 - Changed the live mode matrix to use grouped power+mode commands. That older run passed cool, dry, and heat; later captures superseded the Fan conclusion and show legacy Fan for `2743138` as a profile bundle with `baseMode=0`, not `baseMode=7`. Auto/AI remains unsupported.

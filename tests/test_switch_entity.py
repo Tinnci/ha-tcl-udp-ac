@@ -19,9 +19,6 @@ class FakeClient:
     def __init__(self) -> None:
         self.calls = []
 
-    async def async_set_power(self, *, power: bool) -> None:
-        self.calls.append(("async_set_power", {"power": power}))
-
     async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         self.calls.append(("async_set_sleep_mode", {"enabled": enabled}))
 
@@ -49,29 +46,19 @@ class SwitchEntityTest(unittest.TestCase):
     def setUp(self) -> None:
         self.switch = load_integration_module("switch")
 
-    def test_power_switch_uses_power_keyword(self) -> None:
-        coordinator = FakeCoordinator({"power": False})
-        entity = self.switch.TclUdpSwitch(
-            coordinator,
-            "turnOn",
-            "power",
-            "Power",
-            "mdi:power",
-        )
+    def test_setup_does_not_create_duplicate_power_switch(self) -> None:
+        coordinator = FakeCoordinator()
+        entry = SimpleNamespace(runtime_data=SimpleNamespace(coordinator=coordinator))
+        added = []
 
-        self.assertFalse(entity._attr_entity_registry_enabled_default)
+        def add_entities(entities):
+            added.extend(entities)
 
-        asyncio.run(entity.async_turn_on())
-        asyncio.run(entity.async_turn_off())
+        asyncio.run(self.switch.async_setup_entry(None, entry, add_entities))
 
-        self.assertEqual(
-            coordinator.client.calls,
-            [
-                ("async_set_power", {"power": True}),
-                ("async_set_power", {"power": False}),
-            ],
-        )
-        self.assertEqual(coordinator.refresh_count, 2)
+        unique_ids = {entity._attr_unique_id for entity in added}
+        self.assertNotIn("entry-1_power", unique_ids)
+        self.assertIn("entry-1_eco_mode", unique_ids)
 
     def test_feature_switch_uses_enabled_keyword(self) -> None:
         coordinator = FakeCoordinator({"sleep_mode": False})

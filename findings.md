@@ -69,7 +69,7 @@
 ## Home Assistant Testing Improvements
 - Added lightweight Home Assistant stubs so climate/switch/coordinator entity behavior can be tested without installing full Home Assistant test dependencies.
 - Added climate tests for Celsius UI metadata and routing of temperature, power/mode, fan, and swing controls.
-- Added switch tests to prevent the previous Power switch regression where `enabled=...` was sent to `async_set_power()` instead of `power=...`.
+- Added switch tests to prevent recreating a duplicate Power switch; on/off belongs to the climate entity.
 - Added coordinator tests for UDP-first refresh, cloud fallback, and UDP error fallback.
 - Added metadata tests for `manifest.json`, HACS metadata, and config/options translation labels.
 - Normalized Home Assistant-facing temperatures to Celsius while still translating command temperatures to TCL protocol `setTemp`/`degreeH` values.

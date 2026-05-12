@@ -28,7 +28,6 @@ async def async_setup_entry(
     coordinator = entry.runtime_data.coordinator
     async_add_entities(
         [
-            TclUdpSwitch(coordinator, "turnOn", "power", "Power", "mdi:power"),
             TclUdpSwitch(coordinator, "optECO", "eco_mode", "Eco Mode", "mdi:leaf"),
             TclUdpSwitch(
                 coordinator,
@@ -86,7 +85,6 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         self._attr_name = f"TCL AC {name}"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{data_key}"
         self._attr_icon = icon
-        self._attr_entity_registry_enabled_default = data_key != "power"
         if category:
             self._attr_entity_category = category
 
@@ -120,11 +118,6 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     async def _async_set_enabled(self, enabled: bool) -> None:
         """Route switch actions to the matching client setter."""
         client = self.coordinator.config_entry.runtime_data.client
-        if self._data_key == "power":
-            await client.async_set_power(power=enabled)
-            await self.coordinator.async_request_refresh()
-            return
-
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
             await getattr(client, method_name)(enabled=enabled)

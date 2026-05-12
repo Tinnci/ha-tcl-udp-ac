@@ -26,7 +26,6 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
   - **Aux Heat**: Auxiliary heating control.
   - **Display**: Turn the unit's LED display on/off.
   - **Beep**: Enable/disable command confirmation beeps.
-  - **Power Switch**: Kept for compatibility but disabled by default; the climate entity is the primary on/off control for Home Assistant and HomeKit Bridge.
 - **🌤️ Sensors**:
   - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
 
