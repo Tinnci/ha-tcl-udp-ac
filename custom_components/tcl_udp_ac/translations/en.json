@@ -1,17 +1,85 @@
 {
-    "config": {
-        "step": {
-            "user": {
-                "description": "This integration will discover TCL AC units on your network via UDP broadcast on ports 10074 and 10075.",
-                "data": {}
-            }
-        },
-        "error": {
-            "connection": "Unable to start UDP listener.",
-            "unknown": "Unknown error occurred."
-        },
-        "abort": {
-            "already_configured": "This entry is already configured."
+  "config": {
+    "step": {
+      "user": {
+        "description": "Set up a TCL air conditioner using local UDP control and optional TCL+ cloud fallback. Cloud access tokens expire; refresh them from a new TCL+ capture when cloud requests start failing.",
+        "data": {
+          "action_jid": "Local action JID",
+          "action_source": "Local action source",
+          "account": "Local account ID",
+          "cloud_enabled": "Enable cloud status fallback",
+          "cloud_tid": "Cloud device TID",
+          "cloud_access_token": "Cloud access token",
+          "cloud_from": "Cloud sender JID",
+          "cloud_to": "Cloud device JID",
+          "cloud_base_url": "Cloud base URL",
+          "cloud_control": "Enable cloud control",
+          "cloud_user_agent": "Cloud user agent",
+          "cloud_platform": "Cloud platform",
+          "cloud_app_package": "Cloud app package",
+          "cloud_system_version": "Cloud system version",
+          "cloud_brand": "Cloud device brand",
+          "cloud_app_version": "Cloud app version",
+          "cloud_sdk_version": "Cloud SDK version",
+          "cloud_channel": "Cloud app channel",
+          "cloud_app_build_version": "Cloud app build version",
+          "cloud_t_app_version": "Cloud T app version",
+          "cloud_t_platform_type": "Cloud T platform type",
+          "cloud_t_store_uuid": "Cloud T store UUID",
+          "cloud_origin": "Cloud origin header",
+          "cloud_x_requested_with": "Cloud requested-with header",
+          "cloud_accept": "Cloud accept header",
+          "cloud_accept_encoding": "Cloud accept-encoding header",
+          "cloud_accept_language": "Cloud accept-language header",
+          "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
+          "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
         }
+      }
+    },
+    "error": {
+      "connection": "Unable to start UDP listener.",
+      "unknown": "Unknown error occurred."
+    },
+    "abort": {
+      "already_configured": "This entry is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "description": "Update local UDP, TCL+ cloud, and experimental mode settings. Keep Fan Only and Auto/AI disabled until live mode tests confirm support on this device.",
+        "data": {
+          "action_jid": "Local action JID",
+          "action_source": "Local action source",
+          "account": "Local account ID",
+          "cloud_enabled": "Enable cloud status fallback",
+          "cloud_tid": "Cloud device TID",
+          "cloud_access_token": "Cloud access token",
+          "cloud_from": "Cloud sender JID",
+          "cloud_to": "Cloud device JID",
+          "cloud_base_url": "Cloud base URL",
+          "cloud_control": "Enable cloud control",
+          "cloud_user_agent": "Cloud user agent",
+          "cloud_platform": "Cloud platform",
+          "cloud_app_package": "Cloud app package",
+          "cloud_system_version": "Cloud system version",
+          "cloud_brand": "Cloud device brand",
+          "cloud_app_version": "Cloud app version",
+          "cloud_sdk_version": "Cloud SDK version",
+          "cloud_channel": "Cloud app channel",
+          "cloud_app_build_version": "Cloud app build version",
+          "cloud_t_app_version": "Cloud T app version",
+          "cloud_t_platform_type": "Cloud T platform type",
+          "cloud_t_store_uuid": "Cloud T store UUID",
+          "cloud_origin": "Cloud origin header",
+          "cloud_x_requested_with": "Cloud requested-with header",
+          "cloud_accept": "Cloud accept header",
+          "cloud_accept_encoding": "Cloud accept-encoding header",
+          "cloud_accept_language": "Cloud accept-language header",
+          "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
+          "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
+        }
+      }
+    }
+  }
 }

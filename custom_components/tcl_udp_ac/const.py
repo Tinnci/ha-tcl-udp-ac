@@ -39,6 +39,8 @@ DEFAULT_CLOUD_X_REQUESTED_WITH = "com.tcl.tclplus"
 DEFAULT_CLOUD_ACCEPT = "text/plain, */*; q=0.01"
 DEFAULT_CLOUD_ACCEPT_ENCODING = "gzip, deflate, br, zstd"
 DEFAULT_CLOUD_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
+DEFAULT_ENABLE_FAN_ONLY_MODE = False
+DEFAULT_ENABLE_AUTO_MODE = False
 
 # Config keys
 CONF_ACTION_JID = "action_jid"
@@ -68,6 +70,8 @@ CONF_CLOUD_X_REQUESTED_WITH = "cloud_x_requested_with"
 CONF_CLOUD_ACCEPT = "cloud_accept"
 CONF_CLOUD_ACCEPT_ENCODING = "cloud_accept_encoding"
 CONF_CLOUD_ACCEPT_LANGUAGE = "cloud_accept_language"
+CONF_ENABLE_FAN_ONLY_MODE = "enable_fan_only_mode"
+CONF_ENABLE_AUTO_MODE = "enable_auto_mode"
 
 # Protocol value mappings
 # HVAC Modes (BaseMode tag values)

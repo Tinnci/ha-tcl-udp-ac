@@ -20,6 +20,10 @@ from homeassistant.components.climate import (
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .const import (
+    CONF_ENABLE_AUTO_MODE,
+    CONF_ENABLE_FAN_ONLY_MODE,
+    DEFAULT_ENABLE_AUTO_MODE,
+    DEFAULT_ENABLE_FAN_ONLY_MODE,
     FAN_AUTO as TCL_FAN_AUTO,
 )
 from .const import (
@@ -92,7 +96,7 @@ async def async_setup_entry(
 class TclUdpClimate(TclUdpEntity, ClimateEntity):
     """TCL UDP AC Climate entity."""
 
-    _attr_temperature_unit = UnitOfTemperature.FAHRENHEIT
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.TURN_ON
@@ -100,12 +104,10 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         | ClimateEntityFeature.FAN_MODE
         | ClimateEntityFeature.SWING_MODE
     )
-    _attr_hvac_modes: ClassVar[list[HVACMode]] = [
+    _verified_hvac_modes: ClassVar[list[HVACMode]] = [
         HVACMode.OFF,
-        HVACMode.AUTO,
         HVACMode.COOL,
         HVACMode.DRY,
-        HVACMode.FAN_ONLY,
         HVACMode.HEAT,
     ]
     _attr_fan_modes: ClassVar[list[str]] = [
@@ -120,9 +122,9 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         SWING_HORIZONTAL,
         SWING_BOTH,
     ]
-    _attr_min_temp = 60.8
-    _attr_max_temp = 87.8
-    _attr_target_temperature_step = 0.9
+    _attr_min_temp = 16
+    _attr_max_temp = 31
+    _attr_target_temperature_step = 0.5
     _attr_precision = 0.1
 
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
@@ -130,6 +132,28 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         super().__init__(coordinator)
         self._attr_name = "TCL Air Conditioner"
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_climate"
+        self._attr_hvac_modes = self._build_hvac_modes()
+
+    def _entry_option(self, key: str, default: bool) -> bool:
+        """Return boolean option from config entry options or data."""
+        entry = self.coordinator.config_entry
+        if key in getattr(entry, "options", {}):
+            return bool(entry.options[key])
+        return bool(getattr(entry, "data", {}).get(key, default))
+
+    def _build_hvac_modes(self) -> list[HVACMode]:
+        """Build supported HVAC modes from verified modes plus opt-ins."""
+        modes = list(self._verified_hvac_modes)
+        if self._entry_option(CONF_ENABLE_FAN_ONLY_MODE, DEFAULT_ENABLE_FAN_ONLY_MODE):
+            modes.append(HVACMode.FAN_ONLY)
+        if self._entry_option(CONF_ENABLE_AUTO_MODE, DEFAULT_ENABLE_AUTO_MODE):
+            modes.append(HVACMode.AUTO)
+        return modes
+
+    @property
+    def hvac_modes(self) -> list[HVACMode]:
+        """Return supported HVAC modes."""
+        return self._attr_hvac_modes
 
     @property
     def current_temperature(self) -> float | None:
@@ -152,19 +176,18 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if not data:
             return HVACMode.OFF
 
-        # Read mode from device
-        mode_val = data.get("mode")
         pwr_val = data.get("power")
+        mode_val = data.get("mode")
 
-        # If we have an explicit mode, use it (unless power is explicitly off)
-        if mode_val and pwr_val is not False:
-            return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
-
-        # If power is explicitly OFF, return OFF
+        # If power is explicitly OFF, return OFF regardless of mode
         if pwr_val is False:
             return HVACMode.OFF
 
-        # If power is explicitly ON but no mode, default to COOL
+        # If power is explicitly ON (or not False), use the mode
+        if mode_val:
+            return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
+
+        # Power is ON but no mode info yet, default to COOL
         if pwr_val is True:
             return HVACMode.COOL
 
@@ -173,8 +196,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if "target_temp" in data or "fan_speed" in data:
             return HVACMode.COOL
 
-        # If we only have indoor temp, we can't be sure, but let's assume OFF
-        # until a real status packet arrives
+        # No data at all — assume OFF
         return HVACMode.OFF
 
     @property
@@ -231,14 +253,19 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if hvac_mode == HVACMode.OFF:
             await client.async_set_power(power=False)
         else:
-            # Ensure power is on
-            if not self.coordinator.data.get("power"):
-                await client.async_set_power(power=True)
-
-            # Send mode command
             udp_mode = HVAC_MODE_MAP.get(hvac_mode)
-            if udp_mode is not None:
-                await client.async_set_mode(udp_mode)
+            is_on = bool(self.coordinator.data and self.coordinator.data.get("power"))
+
+            if not is_on:
+                await client.async_set_mode_profile(
+                    udp_mode,
+                    target_temperature=self.target_temperature,
+                )
+            elif udp_mode is not None:
+                await client.async_set_mode_profile(
+                    udp_mode,
+                    target_temperature=self.target_temperature,
+                )
 
         await self.coordinator.async_request_refresh()
 
@@ -276,8 +303,17 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     async def async_turn_on(self) -> None:
         """Turn on the AC."""
         log_info(LOGGER, "entity_turn_on", entity=self.entity_id)
-        # Restore last known mode or default to COOL
-        await self.async_set_hvac_mode(HVACMode.COOL)
+        # Restore last known mode, or default to COOL if unknown
+        data = self.coordinator.data
+        last_mode = data.get("mode") if data else None
+        ha_mode = (
+            HVAC_MODE_MAP_REV.get(last_mode, HVACMode.COOL)
+            if last_mode
+            else HVACMode.COOL
+        )
+        if ha_mode not in self.hvac_modes or ha_mode == HVACMode.OFF:
+            ha_mode = HVACMode.COOL
+        await self.async_set_hvac_mode(ha_mode)
 
     async def async_turn_off(self) -> None:
         """Turn off the AC."""

@@ -43,6 +43,8 @@ from .const import (
     MODE_HEAT,
 )
 from .log_utils import log_debug, log_info, log_warning
+from .command_bundles import TclCommandBundle
+from .protocol_profiles import resolve_protocol_profile
 from .udp_client import UdpClient
 
 if TYPE_CHECKING:
@@ -152,6 +154,7 @@ class CloudClient:
         self._base_url = base_url.rstrip("/")
         self._control_enabled = control_enabled
         self._headers = headers
+        self._profile = resolve_protocol_profile(tid)
 
     @property
     def status_enabled(self) -> bool:
@@ -215,6 +218,14 @@ class CloudClient:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _fahrenheit_to_celsius(temp_f: float) -> float:
+        return (temp_f - 32.0) / 1.8
+
+    @staticmethod
+    def _celsius_to_fahrenheit(temp_c: float) -> float:
+        return temp_c * 1.8 + 32.0
+
     def _parse_cloud_status(  # noqa: PLR0912, PLR0915
         self, cur_status: dict[str, Any]
     ) -> dict[str, Any]:
@@ -226,26 +237,32 @@ class CloudClient:
 
         target_c = self._cloud_float(cur_status.get("celsiusSetTemp"))
         if target_c is not None:
-            status["target_temp"] = round(target_c * 9 / 5 + 32, 1)
+            status["target_temp"] = round(target_c, 1)
         else:
             target_temp = self._cloud_int(cur_status.get("setTemp"))
             if target_temp is not None:
-                status["target_temp"] = float(target_temp)
-
-            degree_half = self._cloud_bool(cur_status.get("degreeH"))
-            if degree_half and "target_temp" in status:
                 status["target_temp"] = round(
-                    float(status["target_temp"]) + self._HALF_C_IN_F,
+                    self._fahrenheit_to_celsius(float(target_temp)),
                     1,
                 )
 
+            degree_half = self._cloud_bool(cur_status.get("degreeH"))
+            if degree_half and "target_temp" in status:
+                status["target_temp"] = round(float(status["target_temp"]) + 0.5, 1)
+
         current_temp = self._cloud_int(cur_status.get("inTemp"))
         if current_temp is not None:
-            status["current_temp"] = current_temp
+            status["current_temp"] = round(
+                self._fahrenheit_to_celsius(float(current_temp)),
+                1,
+            )
 
         outdoor_temp = self._cloud_int(cur_status.get("outTemp"))
         if outdoor_temp is not None:
-            status["outdoor_temp"] = outdoor_temp
+            status["outdoor_temp"] = round(
+                self._fahrenheit_to_celsius(float(outdoor_temp)),
+                1,
+            )
 
         wind_map = {
             "0": FAN_AUTO,
@@ -259,17 +276,9 @@ class CloudClient:
         if wind_spd is not None:
             status["fan_speed"] = wind_map.get(str(wind_spd), FAN_AUTO)
 
-        mode_map = {
-            "1": MODE_HEAT,
-            "2": MODE_DEHUMI,
-            "3": MODE_COOL,
-            "4": MODE_HEAT,
-            "7": MODE_FAN,
-            "8": MODE_AUTO,
-        }
         base_mode = cur_status.get("baseMode")
         if base_mode is not None:
-            mapped = mode_map.get(str(base_mode))
+            mapped = self._profile.parse_base_mode(base_mode)
             if mapped:
                 status["mode"] = mapped
             else:
@@ -381,19 +390,20 @@ class CloudClient:
         seq: str,
         degree_half: int | None = None,
     ) -> bool:
-        """Send a control command via cloud convertMqtt API."""
-        if not self.control_enabled:
-            if self._control_enabled:
-                log_warning(
-                    LOGGER,
-                    "cloud_control_unavailable",
-                    reason=self._control_unavailable_reason(),
-                )
-            return False
+        """Send a single control command via cloud convertMqtt API."""
+        items = [(command, value)]
+        if command == "SetTemp" and degree_half is not None:
+            items.append(("DegreeH", str(degree_half)))
+        return await self.async_send_commands(items, seq)
 
+    def _map_cloud_item(
+        self, command: str, value: str
+    ) -> tuple[str, str] | None:
+        """Map a HA-style command/value to cloud tag/value."""
         tag_map = {
             "TurnOn": "turnOn",
             "SetTemp": "setTemp",
+            "DegreeH": "degreeH",
             "WindSpeed": "windSpd",
             "WindDirection_V": "directV",
             "WindDirection_H": "directH",
@@ -403,13 +413,14 @@ class CloudClient:
             "OptHealthy": "optHealthy",
             "Opt_sleepMode": "optSleepMd",
             "Opt_super": "optSuper",
+            "OptSolidWd": "optSolidWd",
             "OptHeat": "optHeat",
             "BeepEnable": "beepEn",
         }
 
         tag = tag_map.get(command)
         if not tag:
-            return False
+            return None
 
         bool_map = {"on": "1", "off": "0", "1": "1", "0": "0"}
         wind_map = {
@@ -419,7 +430,7 @@ class CloudClient:
             "high": "1",
         }
         mode_map = {
-            MODE_HEAT: "1",
+            MODE_HEAT: "4",
             MODE_DEHUMI: "2",
             MODE_COOL: "3",
             MODE_FAN: "7",
@@ -432,21 +443,53 @@ class CloudClient:
             "optECO",
             "optDisplay",
             "optHealthy",
+            "optSleepMd",
             "optSuper",
+            "optSolidWd",
             "optHeat",
             "beepEn",
-        } or tag in {"directV", "directH"}:
+            "directV",
+            "directH",
+        }:
             cloud_value = bool_map.get(value.lower(), value)
         elif tag == "windSpd":
             cloud_value = wind_map.get(value.lower(), value)
         elif tag == "baseMode":
             cloud_value = mode_map.get(value, value)
 
-        body_xml = f'<{tag} value="{cloud_value}"></{tag}>'
-        if tag == "setTemp":
-            degree_value = "0" if degree_half is None else str(degree_half)
-            body_xml += f'<degreeH value="{degree_value}"></degreeH>'
+        return tag, cloud_value
 
+    async def async_send_commands(
+        self,
+        items: list[tuple[str, str]],
+        seq: str,
+    ) -> bool:
+        """Send multiple control tags in ONE cloud convertMqtt message.
+
+        items: list of (HA_command, HA_value) pairs.
+        """
+        if not self.control_enabled:
+            if self._control_enabled:
+                log_warning(
+                    LOGGER,
+                    "cloud_control_unavailable",
+                    reason=self._control_unavailable_reason(),
+                )
+            return False
+
+        body_parts: list[str] = []
+        for command, value in items:
+            mapped = self._map_cloud_item(command, value)
+            if mapped is None:
+                LOGGER.warning("Unknown cloud command: %s", command)
+                continue
+            tag, cloud_value = mapped
+            body_parts.append(f'<{tag} value="{cloud_value}"></{tag}>')
+
+        if not body_parts:
+            return False
+
+        body_xml = "".join(body_parts)
         message = self._build_cloud_message(body_xml, seq)
         if not message:
             return False
@@ -459,6 +502,7 @@ class CloudClient:
             include_content_type=True,
         )
 
+        desc = ", ".join(f"{c}={v}" for c, v in items)
         try:
             async with self._session.post(
                 url, headers=headers, json=payload, timeout=10
@@ -469,7 +513,7 @@ class CloudClient:
                         "cloud_control_http_error",
                         status=resp.status,
                         tid=self._tid,
-                        command=command,
+                        command=desc,
                     )
                     return False
         except (TimeoutError, aiohttp.ClientError) as exc:
@@ -478,7 +522,7 @@ class CloudClient:
                 "cloud_control_request_failed",
                 error=exc,
                 tid=self._tid,
-                command=command,
+                command=desc,
             )
             return False
 
@@ -486,8 +530,8 @@ class CloudClient:
             LOGGER,
             "cloud_control_sent",
             tid=self._tid,
-            command=command,
-            value=value,
+            command=desc,
+            value="batch",
             seq=seq,
         )
         return True
@@ -531,7 +575,13 @@ class TclUdpApiClient:
         cloud_accept_language: str = DEFAULT_CLOUD_ACCEPT_LANGUAGE,
     ) -> None:
         """Initialize the API client."""
-        self._udp = UdpClient(action_jid, action_source, account)
+        self._protocol_profile = resolve_protocol_profile(cloud_tid)
+        self._udp = UdpClient(
+            action_jid,
+            action_source,
+            account,
+            protocol_profile=self._protocol_profile,
+        )
         self._session = session
         header_profile = CloudHeaderProfile(
             platform=cloud_platform,
@@ -655,43 +705,93 @@ class TclUdpApiClient:
         value: str,
         degree_half: int | None = None,
     ) -> None:
-        """
-        Send a command using SetMessage XML format (per Java source code).
+        """Send a single command via both cloud and UDP.
 
         Args:
             command: XML tag name (e.g., 'TurnOn', 'SetTemp', 'BaseMode')
             value: Tag value (e.g., 'on', 'off', '78', 'cool')
-            degree_half: Optional half-degree flag for cloud/UDP commands.
+            degree_half: Optional half-degree flag for SetTemp commands.
 
         """
-        try:
-            next_seq = str(self._cloud_sequence + 1)
-            if self._cloud.control_enabled:
-                await self._cloud.async_send_command(
-                    command,
-                    value,
-                    next_seq,
-                    degree_half=degree_half,
-                )
-            self._cloud_sequence += 1
-            await self._udp.async_send_command(
-                command,
-                value,
-                degree_half=degree_half,
-            )
+        items: list[tuple[str, str]] = [(command, value)]
+        if command == "SetTemp" and degree_half is not None:
+            items.append(("DegreeH", str(degree_half)))
+            # The real TCL app always disables Super/Turbo mode when
+            # setting temperature, otherwise the device ignores setTemp.
+            items.append(("Opt_super", "off"))
+        await self.async_send_commands(items)
 
+    async def async_send_commands(
+        self,
+        items: list[tuple[str, str]],
+    ) -> None:
+        """Send multiple tags in ONE message via both cloud and UDP.
+
+        items: list of (tag, value) pairs, e.g. [("TurnOn", "on"), ("BaseMode", "cool")]
+        """
+        try:
+            self._cloud_sequence += 1
+            next_seq = str(self._cloud_sequence)
+            if self._cloud.control_enabled:
+                await self._cloud.async_send_commands(items, next_seq)
+            await self._udp.async_send_commands(items)
         except OSError as exception:
             LOGGER.error("Failed to send command: %s", exception)
             raise TclUdpApiClientCommunicationError from exception
 
+    async def async_send_command_bundle(self, bundle: TclCommandBundle) -> None:
+        """Send a profile-built grouped command bundle."""
+        await self.async_send_commands(bundle.to_command_items())
+
     async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
-        # Java: <TurnOn>on</TurnOn> or <TurnOn>off</TurnOn>
-        await self.async_send_command("TurnOn", "on" if power else "off")
+        if power:
+            await self.async_send_command("TurnOn", "on")
+            return
+
+        await self.async_send_commands(
+            [
+                ("Opt_sleepMode", "0"),
+                ("Opt_ECO", "off"),
+                ("OptHealthy", "off"),
+                ("Opt_super", "off"),
+                ("OptHeat", "off"),
+                ("TurnOn", "off"),
+            ]
+        )
+
+    async def async_set_power_mode(
+        self, *, power: bool, mode_str: str | None = None
+    ) -> None:
+        """Set power and mode in a single combined message.
+
+        When turning on, always include mode to avoid the device using
+        a stale mode from a previous session.
+        """
+        items: list[tuple[str, str]] = [
+            ("TurnOn", "on" if power else "off"),
+        ]
+        if power and mode_str:
+            items.append(("BaseMode", mode_str))
+        await self.async_send_commands(items)
+
+    async def async_set_mode_profile(
+        self,
+        mode_str: str,
+        *,
+        target_temperature: float | None = None,
+    ) -> None:
+        """Set HVAC mode through the configured protocol profile."""
+        bundle = self._protocol_profile.build_mode_command(
+            mode_str,
+            target_temperature=target_temperature,
+        )
+        await self.async_send_command_bundle(bundle)
 
     async def async_set_temperature(self, temperature: float) -> None:
         """Set target temperature."""
-        # Java: <SetTemp>78</SetTemp> (Fahrenheit integer)
+        # Home Assistant exposes Celsius; TCL protocol carries Fahrenheit-ish
+        # setTemp plus a half-Celsius flag.
         temp_value = float(temperature)
         temp_int, degree_half = self._map_set_temp(temp_value)
         await self.async_send_command(
@@ -704,12 +804,15 @@ class TclUdpApiClient:
     def _fahrenheit_to_celsius(temp_f: float) -> float:
         return (temp_f - 32.0) / 1.8
 
+    @staticmethod
+    def _celsius_to_fahrenheit(temp_c: float) -> float:
+        return temp_c * 1.8 + 32.0
+
     @classmethod
-    def _map_set_temp(cls, temp_f: float) -> tuple[int, int]:
-        """Map Fahrenheit input to setTemp integer + degreeH flag."""
-        desired_c = cls._fahrenheit_to_celsius(temp_f)
-        desired_c_rounded = round(desired_c * 2) / 2
-        base_f = round(temp_f)
+    def _map_set_temp(cls, temp_c: float) -> tuple[int, int]:
+        """Map Celsius input to protocol setTemp integer + degreeH flag."""
+        desired_c_rounded = round(temp_c * 2) / 2
+        base_f = round(cls._celsius_to_fahrenheit(temp_c))
 
         best: tuple[float, float, float, int, int] | None = None
         for f_int in range(base_f - 3, base_f + 4):
@@ -717,26 +820,35 @@ class TclUdpApiClient:
                 c_val = cls._fahrenheit_to_celsius(f_int) + 0.5 * degree_half
                 c_rounded = round(c_val * 2) / 2
                 diff = abs(c_rounded - desired_c_rounded)
-                diff_raw = abs(c_val - desired_c)
-                diff_f = abs(f_int - temp_f)
+                diff_raw = abs(c_val - temp_c)
+                diff_f = abs(f_int - cls._celsius_to_fahrenheit(temp_c))
                 candidate = (diff, diff_raw, diff_f, f_int, degree_half)
                 if best is None or candidate < best:
                     best = candidate
 
         if best is None:
-            return round(temp_f), 0
+            return round(cls._celsius_to_fahrenheit(temp_c)), 0
         return best[3], best[4]
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
-        # Java: <WindSpeed>high</WindSpeed>
-        await self.async_send_command("WindSpeed", speed_str)
+        await self.async_send_commands(
+            [
+                ("WindSpeed", speed_str),
+                ("Opt_sleepMode", "0"),
+                ("Opt_super", "off"),
+            ]
+        )
 
     async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
-        """Set swing mode."""
-        # Java: <WindDirection_V>on</WindDirection_V>
-        await self.async_send_command("WindDirection_V", "on" if vertical else "off")
-        await self.async_send_command("WindDirection_H", "on" if horizontal else "off")
+        """Set swing mode (both directions in one message)."""
+        await self.async_send_commands(
+            [
+                ("WindDirection_V", "on" if vertical else "off"),
+                ("WindDirection_H", "on" if horizontal else "off"),
+                ("OptSolidWd", "off"),
+            ]
+        )
 
     async def async_set_mode(self, mode_str: str) -> None:
         """Set operation mode (expects 'cool', 'heat', 'fan', 'dehumi', 'selffeel')."""
@@ -758,7 +870,7 @@ class TclUdpApiClient:
 
     async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         """Set sleep mode."""
-        await self.async_send_command("Opt_sleepMode", "on" if enabled else "off")
+        await self.async_send_command("Opt_sleepMode", "1" if enabled else "0")
 
     async def async_set_turbo_mode(self, *, enabled: bool) -> None:
         """Set turbo (super) mode."""

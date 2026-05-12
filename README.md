@@ -14,10 +14,10 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 
 - **🚀 100% Local Control**: Uses UDP broadcast (Port 10074/10075) for instant response and status updates.
 - **🌡️ Climate Control**:
-  - **Modes**: Auto, Cool, Heat, Dry (Dehumidifier), Fan Only.
+  - **Modes**: Cool, Heat, Dry (Dehumidifier). Fan Only and Auto/AI are available as experimental options after live confirmation on your device.
   - **Fan Speeds**: Auto, Low, Medium, High.
   - **Swing Modes**: Vertical, Horizontal, Both, Off.
-  - **Target Temperature**: 60.8°F - 87.8°F (adjustable in 0.9°F steps).
+  - **Target Temperature**: 16°C - 31°C (adjustable in 0.5°C steps).
 - **📟 Advanced Features (Switches)**:
   - **Eco Mode**: Toggle energy-saving mode.
   - **Turbo Mode**: Maximize cooling/heating performance.
@@ -26,6 +26,7 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
   - **Aux Heat**: Auxiliary heating control.
   - **Display**: Turn the unit's LED display on/off.
   - **Beep**: Enable/disable command confirmation beeps.
+  - **Power Switch**: Kept for compatibility but disabled by default; the climate entity is the primary on/off control for Home Assistant and HomeKit Bridge.
 - **🌤️ Sensors**:
   - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
 
@@ -67,6 +68,42 @@ This integration communicates via **UDP Multicast/Broadcast**.
 - **Firewall/VLANs**: Ensure UDP traffic on ports **10074** (Receive) and **10075** (Send) is allowed between Home Assistant and the AC units.
 
 ## 🔧 Troubleshooting
+
+### Local Verification Tools
+
+Read-only status checks are safe:
+
+```bash
+/usr/local/bin/uv run python tools/test_control_api.py \
+  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
+  --status
+```
+
+Live tests require `--allow-live` and now run final power-off cleanup by
+default. See `tools/README.md` before running mutating tests.
+
+Useful guarded experiments:
+
+```bash
+/usr/local/bin/uv run python tools/test_control_api.py \
+  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
+  --dry-run \
+  --test mode-matrix
+
+/usr/local/bin/uv run python tools/test_control_api.py \
+  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
+  --dry-run \
+  --test temp-experiment
+```
+
+Temperature is exposed to Home Assistant in Celsius. The legacy cloud path still
+uses `setTemp`/`degreeH` internally, and live testing has shown that a successful
+API response does not always mean the device accepted the target temperature.
+Mode switching uses grouped `turnOn=1 + baseMode=...` commands because live
+testing showed bare mode changes can be acknowledged but ignored.
+For legacy device `2743138`, the capture-derived mode profiles and unsupported
+mode notes are tracked in
+`docs/protocol_truth/legacy_2743138_mode_profiles.md`.
 
 ### Device Not Discovered / No Status Updates
 

@@ -25,6 +25,7 @@ from .const import (
     UDP_COMMAND_PORT,
 )
 from .log_utils import log_info, log_warning
+from .protocol_profiles import ProtocolProfile, resolve_protocol_profile
 
 SYNC_THROTTLE_SECONDS = 2.0
 
@@ -39,6 +40,8 @@ class UdpClient:
         action_jid: str,
         action_source: str,
         account: str,
+        *,
+        protocol_profile: ProtocolProfile | None = None,
     ) -> None:
         """Initialize UDP client with protocol metadata."""
         self._listener_sock: socket.socket | None = None
@@ -56,6 +59,7 @@ class UdpClient:
         self._action_jid = action_jid
         self._action_source = action_source
         self._account = account
+        self._protocol_profile = protocol_profile or resolve_protocol_profile(None)
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -261,6 +265,10 @@ class UdpClient:
             val = node.text
         return val
 
+    @staticmethod
+    def _fahrenheit_to_celsius(temp_f: float) -> float:
+        return (temp_f - 32.0) / 1.8
+
     def _parse_bool_feature(
         self, status_msg: ET.Element, tag: str, status_key: str, status: dict[str, Any]
     ) -> None:
@@ -292,7 +300,10 @@ class UdpClient:
         val = self._get_node_value(node)
         if val:
             try:
-                status["target_temp"] = int(val)
+                status["target_temp"] = round(
+                    self._fahrenheit_to_celsius(float(val)),
+                    1,
+                )
             except ValueError:
                 LOGGER.warning("Invalid SetTemp value: %s", val)
 
@@ -302,16 +313,16 @@ class UdpClient:
         if val is not None:
             degree_half = val.lower() == "on" or val == "1"
         if degree_half and "target_temp" in status:
-            status["target_temp"] = round(
-                float(status["target_temp"]) + self._HALF_C_IN_F,
-                1,
-            )
+            status["target_temp"] = round(float(status["target_temp"]) + 0.5, 1)
 
         node = get_and_record(["InTemp", "inTemp", "IndoorTemp", "indoorTemp"])
         val = self._get_node_value(node)
         if val:
             try:
-                status["current_temp"] = int(val)
+                status["current_temp"] = round(
+                    self._fahrenheit_to_celsius(float(val)),
+                    1,
+                )
             except ValueError:
                 LOGGER.warning("Invalid InTemp value: %s", val)
 
@@ -319,7 +330,10 @@ class UdpClient:
         val = self._get_node_value(node)
         if val:
             try:
-                status["outdoor_temp"] = int(val)
+                status["outdoor_temp"] = round(
+                    self._fahrenheit_to_celsius(float(val)),
+                    1,
+                )
             except ValueError:
                 LOGGER.warning("Invalid OutTemp value: %s", val)
 
@@ -332,8 +346,12 @@ class UdpClient:
         parse_bool(["OptECO", "optECO", "Opt_ECO"], "eco_mode")
         parse_bool(["OptDisplay", "optDisplay", "Opt_display"], "display")
         parse_bool(["OptHealthy", "optHealthy", "Opt_healthy"], "health_mode")
-        parse_bool(["Opt_sleepMode", "sleepMode", "SleepMode"], "sleep_mode")
+        parse_bool(
+            ["Opt_sleepMode", "optSleepMd", "sleepMode", "SleepMode"],
+            "sleep_mode",
+        )
         parse_bool(["Opt_super", "superMode", "SuperMode", "OptSuper"], "turbo_mode")
+        parse_bool(["OptSolidWd", "optSolidWd"], "solid_wind_mode")
         parse_bool(["OptHeat", "optHeat", "Opt_heat"], "aux_heat")
         parse_bool(["BeepEnable", "beepEn", "BeepEn"], "beep")
 
@@ -367,7 +385,10 @@ class UdpClient:
         val = self._get_node_value(node)
         if val:
             v = val.lower()
-            if v == "cool":
+            mapped_mode = self._protocol_profile.parse_base_mode(v)
+            if mapped_mode is not None:
+                status["mode"] = mapped_mode
+            elif v == "cool":
                 status["mode"] = MODE_COOL
             elif v == "heat":
                 status["mode"] = MODE_HEAT
@@ -377,6 +398,8 @@ class UdpClient:
                 status["mode"] = MODE_DEHUMI
             elif v == "selffeel":
                 status["mode"] = MODE_AUTO
+            elif v.isdigit():
+                LOGGER.debug("Unknown profile baseMode: %s", val)
             else:
                 status["mode"] = v
 
@@ -399,20 +422,30 @@ class UdpClient:
         value: str,
         degree_half: int | None = None,
     ) -> None:
-        """Send a command using SetMessage XML format (UDP only)."""
+        """Send a single command using SetMessage XML format (UDP only)."""
+        items: list[tuple[str, str]] = [(command, value)]
+        if command == "SetTemp" and degree_half is not None:
+            items.append(("DegreeH", str(degree_half)))
+        await self.async_send_commands(items)
+
+    async def async_send_commands(
+        self,
+        items: list[tuple[str, str]],
+    ) -> None:
+        """Send multiple tags in a single SetMessage XML (UDP only).
+
+        items: list of (tag, value) pairs, e.g. [("TurnOn", "on"), ("BaseMode", "cool")]
+        """
         self._sequence += 1
         seq = str(self._sequence)
 
-        extra_xml = ""
-        if command == "SetTemp" and degree_half is not None:
-            extra_xml = f"<DegreeH>{degree_half}</DegreeH>"
+        items_xml = "".join(f"<{tag}>{val}</{tag}>" for tag, val in items)
 
         xml_command = (
             f'<msg tclid="{self._device_mac}" msgid="SetMessage" '
             f'type="Control" seq="{seq}">'
             f"<SetMessage>"
-            f"<{command}>{value}</{command}>"
-            f"{extra_xml}"
+            f"{items_xml}"
             f"</SetMessage>"
             f"</msg>"
         )
@@ -421,22 +454,24 @@ class UdpClient:
 
         if self._device_ip and self._device_port and self._send_sock:
             target_addr = (self._device_ip, self._device_port)
+            desc = ", ".join(f"{t}={v}" for t, v in items)
             log_info(
                 LOGGER,
                 "udp_control_sent",
-                command=command,
-                value=value,
+                command=desc,
+                value="batch",
                 seq=seq,
                 ip=target_addr[0],
                 port=target_addr[1],
             )
             self._send_sock.sendto(xml_command.encode("utf-8"), target_addr)
         else:
+            desc = ", ".join(f"{t}={v}" for t, v in items)
             log_warning(
                 LOGGER,
                 "udp_control_skipped",
-                command=command,
-                value=value,
+                command=desc,
+                value="batch",
                 reason="device_not_discovered",
             )
 

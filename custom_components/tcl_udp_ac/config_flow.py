@@ -36,6 +36,8 @@ from .const import (
     CONF_CLOUD_TOKEN,
     CONF_CLOUD_USER_AGENT,
     CONF_CLOUD_X_REQUESTED_WITH,
+    CONF_ENABLE_AUTO_MODE,
+    CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ACCOUNT,
     DEFAULT_ACTION_JID,
     DEFAULT_ACTION_SOURCE,
@@ -63,6 +65,8 @@ from .const import (
     DEFAULT_CLOUD_TOKEN,
     DEFAULT_CLOUD_USER_AGENT,
     DEFAULT_CLOUD_X_REQUESTED_WITH,
+    DEFAULT_ENABLE_AUTO_MODE,
+    DEFAULT_ENABLE_FAN_ONLY_MODE,
     DOMAIN,
 )
 
@@ -168,6 +172,14 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_CLOUD_ACCEPT_LANGUAGE,
                         default=DEFAULT_CLOUD_ACCEPT_LANGUAGE,
                     ): str,
+                    vol.Optional(
+                        CONF_ENABLE_FAN_ONLY_MODE,
+                        default=DEFAULT_ENABLE_FAN_ONLY_MODE,
+                    ): bool,
+                    vol.Optional(
+                        CONF_ENABLE_AUTO_MODE,
+                        default=DEFAULT_ENABLE_AUTO_MODE,
+                    ): bool,
                 }
             ),
             errors=errors,
@@ -433,6 +445,26 @@ class TclUdpOptionsFlowHandler(config_entries.OptionsFlow):
                             ),
                         ),
                     ): str,
+                    vol.Optional(
+                        CONF_ENABLE_FAN_ONLY_MODE,
+                        default=self.config_entry.options.get(
+                            CONF_ENABLE_FAN_ONLY_MODE,
+                            self.config_entry.data.get(
+                                CONF_ENABLE_FAN_ONLY_MODE,
+                                DEFAULT_ENABLE_FAN_ONLY_MODE,
+                            ),
+                        ),
+                    ): bool,
+                    vol.Optional(
+                        CONF_ENABLE_AUTO_MODE,
+                        default=self.config_entry.options.get(
+                            CONF_ENABLE_AUTO_MODE,
+                            self.config_entry.data.get(
+                                CONF_ENABLE_AUTO_MODE,
+                                DEFAULT_ENABLE_AUTO_MODE,
+                            ),
+                        ),
+                    ): bool,
                 }
             ),
         )

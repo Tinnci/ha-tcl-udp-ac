@@ -1,0 +1,54 @@
+# Progress: Home Assistant Integration Search
+
+## 2026-05-12
+- Loaded required skill instructions.
+- Ran initial repository file inventory.
+- Found likely Home Assistant custom integration at `custom_components/tcl_udp_ac/`.
+- Created planning files for persistent repo-wide investigation.
+- Confirmed `manifest.json`, `hacs.json`, `README.md`, platform files, config flow, and development config all identify this as a Home Assistant custom integration.
+- Searched for Apple Home/HomeKit/bridge references; found no direct bridge code in the main project files.
+- Shifted to diagnosis of prior control issues using Python source and `/Users/driezy/Downloads/tcl` artifacts.
+- Compared captured TCL app cloud commands with integration command generation.
+- Added `tests/test_protocol_commands.py` to lock down heat, sleep, and swing/solid-wind mappings.
+- Verified tests failed before patch on the intended protocol mismatches.
+- Patched `custom_components/tcl_udp_ac/api.py` and `custom_components/tcl_udp_ac/udp_client.py`.
+- Verified focused and discovered unittest suites pass with bundled Python 3.12.
+- Syntax check passes with bundled Python 3.12; system Python 3.9 cannot parse this repo's `type` alias syntax.
+- Ruff could not be run because no `ruff` module/binary is installed in the available Python environments.
+- Re-opened the task for live control verification using fresh capture `/Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl`.
+- Updated `task_plan.md` to track live command testing, grouped command diagnosis, integration UX fixes, and final verification.
+- Ran live status check with fresh capture: AC is online and initially powered off.
+- Ran live `combined-on-cool` test: `turnOn=1 + baseMode=3` in one cloud message succeeded and verified by status.
+- Ran live grouped command matrix. Fan, swing, heat `baseMode=4`, and restore commands verified; temperature change did not verify.
+- User reported the AC was still running during testing. Sent bare `turnOn=0`; API accepted but status still showed `turnOn=1`.
+- Sent app-captured shutdown group and verified `turnOn=0`; final follow-up status also verified the AC is off.
+- Added tests for shutdown group and heat mode mapping; verified they failed before code/tool changes and pass after.
+- Patched integration power-off to use the app shutdown group.
+- Patched switch entity power routing so the Home Assistant Power switch calls `async_set_power(power=...)`.
+- Hardened `tools/test_control_api.py`: live tests require `--allow-live`, stop on first mismatch by default, and run final safe power-off cleanup unless `--leave-on` is set.
+- Added `tools/README.md` and README notes for safe test usage.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes.
+- Verified `/usr/local/bin/uv run python -m compileall -q custom_components/tcl_udp_ac tests tools` passes.
+- Verified `tools/test_control_api.py --test combined-on-cool` refuses live mutation without `--allow-live`.
+- Verified `tools/test_control_api.py --dry-run --test combined-on-cool` previews grouped commands without sending.
+- Verified final read-only status reports `turnOn=0`.
+- Verified `git diff --check` passes.
+- Shifted focus to Home Assistant integration testing and UX hardening.
+- Updated `task_plan.md` for HA-specific test layers: entity behavior, coordinator/config flow, dry-run/live harness, and HomeKit-facing UX.
+- Used zoom-out to map integration boundaries: protocol parsing in `api.py`/`udp_client.py`, HA presentation in `climate.py`/`switch.py`, refresh in `coordinator.py`, setup UX in config/translations.
+- Added failing Celsius tests, then normalized cloud/UDP parsed temperatures to Celsius and changed HA climate metadata to 16-31°C with 0.5°C steps.
+- Changed `TclUdpApiClient.async_set_temperature()` to accept Celsius and translate to protocol `setTemp`/`degreeH`.
+- Added `tests/ha_stubs.py`, `tests/test_climate_entity.py`, `tests/test_switch_entity.py`, `tests/test_coordinator.py`, `tests/test_config_metadata.py`, and `tests/test_temperature_units.py`.
+- Added `integration_type: device` to manifest and filled config/options translation labels.
+- Updated README temperature range to Celsius.
+- Verified `/usr/local/bin/uv run python -m unittest discover -s tests` passes with 24 tests.
+- Verified compileall, read-only status, and `git diff --check` pass. Read-only status confirms `turnOn=0`.
+- Added `tests/test_control_tool.py` for the live-control harness: capability extraction, temperature experiment planning, unsupported-mode known-limitation handling, and `mode-matrix` dispatch.
+- Verified the new harness tests fail before implementation on missing capability parsing, missing mode matrix dispatch, and premature `LiveTestFailure` for fan mode mismatch.
+- Added capture parsing for `user_devices` metadata, safe temperature experiment planning, `mode-matrix`, `temp-experiment`, and known-limitation handling for unverified fan/auto mode values.
+- Updated README and `tools/README.md` to document native climate-first UX, disabled duplicate Power switch, experimental Fan Only/Auto options, mode matrix, and temperature experiment usage.
+- Ran live single-command mode matrix with `--allow-live --delay 5`: cool verified, bare dry `baseMode=2` was acknowledged but stayed at cool. Final cleanup verified `turnOn=0`.
+- Added failing climate test for mode changes while on, then changed HA mode switching to use grouped `turnOn=1 + BaseMode` for on-state mode changes too.
+- Changed the live mode matrix to use grouped power+mode commands. That older run passed cool, dry, and heat; later captures superseded the Fan conclusion and show legacy Fan for `2743138` as a profile bundle with `baseMode=0`, not `baseMode=7`. Auto/AI remains unsupported.
+- Ran live `temp-experiment` with `--delay 20`: legacy `setTemp=75 + degreeH=0 + optSuper=0` still returned API success but verified status stayed at `setTemp=73`. Final cleanup verified `turnOn=0` and left the device in cool/off state.
+- Added a regression test and fix so `async_turn_on()` does not restore disabled experimental Fan Only/Auto modes; it falls back to cool unless the restored mode is currently exposed.
