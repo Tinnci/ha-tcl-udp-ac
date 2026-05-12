@@ -62,6 +62,7 @@ class FakeCoordinator:
         self,
         data: dict | None = None,
         *,
+        entry_data: dict | None = None,
         options: dict | None = None,
     ) -> None:
         self.data = data or {}
@@ -70,7 +71,7 @@ class FakeCoordinator:
         self.config_entry = SimpleNamespace(
             entry_id="entry-1",
             domain="tcl_udp_ac",
-            data={},
+            data=entry_data or {},
             options=options or {},
             runtime_data=SimpleNamespace(client=self.client),
         )
@@ -143,6 +144,39 @@ class ClimateEntityTest(unittest.TestCase):
         entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
 
         self.assertEqual(entity.hvac_action, self.climate.HVACAction.OFF)
+
+    def test_legacy_profile_blocks_unsupported_auto_even_if_option_enabled(self) -> None:
+        entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                entry_data={"cloud_tid": "2743138"},
+                options={
+                    "enable_fan_only_mode": True,
+                    "enable_auto_mode": True,
+                },
+            )
+        )
+
+        self.assertIn(self.climate.HVACMode.FAN_ONLY, entity.hvac_modes)
+        self.assertNotIn(self.climate.HVACMode.AUTO, entity.hvac_modes)
+
+    def test_entity_uses_modern_ha_naming_and_stable_device_identifier(self) -> None:
+        entity = self.climate.TclUdpClimate(
+            FakeCoordinator(entry_data={"cloud_tid": "2743138"})
+        )
+
+        self.assertTrue(entity._attr_has_entity_name)
+        self.assertIsNone(entity._attr_name)
+        self.assertEqual(entity._attr_unique_id, "2743138_climate")
+        self.assertEqual(
+            entity._attr_device_info["identifiers"],
+            {("tcl_udp_ac", "2743138")},
+        )
+
+    def test_climate_does_not_fabricate_humidity_properties(self) -> None:
+        entity = self.climate.TclUdpClimate(FakeCoordinator())
+
+        self.assertFalse(hasattr(entity, "current_humidity"))
+        self.assertFalse(hasattr(entity, "target_humidity"))
 
     def test_hvac_action_reports_cooling_when_above_cooling_setpoint(self) -> None:
         entity = self.climate.TclUdpClimate(

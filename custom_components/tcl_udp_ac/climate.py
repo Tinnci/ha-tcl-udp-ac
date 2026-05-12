@@ -21,6 +21,7 @@ from homeassistant.components.climate import (
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
 from .const import (
+    CONF_CLOUD_TID,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ENABLE_AUTO_MODE,
@@ -56,6 +57,7 @@ from .const import (
 )
 from .entity import TclUdpEntity
 from .log_utils import log_info
+from .protocol_profiles import resolve_protocol_profile
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -105,12 +107,6 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         | ClimateEntityFeature.FAN_MODE
         | ClimateEntityFeature.SWING_MODE
     )
-    _verified_hvac_modes: ClassVar[list[HVACMode]] = [
-        HVACMode.OFF,
-        HVACMode.COOL,
-        HVACMode.DRY,
-        HVACMode.HEAT,
-    ]
     _attr_fan_modes: ClassVar[list[str]] = [
         FAN_AUTO,
         FAN_LOW,
@@ -131,9 +127,18 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the climate entity."""
         super().__init__(coordinator)
-        self._attr_name = "TCL Air Conditioner"
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_climate"
+        self._attr_name = None
+        self._attr_unique_id = self._entity_unique_id("climate")
         self._attr_hvac_modes = self._build_hvac_modes()
+
+    def _capabilities(self):
+        """Return profile capabilities for this config entry."""
+        entry = self.coordinator.config_entry
+        device_id = (
+            getattr(entry, "options", {}).get(CONF_CLOUD_TID)
+            or getattr(entry, "data", {}).get(CONF_CLOUD_TID)
+        )
+        return resolve_protocol_profile(device_id).capabilities
 
     def _entry_option(self, key: str, default: bool) -> bool:
         """Return boolean option from config entry options or data."""
@@ -144,10 +149,22 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
     def _build_hvac_modes(self) -> list[HVACMode]:
         """Build supported HVAC modes from verified modes plus opt-ins."""
-        modes = list(self._verified_hvac_modes)
-        if self._entry_option(CONF_ENABLE_FAN_ONLY_MODE, DEFAULT_ENABLE_FAN_ONLY_MODE):
+        capabilities = self._capabilities()
+        modes = [HVACMode.OFF]
+        modes.extend(
+            HVAC_MODE_MAP_REV[mode]
+            for mode in capabilities.verified_hvac_modes
+            if mode in HVAC_MODE_MAP_REV
+        )
+        if (
+            TCL_MODE_FAN in capabilities.experimental_hvac_modes
+            and self._entry_option(CONF_ENABLE_FAN_ONLY_MODE, DEFAULT_ENABLE_FAN_ONLY_MODE)
+        ):
             modes.append(HVACMode.FAN_ONLY)
-        if self._entry_option(CONF_ENABLE_AUTO_MODE, DEFAULT_ENABLE_AUTO_MODE):
+        if (
+            TCL_MODE_AUTO in capabilities.experimental_hvac_modes
+            and self._entry_option(CONF_ENABLE_AUTO_MODE, DEFAULT_ENABLE_AUTO_MODE)
+        ):
             modes.append(HVACMode.AUTO)
         return modes
 

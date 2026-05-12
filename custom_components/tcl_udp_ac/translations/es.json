@@ -4,16 +4,23 @@
       "user": {
         "description": "Configura un aire acondicionado TCL con control UDP local y respaldo opcional en la nube TCL+. Los tokens de acceso a la nube caducan; actualízalos desde una nueva captura de TCL+ cuando las solicitudes a la nube empiecen a fallar.",
         "data": {
-          "action_jid": "JID de acción local",
-          "action_source": "Origen de acción local",
-          "account": "ID de cuenta local",
           "cloud_enabled": "Activar respaldo de estado en la nube",
           "cloud_tid": "TID del dispositivo en la nube",
           "cloud_access_token": "Token de acceso a la nube",
+          "cloud_control": "Activar control en la nube",
+          "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
+          "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
+        }
+      },
+      "advanced": {
+        "description": "Cabeceras avanzadas de UDP local y nube TCL+ capturadas desde la app TCL+. Mantén estos valores predeterminados salvo que actualices una captura verificada.",
+        "data": {
+          "action_jid": "JID de acción local",
+          "action_source": "Origen de acción local",
+          "account": "ID de cuenta local",
           "cloud_from": "JID remitente de la nube",
           "cloud_to": "JID del dispositivo en la nube",
           "cloud_base_url": "URL base de la nube",
-          "cloud_control": "Activar control en la nube",
           "cloud_user_agent": "Agente de usuario de la nube",
           "cloud_platform": "Plataforma de la nube",
           "cloud_app_package": "Paquete de la app de la nube",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "Encabezado Requested-With de la nube",
           "cloud_accept": "Encabezado Accept de la nube",
           "cloud_accept_encoding": "Encabezado Accept-Encoding de la nube",
-          "cloud_accept_language": "Encabezado Accept-Language de la nube",
-          "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
-          "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
+          "cloud_accept_language": "Encabezado Accept-Language de la nube"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
           "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Temperatura exterior"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Modo eco"
+      },
+      "display": {
+        "name": "Pantalla"
+      },
+      "health_mode": {
+        "name": "Modo saludable"
+      },
+      "sleep_mode": {
+        "name": "Modo sueño"
+      },
+      "turbo_mode": {
+        "name": "Modo turbo"
+      },
+      "aux_heat": {
+        "name": "Calor auxiliar"
+      },
+      "beep": {
+        "name": "Pitido"
       }
     }
   }

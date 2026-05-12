@@ -4,16 +4,23 @@
       "user": {
         "description": "ローカル UDP 制御と任意の TCL+ クラウドフォールバックを使って TCL エアコンを設定します。クラウドアクセストークンには有効期限があります。クラウド要求が失敗し始めたら、新しい TCL+ キャプチャから更新してください。",
         "data": {
-          "action_jid": "ローカルアクション JID",
-          "action_source": "ローカルアクションソース",
-          "account": "ローカルアカウント ID",
           "cloud_enabled": "クラウド状態フォールバックを有効にする",
           "cloud_tid": "クラウドデバイス TID",
           "cloud_access_token": "クラウドアクセストークン",
+          "cloud_control": "クラウド制御を有効にする",
+          "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
+          "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
+        }
+      },
+      "advanced": {
+        "description": "TCL+ アプリから取得したローカル UDP と TCL+ クラウドの高度なヘッダーです。検証済みのキャプチャを更新する場合を除き、既定値のままにしてください。",
+        "data": {
+          "action_jid": "ローカルアクション JID",
+          "action_source": "ローカルアクションソース",
+          "account": "ローカルアカウント ID",
           "cloud_from": "クラウド送信元 JID",
           "cloud_to": "クラウドデバイス JID",
           "cloud_base_url": "クラウドベース URL",
-          "cloud_control": "クラウド制御を有効にする",
           "cloud_user_agent": "クラウドユーザーエージェント",
           "cloud_platform": "クラウドプラットフォーム",
           "cloud_app_package": "クラウドアプリパッケージ",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "クラウド Requested-With ヘッダー",
           "cloud_accept": "クラウド Accept ヘッダー",
           "cloud_accept_encoding": "クラウド Accept-Encoding ヘッダー",
-          "cloud_accept_language": "クラウド Accept-Language ヘッダー",
-          "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
-          "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
+          "cloud_accept_language": "クラウド Accept-Language ヘッダー"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
           "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "外気温"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "エコモード"
+      },
+      "display": {
+        "name": "表示"
+      },
+      "health_mode": {
+        "name": "健康モード"
+      },
+      "sleep_mode": {
+        "name": "スリープモード"
+      },
+      "turbo_mode": {
+        "name": "ターボモード"
+      },
+      "aux_heat": {
+        "name": "補助暖房"
+      },
+      "beep": {
+        "name": "ビープ音"
       }
     }
   }

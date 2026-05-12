@@ -42,8 +42,9 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = "TCL AC Outdoor Temperature"
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_outdoor_temp"
+        self._attr_name = None
+        self._attr_translation_key = "outdoor_temperature"
+        self._attr_unique_id = self._entity_unique_id("outdoor_temperature")
 
     @property
     def available(self) -> bool:

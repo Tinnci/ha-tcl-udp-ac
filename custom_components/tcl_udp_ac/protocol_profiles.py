@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .command_bundles import CaptureEvidence, TclCommandBundle
@@ -15,11 +15,103 @@ class UnsupportedModeError(ValueError):
 
 
 @dataclass(frozen=True)
+class SwitchCapability:
+    """Mode and power constraints for a feature switch."""
+
+    api_key: str
+    data_key: str
+    translation_key: str
+    icon: str
+    entity_category: str | None = None
+    available_modes: frozenset[str] | None = None
+    requires_power: bool = False
+
+
+@dataclass(frozen=True)
+class DeviceCapabilities:
+    """Home Assistant-facing capabilities for a TCL protocol profile."""
+
+    verified_hvac_modes: tuple[str, ...] = (
+        MODE_COOL,
+        MODE_DEHUMI,
+        MODE_HEAT,
+    )
+    experimental_hvac_modes: tuple[str, ...] = (
+        MODE_FAN,
+        MODE_AUTO,
+    )
+    switches: dict[str, SwitchCapability] = field(default_factory=dict)
+
+
+def _default_switch_capabilities() -> dict[str, SwitchCapability]:
+    """Return the default TCL feature-switch capability map."""
+    return {
+        "eco_mode": SwitchCapability(
+            api_key="optECO",
+            data_key="eco_mode",
+            translation_key="eco_mode",
+            icon="mdi:leaf",
+        ),
+        "display": SwitchCapability(
+            api_key="optDisplay",
+            data_key="display",
+            translation_key="display",
+            icon="mdi:led-on",
+            entity_category="config",
+        ),
+        "health_mode": SwitchCapability(
+            api_key="optHealthy",
+            data_key="health_mode",
+            translation_key="health_mode",
+            icon="mdi:doctor",
+        ),
+        "sleep_mode": SwitchCapability(
+            api_key="optSleepMd",
+            data_key="sleep_mode",
+            translation_key="sleep_mode",
+            icon="mdi:sleep",
+        ),
+        "turbo_mode": SwitchCapability(
+            api_key="optSuper",
+            data_key="turbo_mode",
+            translation_key="turbo_mode",
+            icon="mdi:rocket",
+        ),
+        "aux_heat": SwitchCapability(
+            api_key="optHeat",
+            data_key="aux_heat",
+            translation_key="aux_heat",
+            icon="mdi:radiator",
+            available_modes=frozenset({MODE_HEAT}),
+            requires_power=True,
+        ),
+        "beep": SwitchCapability(
+            api_key="beepEn",
+            data_key="beep",
+            translation_key="beep",
+            icon="mdi:volume-high",
+            entity_category="config",
+        ),
+    }
+
+
+DEFAULT_CAPABILITIES = DeviceCapabilities(
+    switches=_default_switch_capabilities(),
+)
+
+LEGACY_2743138_CAPABILITIES = DeviceCapabilities(
+    experimental_hvac_modes=(MODE_FAN,),
+    switches=_default_switch_capabilities(),
+)
+
+
+@dataclass(frozen=True)
 class ProtocolProfile:
     """Base TCL protocol profile."""
 
     device_id: str | None = None
     name: str = "default"
+    capabilities: DeviceCapabilities = DEFAULT_CAPABILITIES
 
     def build_mode_command(
         self,
@@ -113,7 +205,11 @@ class Legacy2743138Profile(ProtocolProfile):
     """Capture-derived profile for legacy TCL device 2743138."""
 
     def __init__(self, device_id: str | None = "2743138") -> None:
-        super().__init__(device_id=device_id, name="legacy_2743138")
+        super().__init__(
+            device_id=device_id,
+            name="legacy_2743138",
+            capabilities=LEGACY_2743138_CAPABILITIES,
+        )
 
     def _evidence(self, mode: str) -> CaptureEvidence:
         return CaptureEvidence(

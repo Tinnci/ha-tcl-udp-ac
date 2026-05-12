@@ -4,16 +4,23 @@
       "user": {
         "description": "Configure um ar-condicionado TCL usando controle UDP local e fallback opcional da nuvem TCL+. Os tokens de acesso da nuvem expiram; atualize-os a partir de uma nova captura do TCL+ quando as solicitações à nuvem começarem a falhar.",
         "data": {
-          "action_jid": "JID de ação local",
-          "action_source": "Origem de ação local",
-          "account": "ID da conta local",
           "cloud_enabled": "Ativar fallback de status da nuvem",
           "cloud_tid": "TID do dispositivo na nuvem",
           "cloud_access_token": "Token de acesso da nuvem",
+          "cloud_control": "Ativar controle pela nuvem",
+          "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
+          "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
+        }
+      },
+      "advanced": {
+        "description": "Cabeçalhos avançados de UDP local e nuvem TCL+ capturados do app TCL+. Mantenha esses padrões, exceto ao atualizar uma captura verificada.",
+        "data": {
+          "action_jid": "JID de ação local",
+          "action_source": "Origem de ação local",
+          "account": "ID da conta local",
           "cloud_from": "JID remetente da nuvem",
           "cloud_to": "JID do dispositivo na nuvem",
           "cloud_base_url": "URL base da nuvem",
-          "cloud_control": "Ativar controle pela nuvem",
           "cloud_user_agent": "Agente de usuário da nuvem",
           "cloud_platform": "Plataforma da nuvem",
           "cloud_app_package": "Pacote do app da nuvem",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "Cabeçalho Requested-With da nuvem",
           "cloud_accept": "Cabeçalho Accept da nuvem",
           "cloud_accept_encoding": "Cabeçalho Accept-Encoding da nuvem",
-          "cloud_accept_language": "Cabeçalho Accept-Language da nuvem",
-          "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
-          "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
+          "cloud_accept_language": "Cabeçalho Accept-Language da nuvem"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
           "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Temperatura externa"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Modo eco"
+      },
+      "display": {
+        "name": "Tela"
+      },
+      "health_mode": {
+        "name": "Modo saúde"
+      },
+      "sleep_mode": {
+        "name": "Modo sono"
+      },
+      "turbo_mode": {
+        "name": "Modo turbo"
+      },
+      "aux_heat": {
+        "name": "Aquecimento auxiliar"
+      },
+      "beep": {
+        "name": "Bipe"
       }
     }
   }

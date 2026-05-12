@@ -51,6 +51,14 @@ CONFIG_KEYS = {
     "enable_fan_only_mode",
     "enable_auto_mode",
 }
+BASIC_CONFIG_KEYS = {
+    "cloud_enabled",
+    "cloud_tid",
+    "cloud_access_token",
+    "cloud_control",
+    "enable_fan_only_mode",
+    "enable_auto_mode",
+}
 
 
 class ConfigMetadataTest(unittest.TestCase):
@@ -77,10 +85,50 @@ class ConfigMetadataTest(unittest.TestCase):
             (TRANSLATIONS_DIR / "en.json").read_text()
         )
         data = translations["config"]["step"]["user"]["data"]
+        advanced_data = translations["config"]["step"]["advanced"]["data"]
         options_data = translations["options"]["step"]["init"]["data"]
 
-        self.assertEqual(CONFIG_KEYS - set(data), set())
+        self.assertEqual(BASIC_CONFIG_KEYS - set(data), set())
+        self.assertEqual(CONFIG_KEYS - set(data) - set(advanced_data), set())
         self.assertEqual(CONFIG_KEYS - set(options_data), set())
+
+    def test_config_flow_splits_basic_setup_from_advanced_options(self) -> None:
+        config_flow = (ROOT / "custom_components/tcl_udp_ac/config_flow.py").read_text()
+
+        self.assertIn("BASIC_CONFIG_KEYS", config_flow)
+        self.assertIn("ADVANCED_CONFIG_KEYS", config_flow)
+        self.assertIn("async_step_advanced", config_flow)
+        self.assertNotIn(
+            "vol.Optional(CONF_CLOUD_USER_AGENT",
+            config_flow.split("async_step_user", 1)[1].split("async_step_advanced", 1)[0],
+        )
+
+    def test_basic_and_advanced_translation_labels_are_complete(self) -> None:
+        translations = json.loads((TRANSLATIONS_DIR / "en.json").read_text())
+
+        user_data = translations["config"]["step"]["user"]["data"]
+        advanced_data = translations["config"]["step"]["advanced"]["data"]
+        options_data = translations["options"]["step"]["init"]["data"]
+
+        self.assertEqual(BASIC_CONFIG_KEYS - set(user_data), set())
+        self.assertEqual(CONFIG_KEYS - BASIC_CONFIG_KEYS - set(advanced_data), set())
+        self.assertEqual(CONFIG_KEYS - set(options_data), set())
+
+    def test_entity_translation_labels_exist(self) -> None:
+        translations = json.loads((TRANSLATIONS_DIR / "en.json").read_text())
+        entities = translations["entity"]
+
+        self.assertIn("outdoor_temperature", entities["sensor"])
+        for key in {
+            "eco_mode",
+            "display",
+            "health_mode",
+            "sleep_mode",
+            "turbo_mode",
+            "aux_heat",
+            "beep",
+        }:
+            self.assertIn(key, entities["switch"])
 
     def test_primary_translation_files_match_english_shape(self) -> None:
         english = json.loads((TRANSLATIONS_DIR / "en.json").read_text())

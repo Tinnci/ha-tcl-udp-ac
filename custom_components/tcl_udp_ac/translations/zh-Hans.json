@@ -4,16 +4,23 @@
       "user": {
         "description": "使用本地 UDP 控制和可选的 TCL+ 云端回退来设置 TCL 空调。云端访问令牌会过期；当云端请求开始失败时，请从新的 TCL+ 抓包中刷新令牌。",
         "data": {
-          "action_jid": "本地操作 JID",
-          "action_source": "本地操作来源",
-          "account": "本地账户 ID",
           "cloud_enabled": "启用云端状态回退",
           "cloud_tid": "云端设备 TID",
           "cloud_access_token": "云端访问令牌",
+          "cloud_control": "启用云端控制",
+          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
+          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+        }
+      },
+      "advanced": {
+        "description": "从 TCL+ 应用捕获的高级本地 UDP 与 TCL+ 云端请求头。除非要刷新已验证可用的抓包参数，否则请保留默认值。",
+        "data": {
+          "action_jid": "本地操作 JID",
+          "action_source": "本地操作来源",
+          "account": "本地账户 ID",
           "cloud_from": "云端发送方 JID",
           "cloud_to": "云端设备 JID",
           "cloud_base_url": "云端基础 URL",
-          "cloud_control": "启用云端控制",
           "cloud_user_agent": "云端 User-Agent",
           "cloud_platform": "云端平台",
           "cloud_app_package": "云端应用包名",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "云端 Requested-With 请求头",
           "cloud_accept": "云端 Accept 请求头",
           "cloud_accept_encoding": "云端 Accept-Encoding 请求头",
-          "cloud_accept_language": "云端 Accept-Language 请求头",
-          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
-          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+          "cloud_accept_language": "云端 Accept-Language 请求头"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
           "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "室外温度"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "节能模式"
+      },
+      "display": {
+        "name": "显示屏"
+      },
+      "health_mode": {
+        "name": "健康模式"
+      },
+      "sleep_mode": {
+        "name": "睡眠模式"
+      },
+      "turbo_mode": {
+        "name": "强劲模式"
+      },
+      "aux_heat": {
+        "name": "辅助制热"
+      },
+      "beep": {
+        "name": "提示音"
       }
     }
   }

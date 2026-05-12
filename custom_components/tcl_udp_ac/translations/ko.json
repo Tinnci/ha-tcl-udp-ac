@@ -4,16 +4,23 @@
       "user": {
         "description": "로컬 UDP 제어와 선택적 TCL+ 클라우드 대체 상태 조회를 사용해 TCL 에어컨을 설정합니다. 클라우드 액세스 토큰은 만료됩니다. 클라우드 요청이 실패하기 시작하면 새 TCL+ 캡처에서 토큰을 갱신하세요.",
         "data": {
-          "action_jid": "로컬 작업 JID",
-          "action_source": "로컬 작업 소스",
-          "account": "로컬 계정 ID",
           "cloud_enabled": "클라우드 상태 대체 조회 활성화",
           "cloud_tid": "클라우드 장치 TID",
           "cloud_access_token": "클라우드 액세스 토큰",
+          "cloud_control": "클라우드 제어 활성화",
+          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
+          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+        }
+      },
+      "advanced": {
+        "description": "TCL+ 앱에서 캡처한 로컬 UDP 및 TCL+ 클라우드 고급 헤더입니다. 검증된 캡처 값을 갱신하는 경우가 아니면 기본값을 유지하세요.",
+        "data": {
+          "action_jid": "로컬 작업 JID",
+          "action_source": "로컬 작업 소스",
+          "account": "로컬 계정 ID",
           "cloud_from": "클라우드 발신자 JID",
           "cloud_to": "클라우드 장치 JID",
           "cloud_base_url": "클라우드 기본 URL",
-          "cloud_control": "클라우드 제어 활성화",
           "cloud_user_agent": "클라우드 사용자 에이전트",
           "cloud_platform": "클라우드 플랫폼",
           "cloud_app_package": "클라우드 앱 패키지",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "클라우드 Requested-With 헤더",
           "cloud_accept": "클라우드 Accept 헤더",
           "cloud_accept_encoding": "클라우드 Accept-Encoding 헤더",
-          "cloud_accept_language": "클라우드 Accept-Language 헤더",
-          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
-          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+          "cloud_accept_language": "클라우드 Accept-Language 헤더"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
           "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "실외 온도"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "에코 모드"
+      },
+      "display": {
+        "name": "디스플레이"
+      },
+      "health_mode": {
+        "name": "건강 모드"
+      },
+      "sleep_mode": {
+        "name": "수면 모드"
+      },
+      "turbo_mode": {
+        "name": "터보 모드"
+      },
+      "aux_heat": {
+        "name": "보조 난방"
+      },
+      "beep": {
+        "name": "비프음"
       }
     }
   }

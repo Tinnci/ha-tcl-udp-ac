@@ -4,16 +4,23 @@
       "user": {
         "description": "Configurez un climatiseur TCL avec le contrôle UDP local et un repli cloud TCL+ facultatif. Les jetons d'accès cloud expirent ; actualisez-les depuis une nouvelle capture TCL+ lorsque les requêtes cloud commencent à échouer.",
         "data": {
-          "action_jid": "JID d'action local",
-          "action_source": "Source d'action locale",
-          "account": "ID de compte local",
           "cloud_enabled": "Activer le repli d'état cloud",
           "cloud_tid": "TID de l'appareil cloud",
           "cloud_access_token": "Jeton d'accès cloud",
+          "cloud_control": "Activer le contrôle cloud",
+          "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
+          "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
+        }
+      },
+      "advanced": {
+        "description": "En-têtes avancés UDP local et cloud TCL+ capturés depuis l’application TCL+. Conservez ces valeurs par défaut sauf si vous actualisez une capture vérifiée.",
+        "data": {
+          "action_jid": "JID d'action local",
+          "action_source": "Source d'action locale",
+          "account": "ID de compte local",
           "cloud_from": "JID expéditeur cloud",
           "cloud_to": "JID de l'appareil cloud",
           "cloud_base_url": "URL de base du cloud",
-          "cloud_control": "Activer le contrôle cloud",
           "cloud_user_agent": "Agent utilisateur cloud",
           "cloud_platform": "Plateforme cloud",
           "cloud_app_package": "Package de l'application cloud",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "En-tête Requested-With cloud",
           "cloud_accept": "En-tête Accept cloud",
           "cloud_accept_encoding": "En-tête Accept-Encoding cloud",
-          "cloud_accept_language": "En-tête Accept-Language cloud",
-          "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
-          "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
+          "cloud_accept_language": "En-tête Accept-Language cloud"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
           "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Température extérieure"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Mode éco"
+      },
+      "display": {
+        "name": "Affichage"
+      },
+      "health_mode": {
+        "name": "Mode santé"
+      },
+      "sleep_mode": {
+        "name": "Mode sommeil"
+      },
+      "turbo_mode": {
+        "name": "Mode turbo"
+      },
+      "aux_heat": {
+        "name": "Chauffage auxiliaire"
+      },
+      "beep": {
+        "name": "Bip"
       }
     }
   }

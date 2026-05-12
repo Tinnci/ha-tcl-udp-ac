@@ -4,16 +4,23 @@
       "user": {
         "description": "Configura un climatizzatore TCL usando il controllo UDP locale e un fallback cloud TCL+ opzionale. I token di accesso cloud scadono; aggiornali da una nuova cattura TCL+ quando le richieste cloud iniziano a fallire.",
         "data": {
-          "action_jid": "JID azione locale",
-          "action_source": "Origine azione locale",
-          "account": "ID account locale",
           "cloud_enabled": "Abilita fallback stato cloud",
           "cloud_tid": "TID dispositivo cloud",
           "cloud_access_token": "Token di accesso cloud",
+          "cloud_control": "Abilita controllo cloud",
+          "enable_fan_only_mode": "Abilita modalità HVAC sperimentale Solo ventilatore",
+          "enable_auto_mode": "Abilita modalità HVAC sperimentale Auto/IA"
+        }
+      },
+      "advanced": {
+        "description": "Header avanzati UDP locale e cloud TCL+ acquisiti dall’app TCL+. Mantieni questi valori predefiniti salvo aggiornare una cattura verificata.",
+        "data": {
+          "action_jid": "JID azione locale",
+          "action_source": "Origine azione locale",
+          "account": "ID account locale",
           "cloud_from": "JID mittente cloud",
           "cloud_to": "JID dispositivo cloud",
           "cloud_base_url": "URL base cloud",
-          "cloud_control": "Abilita controllo cloud",
           "cloud_user_agent": "User agent cloud",
           "cloud_platform": "Piattaforma cloud",
           "cloud_app_package": "Pacchetto app cloud",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "Header Requested-With cloud",
           "cloud_accept": "Header Accept cloud",
           "cloud_accept_encoding": "Header Accept-Encoding cloud",
-          "cloud_accept_language": "Header Accept-Language cloud",
-          "enable_fan_only_mode": "Abilita modalità HVAC sperimentale Solo ventilatore",
-          "enable_auto_mode": "Abilita modalità HVAC sperimentale Auto/IA"
+          "cloud_accept_language": "Header Accept-Language cloud"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Abilita modalità HVAC sperimentale Solo ventilatore",
           "enable_auto_mode": "Abilita modalità HVAC sperimentale Auto/IA"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Temperatura esterna"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Modalità eco"
+      },
+      "display": {
+        "name": "Display"
+      },
+      "health_mode": {
+        "name": "Modalità salute"
+      },
+      "sleep_mode": {
+        "name": "Modalità sonno"
+      },
+      "turbo_mode": {
+        "name": "Modalità turbo"
+      },
+      "aux_heat": {
+        "name": "Riscaldamento ausiliario"
+      },
+      "beep": {
+        "name": "Segnale acustico"
       }
     }
   }

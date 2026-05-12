@@ -5,6 +5,19 @@
 - The same docs say custom integrations must not use `strings.json` or Home Assistant Core placeholder syntax; each translation file needs full text for each key.
 - Added eight locale files beyond English: German `de`, Spanish `es`, French `fr`, Italian `it`, Japanese `ja`, Korean `ko`, Brazilian Portuguese `pt-BR`, and Simplified Chinese `zh-Hans`.
 
+## HA 2026 Climate Paradigm Review
+- Home Assistant 2026.1 release notes say Labs purpose-specific climate triggers now cover HVAC mode changes, target temperature changes/crossing thresholds, current temperature/humidity changes, and target humidity changes.
+- Home Assistant 2026.5 release notes say purpose-specific state-based triggers and entity conditions now support duration/`for` behavior across climate and many other domains.
+- Impact for this integration: the important contract is no longer only "can set mode and target temperature"; HA now benefits strongly from accurate `hvac_mode`, `hvac_action`, `current_temperature`, `target_temperature`, availability, and stable device/entity metadata because the automation UI builds higher-level climate triggers/conditions from those surfaces.
+- Current code already moved in the right direction: climate exposes Celsius metadata, `hvac_action`, verified default modes, opt-in experimental Fan Only/Auto, grouped mode+setpoint writes, and a 1-minute backup poll; switches are mode-aware for Aux Heat; outdoor placeholder readings become unavailable.
+- No immediate paradigm shift is required. The integration should remain a thin Home Assistant entity layer over a protocol-profile/command-bundle layer, with the coordinator as status truth.
+- Main architecture risk remains capability modeling. Switches and HVAC modes are partly static/option-based, while TCL capability differs by device/profile. A future deepening opportunity is to promote "device capability profile" into the shared interface used by climate, switch, config/options, translations, and command building.
+- Another improvement candidate is setup/config UX: the current config flow exposes many low-level cloud headers in the main user form and uses a single static unique ID. This works for one personal AC but does not align well with HA's device-oriented setup, multi-device flows, or localized selector option labels.
+- Do not add humidity support unless the protocol provides reliable humidity fields; HA 2026 climate humidity triggers only help if `current_humidity` / target humidity are real. Fabricating humidity would be worse than omitting it.
+- Implementation pass: `ProtocolProfile.capabilities` now centralizes verified/experimental HVAC modes and switch constraints; climate and switch entities consume that profile instead of owning separate capability rules.
+- Entity registry pass: climate/switch/sensor entities now use `has_entity_name`, translation keys, and stable device identifiers from cloud TID when available, falling back only when no stable ID is known.
+- Config flow pass: initial setup is now basic cloud/device controls; advanced capture headers are separated into an advanced step and remain available in options.
+
 ## Mode-Aware Switch Controls
 - User confirmed Aux Heat should not be usable while cooling, but Turbo and Sleep may still be valid in Dry/Fan or other modes depending on device behavior.
 - Implemented conservative mode-awareness in switch entities: switches can now declare `available_modes` and `requires_power`; Aux Heat declares `available_modes={"heat"}` and `requires_power=True`.

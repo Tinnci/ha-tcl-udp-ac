@@ -25,6 +25,8 @@ Build a safer, repeatable Home Assistant integration testing pipeline that cover
 | Live harness refinements | complete | Added grouped mode matrix, known-limitation handling, and temperature experiment metadata reporting. |
 | Verification | complete | 33 unit tests, compile check, live-refusal/dry-run checks, live mode/temp experiments, final read-only status, and diff check passed where expected. |
 | Final report | complete | Final response summarizes fixed HA behavior, remaining live protocol uncertainty, and how to run the new pipeline. |
+| HA 2026 climate paradigm review | complete | No immediate rewrite required; future deepening should center on a device capability profile and a cleaner config/options interface. |
+| Capability/entity/config architecture implementation | complete | Central capability profile, translated entity names, Basic/Advanced config flow, no humidity, and stable device IDs implemented and verified. |
 
 ## Errors Encountered
 

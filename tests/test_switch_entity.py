@@ -30,13 +30,20 @@ class FakeClient:
 class FakeCoordinator:
     """Minimal coordinator for switch tests."""
 
-    def __init__(self, data: dict | None = None) -> None:
+    def __init__(
+        self,
+        data: dict | None = None,
+        *,
+        entry_data: dict | None = None,
+    ) -> None:
         self.data = data or {}
         self.client = FakeClient()
         self.refresh_count = 0
         self.config_entry = SimpleNamespace(
             entry_id="entry-1",
             domain="tcl_udp_ac",
+            data=entry_data or {},
+            options={},
             runtime_data=SimpleNamespace(client=self.client),
         )
 
@@ -63,6 +70,27 @@ class SwitchEntityTest(unittest.TestCase):
         unique_ids = {entity._attr_unique_id for entity in added}
         self.assertNotIn("entry-1_power", unique_ids)
         self.assertIn("entry-1_eco_mode", unique_ids)
+
+    def test_setup_uses_profile_switch_capabilities_and_translated_names(self) -> None:
+        coordinator = FakeCoordinator(entry_data={"cloud_tid": "2743138"})
+        entry = SimpleNamespace(runtime_data=SimpleNamespace(coordinator=coordinator))
+        added = []
+
+        def add_entities(entities):
+            added.extend(entities)
+
+        asyncio.run(self.switch.async_setup_entry(None, entry, add_entities))
+
+        aux_heat = next(entity for entity in added if entity._data_key == "aux_heat")
+        eco = next(entity for entity in added if entity._data_key == "eco_mode")
+
+        self.assertEqual(aux_heat._available_modes, frozenset({"heat"}))
+        self.assertTrue(aux_heat._requires_power)
+        self.assertEqual(aux_heat._attr_unique_id, "2743138_aux_heat")
+        self.assertTrue(aux_heat._attr_has_entity_name)
+        self.assertIsNone(aux_heat._attr_name)
+        self.assertEqual(aux_heat._attr_translation_key, "aux_heat")
+        self.assertEqual(eco._attr_translation_key, "eco_mode")
 
     def test_feature_switch_uses_enabled_keyword(self) -> None:
         coordinator = FakeCoordinator({"sleep_mode": False})

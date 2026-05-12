@@ -4,16 +4,23 @@
       "user": {
         "description": "Set up a TCL air conditioner using local UDP control and optional TCL+ cloud fallback. Cloud access tokens expire; refresh them from a new TCL+ capture when cloud requests start failing.",
         "data": {
-          "action_jid": "Local action JID",
-          "action_source": "Local action source",
-          "account": "Local account ID",
           "cloud_enabled": "Enable cloud status fallback",
           "cloud_tid": "Cloud device TID",
           "cloud_access_token": "Cloud access token",
+          "cloud_control": "Enable cloud control",
+          "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
+          "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
+        }
+      },
+      "advanced": {
+        "description": "Advanced local UDP and TCL+ cloud headers captured from the TCL+ app. Keep these defaults unless you are refreshing a known working capture.",
+        "data": {
+          "action_jid": "Local action JID",
+          "action_source": "Local action source",
+          "account": "Local account ID",
           "cloud_from": "Cloud sender JID",
           "cloud_to": "Cloud device JID",
           "cloud_base_url": "Cloud base URL",
-          "cloud_control": "Enable cloud control",
           "cloud_user_agent": "Cloud user agent",
           "cloud_platform": "Cloud platform",
           "cloud_app_package": "Cloud app package",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "Cloud requested-with header",
           "cloud_accept": "Cloud accept header",
           "cloud_accept_encoding": "Cloud accept-encoding header",
-          "cloud_accept_language": "Cloud accept-language header",
-          "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
-          "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
+          "cloud_accept_language": "Cloud accept-language header"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
           "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Outdoor temperature"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Eco mode"
+      },
+      "display": {
+        "name": "Display"
+      },
+      "health_mode": {
+        "name": "Health mode"
+      },
+      "sleep_mode": {
+        "name": "Sleep mode"
+      },
+      "turbo_mode": {
+        "name": "Turbo mode"
+      },
+      "aux_heat": {
+        "name": "Aux heat"
+      },
+      "beep": {
+        "name": "Beep"
       }
     }
   }

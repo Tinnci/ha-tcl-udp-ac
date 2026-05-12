@@ -1,6 +1,16 @@
 # Progress: Home Assistant Integration Search
 
 ## 2026-05-12
+- Started architecture/paradigm review prompted by Home Assistant recent climate automation and custom integration translation guidance.
+- Recovered prior planning context; current `/Users/driezy/ha-tcl-udp-ac` worktree is clean on `main`.
+- Verified official HA release notes: 2026.1 expanded climate purpose-specific triggers; 2026.5 added duration support for purpose-specific triggers/conditions including climate.
+- Inspected current climate, switch, config flow, coordinator, sensor, translation, and protocol profile modules for alignment with the newer automation model.
+- Started implementation of requested architecture adjustments on `main` without a worktree.
+- Added red contract tests for centralized capabilities, profile-aware modes, translated entity naming, stable device IDs, Basic/Advanced config shape, and no fabricated humidity.
+- Implemented profile capabilities, wired climate/switch entities to them, modernized entity naming and stable IDs, split config flow schemas, and updated all translation JSON files.
+- Verified focused architecture tests pass: `/usr/local/bin/uv run python -m unittest tests.test_protocol_profiles tests.test_climate_entity tests.test_switch_entity tests.test_config_metadata`.
+- Verified full unit suite once after implementation: `/usr/local/bin/uv run python -m unittest discover -s tests` ran 126 tests OK. Compileall and `git diff --check` also passed.
+- Final verification repeated after cleanup: `/usr/local/bin/uv run python -m unittest discover -s tests` ran 126 tests OK; compileall and `git diff --check` exited 0.
 - Investigated outdoor temperature zero readouts. Home Assistant docs recommend unavailable/unknown states rather than fabricated numeric values when data is missing.
 - Added regression tests for missing outdoor readings, `0.0°C` placeholder readings, valid outdoor readings, and cloud/UDP parser filtering of `outTemp=32°F`.
 - Added `temperature_validity.py`; cloud/UDP parsers now skip placeholder outdoor readings and the outdoor temperature sensor reports unavailable when no valid reading exists.

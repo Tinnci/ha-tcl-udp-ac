@@ -4,16 +4,23 @@
       "user": {
         "description": "Richte eine TCL-Klimaanlage mit lokaler UDP-Steuerung und optionalem TCL+-Cloud-Fallback ein. Cloud-Zugriffstoken laufen ab; aktualisiere sie aus einem neuen TCL+-Mitschnitt, wenn Cloud-Anfragen fehlschlagen.",
         "data": {
-          "action_jid": "Lokale Aktions-JID",
-          "action_source": "Lokale Aktionsquelle",
-          "account": "Lokale Konto-ID",
           "cloud_enabled": "Cloud-Status-Fallback aktivieren",
           "cloud_tid": "Cloud-Geräte-TID",
           "cloud_access_token": "Cloud-Zugriffstoken",
+          "cloud_control": "Cloud-Steuerung aktivieren",
+          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
+          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+        }
+      },
+      "advanced": {
+        "description": "Erweiterte lokale UDP- und TCL+-Cloud-Header aus der TCL+-App. Behalten Sie diese Standardwerte bei, sofern Sie keine verifizierten Mitschnittparameter aktualisieren.",
+        "data": {
+          "action_jid": "Lokale Aktions-JID",
+          "action_source": "Lokale Aktionsquelle",
+          "account": "Lokale Konto-ID",
           "cloud_from": "Cloud-Absender-JID",
           "cloud_to": "Cloud-Geräte-JID",
           "cloud_base_url": "Cloud-Basis-URL",
-          "cloud_control": "Cloud-Steuerung aktivieren",
           "cloud_user_agent": "Cloud-User-Agent",
           "cloud_platform": "Cloud-Plattform",
           "cloud_app_package": "Cloud-App-Paket",
@@ -30,9 +37,7 @@
           "cloud_x_requested_with": "Cloud-Requested-With-Header",
           "cloud_accept": "Cloud-Accept-Header",
           "cloud_accept_encoding": "Cloud-Accept-Encoding-Header",
-          "cloud_accept_language": "Cloud-Accept-Language-Header",
-          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
-          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+          "cloud_accept_language": "Cloud-Accept-Language-Header"
         }
       }
     },
@@ -79,6 +84,36 @@
           "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
           "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
         }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "outdoor_temperature": {
+        "name": "Außentemperatur"
+      }
+    },
+    "switch": {
+      "eco_mode": {
+        "name": "Eco-Modus"
+      },
+      "display": {
+        "name": "Anzeige"
+      },
+      "health_mode": {
+        "name": "Gesundheitsmodus"
+      },
+      "sleep_mode": {
+        "name": "Schlafmodus"
+      },
+      "turbo_mode": {
+        "name": "Turbo-Modus"
+      },
+      "aux_heat": {
+        "name": "Zusatzheizung"
+      },
+      "beep": {
+        "name": "Signalton"
       }
     }
   }

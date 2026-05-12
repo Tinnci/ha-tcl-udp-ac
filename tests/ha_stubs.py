@@ -24,6 +24,7 @@ def install_homeassistant_stubs() -> None:
     switch = types.ModuleType("homeassistant.components.switch")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
+    core = types.ModuleType("homeassistant.core")
     exceptions = types.ModuleType("homeassistant.exceptions")
     helpers = types.ModuleType("homeassistant.helpers")
     aiohttp_client = types.ModuleType("homeassistant.helpers.aiohttp_client")
@@ -104,6 +105,33 @@ def install_homeassistant_stubs() -> None:
     class HomeAssistantError(Exception):
         pass
 
+    class ConfigFlow:
+        def __init_subclass__(cls, **_kwargs):
+            super().__init_subclass__()
+
+        async def async_set_unique_id(self, unique_id):
+            self._unique_id = unique_id
+
+        def _abort_if_unique_id_configured(self):
+            return None
+
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
+
+        def async_create_entry(self, **kwargs):
+            return {"type": "create_entry", **kwargs}
+
+    class OptionsFlow:
+        @property
+        def config_entry(self):
+            return getattr(self, "_config_entry", None)
+
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
+
+        def async_create_entry(self, **kwargs):
+            return {"type": "create_entry", **kwargs}
+
     class SensorDeviceClass(enum.StrEnum):
         TEMPERATURE = "temperature"
 
@@ -137,6 +165,11 @@ def install_homeassistant_stubs() -> None:
     const.UnitOfTemperature = UnitOfTemperature
 
     config_entries.ConfigEntry = object
+    config_entries.ConfigFlow = ConfigFlow
+    config_entries.OptionsFlow = OptionsFlow
+    config_entries.ConfigFlowResult = dict
+    core.callback = lambda func: func
+    core.HomeAssistant = object
     exceptions.ConfigEntryNotReady = ConfigEntryNotReady
     exceptions.HomeAssistantError = HomeAssistantError
     aiohttp_client.async_get_clientsession = lambda _hass: None
@@ -154,6 +187,7 @@ def install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.components.switch"] = switch
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
+    sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.aiohttp_client"] = aiohttp_client
