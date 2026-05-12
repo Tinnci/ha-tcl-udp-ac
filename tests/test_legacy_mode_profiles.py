@@ -53,19 +53,19 @@ class LegacyModeProfileTest(unittest.TestCase):
 
         self.assertEqual(bundle.payload["setTemp"], "73")
 
-    def test_cool_profile_uses_grouped_current_target_without_forced_super(self) -> None:
+    def test_cool_profile_uses_grouped_current_target_with_captured_mode(self) -> None:
         bundle = self.profile.build_mode_command(
             self.const.MODE_COOL,
             target_temperature=24.0,
         )
 
         self.assertEqual(bundle.payload["turnOn"], "1")
-        self.assertEqual(bundle.payload["baseMode"], "3")
+        self.assertEqual(bundle.payload["baseMode"], "1")
         self.assertEqual(bundle.payload["setTemp"], "75")
         self.assertEqual(bundle.payload["windSpd"], "0")
-        self.assertNotIn("optSuper", bundle.payload)
+        self.assertEqual(bundle.payload["optSuper"], "0")
 
-    def test_heat_profile_uses_grouped_current_target_without_forced_super(self) -> None:
+    def test_heat_profile_uses_grouped_current_target_with_super_clear(self) -> None:
         bundle = self.profile.build_mode_command(
             self.const.MODE_HEAT,
             target_temperature=28.0,
@@ -75,7 +75,28 @@ class LegacyModeProfileTest(unittest.TestCase):
         self.assertEqual(bundle.payload["baseMode"], "4")
         self.assertEqual(bundle.payload["setTemp"], "82")
         self.assertEqual(bundle.payload["windSpd"], "0")
-        self.assertNotIn("optSuper", bundle.payload)
+        self.assertEqual(bundle.payload["optSuper"], "0")
+
+    def test_temperature_profile_requires_cool_or_heat_context(self) -> None:
+        cool_bundle = self.profile.build_temperature_command(
+            25.0,
+            current_mode=self.const.MODE_COOL,
+        )
+        heat_bundle = self.profile.build_temperature_command(
+            25.0,
+            current_mode=self.const.MODE_HEAT,
+        )
+
+        self.assertEqual(
+            cool_bundle.payload,
+            {"setTemp": "77", "degreeH": "0", "optSuper": "0"},
+        )
+        self.assertEqual(heat_bundle.payload, cool_bundle.payload)
+        with self.assertRaises(self.profiles.UnsupportedModeError):
+            self.profile.build_temperature_command(
+                25.0,
+                current_mode=self.const.MODE_DEHUMI,
+            )
 
     def test_auto_profile_is_not_available(self) -> None:
         with self.assertRaises(self.profiles.UnsupportedModeError):
@@ -94,6 +115,23 @@ class LegacyModeProfileTest(unittest.TestCase):
 
         self.assertNotIn("7", emitted)
         self.assertNotIn("8", emitted)
+
+    def test_power_off_profile_emits_app_shutdown_group(self) -> None:
+        bundle = self.profile.build_power_off_command()
+
+        self.assertEqual(
+            bundle.payload,
+            {
+                "optSleepMd": "0",
+                "optECO": "0",
+                "optHealthy": "0",
+                "optSuper": "0",
+                "optHeat": "0",
+                "turnOn": "0",
+            },
+        )
+        self.assertEqual(bundle.expected_status, {"power": False})
+        self.assertFalse(bundle.requires_power_on)
 
 
 if __name__ == "__main__":

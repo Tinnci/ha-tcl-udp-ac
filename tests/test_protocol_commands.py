@@ -158,11 +158,11 @@ class EntityCommandTest(unittest.TestCase):
             calls,
             [[
                 ("Opt_sleepMode", "0"),
-                ("Opt_ECO", "off"),
-                ("OptHealthy", "off"),
-                ("Opt_super", "off"),
-                ("OptHeat", "off"),
-                ("TurnOn", "off"),
+                ("Opt_ECO", "0"),
+                ("OptHealthy", "0"),
+                ("Opt_super", "0"),
+                ("OptHeat", "0"),
+                ("TurnOn", "0"),
             ]],
         )
 

@@ -31,6 +31,7 @@ Test Categories:
   combined-off     - Power off using the app shutdown group
   combined-temp    - Set temperature + degreeH in ONE message
   temp-experiment  - Legacy temperature test plus captured TSL metadata report
+  temp-matrix      - Contextual temperature transaction matrix
   swing-combined   - Set both directH + directV in ONE message
   swing-separate   - Set directH THEN directV in TWO messages
   compare-power    - Compare combined vs separate power+mode (full cycle)
@@ -73,10 +74,17 @@ from custom_components.tcl_udp_ac.const import (
     MODE_FAN,
     MODE_HEAT,
 )
+from custom_components.tcl_udp_ac.command_bundles import (
+    CaptureEvidence,
+    TransactionOutcome,
+    TclCommandTransaction,
+    VerificationPolicy,
+)
 from custom_components.tcl_udp_ac.protocol_profiles import (
     UnsupportedModeError,
     resolve_protocol_profile,
 )
+from custom_components.tcl_udp_ac.temperature_codec import LegacyTemperatureCodec
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -88,11 +96,17 @@ BASE_URL = "https://io.zx.tcljd.com"
 MODE_MAP = {
     "heat": "4",
     "dehumi": "2",
-    "cool": "3",
+    "cool": "1",
 }
 MODE_MAP_REV = {v: k for k, v in MODE_MAP.items()}
 MODE_MAP_REV["0"] = "fan"
-MODE_MAP_REV["1"] = "heat"  # older captures/firmware may report heat as 1
+CLI_MODE_MAP = {
+    "cool": "1",
+    "dry": "2",
+    "dehumi": "2",
+    "heat": "4",
+    "fan": "0",
+}
 WIND_MAP = {"auto": "0", "high": "1", "middle": "2", "low": "3"}
 WIND_MAP_REV = {v: k for k, v in WIND_MAP.items()}
 
@@ -699,6 +713,110 @@ class TestRunner:
             raise LiveTestFailure(f"{label} did not reach expected state: {mismatches}")
         return s
 
+    def execute_transaction(
+        self,
+        transaction: TclCommandTransaction,
+        *,
+        label: str,
+        status_delays: tuple[float, ...] | None = None,
+        poll_interval: float | None = None,
+        poll_timeout: float | None = None,
+        raise_on_mismatch: bool = True,
+    ) -> dict[str, Any]:
+        """Send a transaction and verify status projection separately."""
+        items = list(transaction.payload.items())
+        accepted = self.cloud_control(items, label=label)
+        if self.dry_run:
+            print(
+                "  [DRY-RUN] Would verify transaction projection: "
+                f"{transaction.expected_status_projection}"
+            )
+            return {}
+
+        status_after: dict[str, Any] = {}
+        start = time.monotonic()
+        if poll_interval is not None and poll_timeout is not None:
+            print(
+                f"\n  ... polling every {poll_interval:g}s for up to "
+                f"{poll_timeout:g}s ..."
+            )
+            next_sleep = max(poll_interval, 0.1)
+            while True:
+                elapsed = time.monotonic() - start
+                if elapsed >= poll_timeout:
+                    break
+                time.sleep(min(next_sleep, max(poll_timeout - elapsed, 0.0)))
+                elapsed = time.monotonic() - start
+                status_after = self.status(
+                    label=f"After {label} +{elapsed:.1f}s",
+                    quiet=True,
+                )
+                self._print_observed_status(status_after)
+                interim = transaction.classify_result(
+                    transport_accepted=accepted,
+                    status_after=status_after,
+                )
+                if interim.outcome == TransactionOutcome.APPLIED:
+                    print(f"  First matching status after {elapsed:.1f}s")
+                    break
+        else:
+            delays = status_delays or (self.delay,)
+            for delay in delays:
+                print(f"\n  ... waiting {delay}s for [{label}] status check ...")
+                time.sleep(delay)
+                status_after = self.status(
+                    label=f"After {label} +{delay:g}s",
+                    quiet=True,
+                )
+                self._print_observed_status(status_after)
+
+        if not status_after:
+            status_after = {}
+
+        result = transaction.classify_result(
+            transport_accepted=accepted,
+            status_after=status_after,
+        )
+        record = {
+            "test": label,
+            "status": status_after,
+            "expected": transaction.expected_status_projection,
+            "matches": result.matches,
+            "mismatches": result.mismatches,
+            "success": result.outcome == TransactionOutcome.APPLIED,
+            "transaction_outcome": result.outcome.value,
+        }
+        self.results.append(record)
+        print(f"  Transaction outcome: {result.outcome.value}")
+        if result.mismatches:
+            for key, mismatch in result.mismatches.items():
+                print(
+                    f"     {key}: expected={mismatch['expected']} "
+                    f"actual={mismatch['actual']}"
+                )
+        if result.mismatches and self.stop_on_failure and raise_on_mismatch:
+            raise LiveTestFailure(
+                f"{label} did not apply expected status: {result.mismatches}"
+            )
+        return status_after
+
+    @staticmethod
+    def _print_observed_status(status_after: dict[str, Any]) -> None:
+        """Print compact status fields for transaction polling."""
+        if not status_after:
+            print("     observed: <empty status>")
+            return
+        set_temp = status_after.get("setTemp")
+        degree_h = status_after.get("degreeH")
+        base_mode = status_after.get("baseMode")
+        turn_on = status_after.get("turnOn")
+        wind_spd = status_after.get("windSpd")
+        print(
+            "     observed: "
+            f"turnOn={turn_on}, baseMode={base_mode}, "
+            f"setTemp={set_temp}, degreeH={degree_h}, windSpd={wind_spd}"
+        )
+
     def safe_power_off(self, *, label: str = "safe-power-off") -> dict[str, Any]:
         """Turn off with the app-captured shutdown group and verify state."""
         self.cloud_control(APP_POWER_OFF_ITEMS, label=label)
@@ -871,7 +989,7 @@ class TestRunner:
             s = self.status(label="temp-pre-check", quiet=True)
             if s.get("turnOn") != "1":
                 print("  Device is OFF, turning ON first ...")
-                self.cloud_control([("turnOn", "1"), ("baseMode", "3")], label="temp-ensure-on")
+                self.cloud_control([("turnOn", "1"), ("baseMode", "1")], label="temp-ensure-on")
                 time.sleep(self.delay)
 
         # Real TCL app always sends optSuper=0 with temp changes
@@ -915,6 +1033,148 @@ class TestRunner:
         print("\n  --- Legacy convertMqtt temperature command ---")
         self.test_combined_temp(temp_f=temp_f, degree_h=degree_h)
 
+    def build_temperature_matrix_transactions(
+        self,
+        *,
+        temp_f: int = 75,
+        degree_h: str = "0",
+        mode: str | None = None,
+        current_status: dict[str, Any] | None = None,
+    ) -> list[tuple[str, TclCommandTransaction]]:
+        """Build contextual temperature hypotheses without marking them supported."""
+        current_status = current_status or {}
+        base_mode = CLI_MODE_MAP.get(str(mode or "").lower()) if mode else None
+        base_mode = base_mode or str(current_status.get("baseMode") or "1")
+        wind_spd = str(current_status.get("windSpd") or "0")
+        evidence = CaptureEvidence(
+            level="hypothesis",
+            source="manual contextual temperature experiment",
+            rationale=(
+                "Standalone setTemp was transport-accepted but not device-applied; "
+                "these candidates test whether current mode context is required."
+            ),
+        )
+        expected = {"setTemp": str(temp_f), "degreeH": degree_h}
+        cases = [
+            (
+                "A-field-only",
+                {"setTemp": str(temp_f), "degreeH": degree_h},
+            ),
+            (
+                "B-power-temp",
+                {"turnOn": "1", "setTemp": str(temp_f), "degreeH": degree_h},
+            ),
+            (
+                "C-mode-temp",
+                {
+                    "turnOn": "1",
+                    "baseMode": base_mode,
+                    "setTemp": str(temp_f),
+                    "degreeH": degree_h,
+                },
+            ),
+            (
+                "D-mode-temp-auto-fan",
+                {
+                    "turnOn": "1",
+                    "baseMode": base_mode,
+                    "setTemp": str(temp_f),
+                    "degreeH": degree_h,
+                    "windSpd": "0",
+                },
+            ),
+            (
+                "E-mode-temp-current-fan",
+                {
+                    "turnOn": "1",
+                    "baseMode": base_mode,
+                    "setTemp": str(temp_f),
+                    "degreeH": degree_h,
+                    "windSpd": wind_spd,
+                },
+            ),
+            (
+                "F-mode-temp-super-clear",
+                {
+                    "turnOn": "1",
+                    "baseMode": base_mode,
+                    "setTemp": str(temp_f),
+                    "degreeH": degree_h,
+                    "windSpd": "0",
+                    "optSuper": "0",
+                },
+            ),
+        ]
+        return [
+            (
+                name,
+                TclCommandTransaction(
+                    intent=f"temperature:{name}",
+                    payload=payload,
+                    evidence=evidence,
+                    expected_status_projection=expected,
+                    verification_policy=VerificationPolicy.STATUS_MATCH,
+                ),
+            )
+            for name, payload in cases
+        ]
+
+    def test_temperature_matrix(
+        self,
+        temp_f: int = 75,
+        degree_h: str = "0",
+        *,
+        mode: str | None = None,
+        candidate: str | None = None,
+        poll_interval: float = 1.0,
+        poll_timeout: float = 12.0,
+    ) -> None:
+        """Run the contextual temperature transaction matrix."""
+        print("\n" + "=" * 70)
+        print("TEST: Contextual Temperature Transaction Matrix")
+        print("=" * 70)
+        print("  This is experimental. It does not change HA temperature support.")
+        print(
+            "  Live mode polls status every "
+            f"{poll_interval:g}s for up to {poll_timeout:g}s per candidate."
+        )
+        if mode:
+            print(f"  Forced mode context: {mode} (baseMode={CLI_MODE_MAP.get(mode)})")
+
+        current_status: dict[str, Any] = {}
+        if not self.dry_run:
+            current_status = self.status(label="Temperature matrix baseline", quiet=True)
+        else:
+            print("  [DRY-RUN] Assuming current baseMode=1 and windSpd=0.")
+
+        transactions = self.build_temperature_matrix_transactions(
+            temp_f=temp_f,
+            degree_h=degree_h,
+            mode=mode,
+            current_status=current_status,
+        )
+        if candidate:
+            candidate_key = candidate.upper()
+            transactions = [
+                (name, transaction)
+                for name, transaction in transactions
+                if name.startswith(f"{candidate_key}-")
+            ]
+            if not transactions:
+                print(f"  Unknown candidate: {candidate}")
+                return
+
+        for name, transaction in transactions:
+            print("\n" + "-" * 70)
+            print(f"Candidate {name}: {transaction.payload}")
+            self.execute_transaction(
+                transaction,
+                label=f"temp-matrix-{name}",
+                poll_interval=poll_interval,
+                poll_timeout=poll_timeout,
+                raise_on_mismatch=False,
+            )
+
     def test_swing_combined(self, h: str = "1", v: str = "1") -> None:
         """Set both swing directions in ONE message."""
         print("\n" + "=" * 70)
@@ -945,8 +1205,13 @@ class TestRunner:
 
         before = self.status(label="Comparison baseline", quiet=True)
 
+        cool_mode = MODE_MAP["cool"]
+
         # --- Test A: Combined OFF then Combined ON+COOL ---
-        print("\n  --- A: Combined turnOn=0 -> Combined turnOn=1 + baseMode=3 ---")
+        print(
+            "\n  --- A: Combined turnOn=0 -> Combined turnOn=1 "
+            f"+ baseMode={cool_mode} ---"
+        )
         self.cloud_control(APP_POWER_OFF_ITEMS, label="A-off")
         if not self.dry_run:
             time.sleep(self.delay)
@@ -954,13 +1219,19 @@ class TestRunner:
         print(f"     turnOn={s_off.get('turnOn')}, baseMode={s_off.get('baseMode')}")
 
         self.cloud_control(
-            [("turnOn", "1"), ("baseMode", "3")],
+            [("turnOn", "1"), ("baseMode", cool_mode)],
             label="A-combined-on-cool",
         )
-        s_a = self.wait_and_check("A-combined", {"turnOn": "1", "baseMode": "3"})
+        s_a = self.wait_and_check(
+            "A-combined",
+            {"turnOn": "1", "baseMode": cool_mode},
+        )
 
         # --- Test B: Combined OFF then Separate ON then COOL ---
-        print("\n  --- B: Combined turnOn=0 -> Separate turnOn=1 -> baseMode=3 ---")
+        print(
+            "\n  --- B: Combined turnOn=0 -> Separate turnOn=1 "
+            f"-> baseMode={cool_mode} ---"
+        )
         self.cloud_control(APP_POWER_OFF_ITEMS, label="B-off")
         if not self.dry_run:
             time.sleep(self.delay)
@@ -970,8 +1241,11 @@ class TestRunner:
         self.cloud_control([("turnOn", "1")], label="B-on")
         if not self.dry_run:
             time.sleep(0.5)
-        self.cloud_control([("baseMode", "3")], label="B-mode-cool")
-        s_b = self.wait_and_check("B-separate", {"turnOn": "1", "baseMode": "3"})
+        self.cloud_control([("baseMode", cool_mode)], label="B-mode-cool")
+        s_b = self.wait_and_check(
+            "B-separate",
+            {"turnOn": "1", "baseMode": cool_mode},
+        )
 
         # --- Test C: Try Combined ON + HEAT ---
         heat_mode = MODE_MAP["heat"]
@@ -987,14 +1261,17 @@ class TestRunner:
         s_c = self.wait_and_check("C-combined-heat", {"turnOn": "1", "baseMode": heat_mode})
 
         # --- Test D: Try just baseMode switch while on ---
-        print("\n  --- D: Mode switch while ON: baseMode=3 (cool) ---")
-        self.cloud_control([("baseMode", "3")], label="D-mode-cool")
-        s_d = self.wait_and_check("D-mode-switch", {"turnOn": "1", "baseMode": "3"})
+        print(f"\n  --- D: Mode switch while ON: baseMode={cool_mode} (cool) ---")
+        self.cloud_control([("baseMode", cool_mode)], label="D-mode-cool")
+        s_d = self.wait_and_check(
+            "D-mode-switch",
+            {"turnOn": "1", "baseMode": cool_mode},
+        )
 
         # Restore original state
         print("\n  --- Restoring original state ---")
         orig_on = before.get("turnOn", "1")
-        orig_mode = before.get("baseMode", "3")
+        orig_mode = before.get("baseMode", cool_mode)
         self.cloud_control(
             [("turnOn", orig_on), ("baseMode", orig_mode)],
             label="restore",
@@ -1087,7 +1364,7 @@ class TestRunner:
 
         # Step 1: power + mode
         self.cloud_control(
-            [("turnOn", "1"), ("baseMode", "3")],
+            [("turnOn", "1"), ("baseMode", MODE_MAP["cool"])],
             label="full-power-mode",
         )
         if not self.dry_run:
@@ -1105,7 +1382,12 @@ class TestRunner:
         # Check after longer delay - device needs time to apply temp after cold start
         result = self.wait_and_check(
             "full-state-on",
-            {"turnOn": "1", "baseMode": "3", "setTemp": "75", "windSpd": "0"},
+            {
+                "turnOn": "1",
+                "baseMode": MODE_MAP["cool"],
+                "setTemp": "75",
+                "windSpd": "0",
+            },
         )
         # Temperature after cold power-on may not apply immediately due to
         # device boot sequence. Mark partial success if only setTemp mismatched.
@@ -1115,7 +1397,7 @@ class TestRunner:
                 not last["success"]
                 and set(last["mismatches"].keys()) == {"setTemp"}
                 and last["matches"].get("turnOn") == "1"
-                and last["matches"].get("baseMode") == "3"
+                and last["matches"].get("baseMode") == MODE_MAP["cool"]
             ):
                 last["known_limitation"] = True
                 print("  >> Known limitation: setTemp may not apply immediately after cold power-on")
@@ -1191,6 +1473,7 @@ def interactive_menu(runner: TestRunner) -> None:
         ("21", ("Mode profile: Auto/Selffeel unsupported", lambda: runner.test_grouped_mode("selffeel", label_prefix="mode"))),
         ("22", ("Mode matrix (cool/dry/heat/fan/auto)", runner.test_mode_matrix)),
         ("23", ("Temperature experiment",             runner.test_temperature_experiment)),
+        ("24", ("Temperature transaction matrix",     runner.test_temperature_matrix)),
         ("s",  ("Print test summary",                 runner.print_summary)),
         ("q",  ("Quit",                               None)),
     ])
@@ -1242,6 +1525,7 @@ TEST_DISPATCH = {
     "separate-on-heat": ("test_separate_on_mode", "heat"),
     "combined-temp": "test_combined_temp",
     "temp-experiment": "test_temperature_experiment",
+    "temp-matrix": "test_temperature_matrix",
     "combined-off": "test_power_off",
     "swing-combined": "test_swing_combined",
     "swing-separate": "test_swing_separate",
@@ -1278,11 +1562,44 @@ def parse_args() -> argparse.Namespace:
         help="continue running tests after a state verification mismatch",
     )
     p.add_argument("--status", action="store_true", help="just show current status")
+    p.add_argument(
+        "--target-celsius",
+        type=float,
+        help="target Celsius for temperature matrix/experiment",
+    )
+    p.add_argument(
+        "--mode",
+        choices=sorted(CLI_MODE_MAP),
+        help="force mode context for temperature matrix",
+    )
+    p.add_argument(
+        "--candidate",
+        choices=["A", "B", "C", "D", "E", "F"],
+        help="run only one temperature matrix candidate",
+    )
+    p.add_argument(
+        "--poll-interval",
+        type=float,
+        default=1.0,
+        help="seconds between live status polls for transaction tests",
+    )
+    p.add_argument(
+        "--poll-timeout",
+        type=float,
+        default=12.0,
+        help="maximum seconds to poll each live transaction candidate",
+    )
     p.add_argument("--delay", type=float, default=2.5, help="seconds to wait between control and status check")
     p.add_argument(
         "--test",
         choices=list(TEST_DISPATCH.keys()) + ["all"],
         help="run a specific test or 'all'",
+    )
+    p.add_argument(
+        "command",
+        nargs="?",
+        choices=list(TEST_DISPATCH.keys()) + ["all", "status"],
+        help="optional positional command alias for --test or --status",
     )
     p.add_argument("--device-ip", help="device IP for local UDP tests")
     p.add_argument("--device-id", help="override cloud device id/tid for profile selection")
@@ -1293,6 +1610,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.command:
+        if args.command == "status":
+            args.status = True
+        elif not args.test:
+            args.test = args.command
 
     mutating_run = bool(args.test and args.test != "status") or (
         not args.status and not args.test
@@ -1346,6 +1668,42 @@ def main() -> None:
         runner.test_status()
         return
 
+    temp_f = 75
+    degree_h = "0"
+    if args.target_celsius is not None:
+        encoded_temp, encoded_degree_h = LegacyTemperatureCodec.encode(
+            args.target_celsius,
+            fallback_celsius=args.target_celsius,
+        )
+        temp_f = int(encoded_temp)
+        degree_h = encoded_degree_h
+        print(
+            f"  target_celsius={args.target_celsius} -> "
+            f"setTemp={temp_f}, degreeH={degree_h}"
+        )
+
+    def run_dispatch(spec: str | tuple[str, str]) -> None:
+        if spec == "test_temperature_matrix":
+            runner.test_temperature_matrix(
+                temp_f=temp_f,
+                degree_h=degree_h,
+                mode=args.mode,
+                candidate=args.candidate,
+                poll_interval=args.poll_interval,
+                poll_timeout=args.poll_timeout,
+            )
+            return
+        if spec == "test_temperature_experiment":
+            runner.test_temperature_experiment(temp_f=temp_f, degree_h=degree_h)
+            return
+        if spec == "test_combined_temp":
+            runner.test_combined_temp(temp_f=temp_f, degree_h=degree_h)
+            return
+        if isinstance(spec, tuple):
+            getattr(runner, spec[0])(spec[1])
+        else:
+            getattr(runner, spec)()
+
     try:
         if args.test:
             if args.test == "all":
@@ -1355,17 +1713,11 @@ def main() -> None:
                     print(f"\n{'#' * 70}")
                     print(f"# Running: {name}")
                     print(f"{'#' * 70}")
-                    if isinstance(spec, tuple):
-                        getattr(runner, spec[0])(spec[1])
-                    else:
-                        getattr(runner, spec)()
+                    run_dispatch(spec)
                 runner.print_summary()
             else:
                 spec = TEST_DISPATCH[args.test]
-                if isinstance(spec, tuple):
-                    getattr(runner, spec[0])(spec[1])
-                else:
-                    getattr(runner, spec)()
+                run_dispatch(spec)
                 runner.print_summary()
             return
 

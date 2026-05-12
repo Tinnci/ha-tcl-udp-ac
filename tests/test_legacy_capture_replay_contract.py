@@ -12,6 +12,7 @@ from tools.analyze_legacy_mode_capture import build_summary
 CAPTURES = [
     Path("newly_captured/tcl_1778556941.jsonl"),
     Path("newly_captured/tcl_1778557400.jsonl"),
+    Path("newly_captured/tcl_1778569147.jsonl"),
 ]
 
 
@@ -31,11 +32,18 @@ class LegacyCaptureReplayContractTest(unittest.TestCase):
 
     def test_generated_fan_profile_matches_captured_shape(self) -> None:
         bundle = self.profile.build_mode_command(self.const.MODE_FAN)
-        captured = self._inferred_payload("fan_only")
 
-        for key, value in captured.items():
-            self.assertEqual(bundle.payload[key], value)
-        self.assertEqual(bundle.payload["turnOn"], "1")
+        self.assertEqual(
+            bundle.payload,
+            {
+                "turnOn": "1",
+                "baseMode": "0",
+                "setTemp": "73",
+                "degreeH": "0",
+                "windSpd": "0",
+                "optSuper": "0",
+            },
+        )
 
     def test_generated_dry_profile_matches_captured_shape(self) -> None:
         bundle = self.profile.build_mode_command(self.const.MODE_DEHUMI)
@@ -70,9 +78,14 @@ class LegacyCaptureReplayContractTest(unittest.TestCase):
             bundle = self.profile.build_mode_command(mode)
             self.assertLessEqual(set(bundle.payload), observed_fields)
 
-    def test_opt_super_is_not_blindly_added_to_cool_or_heat(self) -> None:
-        self.assertNotIn("optSuper", self.profile.build_mode_command(self.const.MODE_COOL).payload)
-        self.assertNotIn("optSuper", self.profile.build_mode_command(self.const.MODE_HEAT).payload)
+    def test_cool_and_heat_follow_new_capture_mode_numbers(self) -> None:
+        cool = self.profile.build_mode_command(self.const.MODE_COOL).payload
+        heat = self.profile.build_mode_command(self.const.MODE_HEAT).payload
+
+        self.assertEqual(cool["baseMode"], "1")
+        self.assertEqual(heat["baseMode"], "4")
+        self.assertEqual(cool["optSuper"], "0")
+        self.assertEqual(heat["optSuper"], "0")
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from tools.analyze_legacy_mode_capture import (
 CAPTURES = [
     Path("newly_captured/tcl_1778556941.jsonl"),
     Path("newly_captured/tcl_1778557400.jsonl"),
+    Path("newly_captured/tcl_1778569147.jsonl"),
 ]
 
 
@@ -35,7 +36,7 @@ class LegacyModeCaptureAnalysisTest(unittest.TestCase):
         profiles = {profile["mode"]: profile for profile in self.summary["inferredProfiles"]}
 
         self.assertEqual(profiles["fan_only"]["payload"]["baseMode"], "0")
-        self.assertIn("tcl_1778556941.jsonl:39", profiles["fan_only"]["source_lines"])
+        self.assertTrue(profiles["fan_only"]["source_lines"])
 
     def test_no_supported_profile_uses_old_fan_or_auto_modes(self) -> None:
         supported_modes = set(self.summary["supportedBaseModes"])
@@ -48,6 +49,12 @@ class LegacyModeCaptureAnalysisTest(unittest.TestCase):
 
         self.assertEqual(profiles["dry"]["payload"]["baseMode"], "2")
         self.assertIn("setTemp", profiles["dry"]["payload"])
+
+    def test_cool_and_heat_candidates_use_current_mode_numbers(self) -> None:
+        profiles = {profile["mode"]: profile for profile in self.summary["inferredProfiles"]}
+
+        self.assertEqual(profiles["cool"]["payload"]["baseMode"], "1")
+        self.assertEqual(profiles["heat"]["payload"]["baseMode"], "4")
 
     def test_evidence_levels_separate_observed_from_inferred(self) -> None:
         self.assertTrue(

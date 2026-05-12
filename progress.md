@@ -18,7 +18,7 @@
 - Re-opened the task for live control verification using fresh capture `/Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl`.
 - Updated `task_plan.md` to track live command testing, grouped command diagnosis, integration UX fixes, and final verification.
 - Ran live status check with fresh capture: AC is online and initially powered off.
-- Ran live `combined-on-cool` test: `turnOn=1 + baseMode=3` in one cloud message succeeded and verified by status.
+- Superseded earlier `baseMode=3` Cool interpretation. Newer captures show legacy `2743138` Cool uses `baseMode=1`; `baseMode=3` must not be used for HA Cool.
 - Ran live grouped command matrix. Fan, swing, heat `baseMode=4`, and restore commands verified; temperature change did not verify.
 - User reported the AC was still running during testing. Sent bare `turnOn=0`; API accepted but status still showed `turnOn=1`.
 - Sent app-captured shutdown group and verified `turnOn=0`; final follow-up status also verified the AC is off.
@@ -52,3 +52,10 @@
 - Changed the live mode matrix to use grouped power+mode commands. That older run passed cool, dry, and heat; later captures superseded the Fan conclusion and show legacy Fan for `2743138` as a profile bundle with `baseMode=0`, not `baseMode=7`. Auto/AI remains unsupported.
 - Ran live `temp-experiment` with `--delay 20`: legacy `setTemp=75 + degreeH=0 + optSuper=0` still returned API success but verified status stayed at `setTemp=73`. Final cleanup verified `turnOn=0` and left the device in cool/off state.
 - Added a regression test and fix so `async_turn_on()` does not restore disabled experimental Fan Only/Auto modes; it falls back to cool unless the restored mode is currently exposed.
+- Added command transaction modeling for legacy TCL controls: transactions now carry payload, evidence, expected status projection, verification policy, and classify applied vs cloud-only/ignored vs failed.
+- Promoted legacy power-off into the protocol profile as the app shutdown bundle, so profile/API behavior no longer treats off as a single field write.
+- Added guarded contextual temperature matrix in `tools/test_control_api.py`; it defaults to dry-run, prints every candidate payload, and live mode checks status after 2s/5s/10s before final cleanup.
+- Updated truth registry and tooling docs to mark standalone temperature as unresolved, contextual temperature bundles as hypothesis, and `degreeH=1` as not capture-confirmed.
+- Added fast polling controls for live transaction tests: `--poll-interval`, `--poll-timeout`, and `--candidate` for single-candidate temp-matrix probes.
+- Ran a live fast probe for candidate C at 25C (`setTemp=77`) with 1s polling and 12s timeout. Power/mode reflected by about the second poll; temperature stayed at `setTemp=73`, so candidate C remains `cloud_only_or_ignored`. Final cleanup verified `turnOn=0`.
+- Ran full live A-F temperature matrix at 25C with 1s polling and 8s per candidate. All candidates were transport-accepted but temperature stayed at `setTemp=73`; power and wind speed fields reflected within about 1-2 polls. Final cleanup verified `turnOn=0`.

@@ -59,7 +59,7 @@
 ## Live Control Findings - Fresh Token
 - Fresh capture file `/Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl` contains usable `convertMqtt` credentials for `tid=2743138`.
 - Initial live status on 2026-05-12 showed `LINE_STATUS=2`, `turnOn=0`, `baseMode=0`, `setTemp=73`, `degreeH=0`, `windSpd=0`, `directH=0`, `directV=0`.
-- Live combined cloud command `turnOn=1 + baseMode=3` in one `convertMqtt` message returned success and status verified as `turnOn=1`, `baseMode=3`.
+- Superseded: the old `turnOn=1 + baseMode=3` run reflected status but later Cool captures and temperature tests show `baseMode=3` is not HA Cool for legacy `2743138`.
 - Live grouped fan command `windSpd=1 + optSleepMd=0 + optSuper=0` verified.
 - Live grouped swing command `directV=1 + directH=1 + optSolidWd=0` verified.
 - Live heat mode command `baseMode=4` verified. This makes old tool mapping `heat=1` stale for the active device.
@@ -75,8 +75,8 @@
 - Normalized Home Assistant-facing temperatures to Celsius while still translating command temperatures to TCL protocol `setTemp`/`degreeH` values.
 - Fresh `user_devices` captures contain two AC devices: current legacy control target `2743138` with protocol `0`, `setTemp`, `degreeH`, and empty `listControl`; newer device `45816970` with protocol `1`, `targetTemperature`, and work modes `1=cool`, `2=dry`, `3=fan`, `4=heat`, `5=AI`.
 - Because the capture has no proven TSL write endpoint for `targetTemperature`, the temperature experiment must not send an invented TSL mutation. It should report comparable metadata and only mutate through the known legacy `convertMqtt/setTemp` path.
-- The live harness should not advertise `baseMode=7` or `baseMode=8` as supported legacy profiles for `2743138`. Later captures supersede the older Fan assumption and show Fan as `baseMode=0`.
+- The live harness should not advertise `baseMode=7` or `baseMode=8` as supported legacy profiles for `2743138`. Fan remains profile-gated as `baseMode=0`.
 - Live mode matrix showed bare `baseMode=2` for dry returned API success but did not change status from cool after 5 seconds. Grouped `turnOn=1 + baseMode=2` did apply dry mode.
-- Grouped `turnOn=1 + baseMode=3`, `turnOn=1 + baseMode=2`, and `turnOn=1 + baseMode=4` verified for cool, dry, and heat respectively.
-- Grouped `turnOn=1 + baseMode=7` and `turnOn=1 + baseMode=8` returned API success but status stayed in heat. Treat `baseMode=7/8` as unsupported for legacy device `2743138`; Fan Only is now capture-supported through the newer `baseMode=0` profile bundle.
+- Current legacy mapping: Cool is `baseMode=1`, Dry is `baseMode=2`, Heat is `baseMode=4`. Treat old `baseMode=3` Cool notes as superseded.
+- Grouped `turnOn=1 + baseMode=7` and `turnOn=1 + baseMode=8` returned API success but status stayed in heat. Treat `baseMode=7/8` as unsupported for legacy device `2743138`.
 - Live `temp-experiment` on 2026-05-12 with a 20-second wait still failed for legacy temperature control: `setTemp=75` was acknowledged but status stayed at `setTemp=73`, `celsiusSetTemp=23.0`, `degreeH=0`.

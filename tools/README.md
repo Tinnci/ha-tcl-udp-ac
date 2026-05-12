@@ -52,11 +52,24 @@ write request:
   --delay 20
 ```
 
+For the next temperature investigation, prefer the transaction matrix first.
+It is dry-run by default unless you pass `--allow-live`, prints every outgoing
+payload, and checks live status after 2s, 5s, and 10s for each candidate:
+
+```bash
+/usr/local/bin/uv run python tools/test_control_api.py \
+  --capture-file newly_captured/tcl_1778556941.jsonl \
+  --device-id 2743138 \
+  --dry-run \
+  --test temp-matrix
+```
+
 ## Verified Command Rules
 
 - Reliable power-off is not a bare `turnOn=0`. Use the app-captured shutdown
   group: `optSleepMd=0`, `optECO=0`, `optHealthy=0`, `optSuper=0`,
   `optHeat=0`, then `turnOn=0` in one message.
+- Cool mode is `baseMode=1` for legacy `tid=2743138`.
 - Heat mode is `baseMode=4` for this device.
 - Mode changes should use profile bundles, not bare `baseMode` writes. For
   legacy `tid=2743138`, current capture-supported profiles are documented in
@@ -67,6 +80,8 @@ write request:
   no supported `baseMode=8` app request was observed.
 - Fan changes should clear sleep/turbo overrides in the same message.
 - Swing changes should send horizontal, vertical, and `optSolidWd=0` together.
-- Temperature control still needs more protocol evidence. A live
-  `setTemp=75 + degreeH=0 + optSuper=0` command returned API success but did
-  not change the verified status on 2026-05-12.
+- Temperature writes must run in a known Cool or Heat context. App captures
+  show the slider sends `setTemp + degreeH + optSuper=0`; do not send naked
+  temperature writes while the mode is unknown, Dry, Fan, or Off.
+- `degreeH=0` is observed in captures. `degreeH=1` remains a protocol
+  hypothesis until a half-degree app capture or guarded live test confirms it.

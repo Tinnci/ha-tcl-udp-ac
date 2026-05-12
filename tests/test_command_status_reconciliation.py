@@ -29,6 +29,7 @@ class CommandStatusReconciliationTest(unittest.TestCase):
             self.assertEqual(parsed_mode, bundle.expected_status["mode"])
 
     def test_unknown_base_modes_do_not_become_supported_modes(self) -> None:
+        self.assertEqual(self.profile.parse_base_mode("1"), self.const.MODE_COOL)
         self.assertIsNone(self.profile.parse_base_mode("7"))
         self.assertIsNone(self.profile.parse_base_mode("8"))
         self.assertIsNone(self.profile.parse_base_mode("99"))

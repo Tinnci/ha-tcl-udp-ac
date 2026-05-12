@@ -97,8 +97,8 @@ class LegacyStatusParserTest(unittest.TestCase):
 
         for base_mode, expected in {
             "0": self.const.MODE_FAN,
+            "1": self.const.MODE_COOL,
             "2": self.const.MODE_DEHUMI,
-            "3": self.const.MODE_COOL,
             "4": self.const.MODE_HEAT,
         }.items():
             root = ET.fromstring(f"<status><baseMode>{base_mode}</baseMode></status>")

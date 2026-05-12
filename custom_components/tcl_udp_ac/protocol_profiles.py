@@ -49,6 +49,33 @@ class ProtocolProfile:
             expected_status={"power": True, "mode": mode},
         )
 
+    def build_temperature_command(
+        self,
+        target_temperature: float,
+        *,
+        current_mode: str | None = None,
+    ) -> TclCommandBundle:
+        """Build a target-temperature command bundle for the profile."""
+        set_temp, degree_h = LegacyTemperatureCodec.encode(
+            target_temperature,
+            fallback_celsius=target_temperature,
+        )
+        return TclCommandBundle(
+            intent="temperature:set",
+            payload={
+                "setTemp": set_temp,
+                "degreeH": degree_h,
+                "optSuper": "0",
+            },
+            evidence=CaptureEvidence(
+                level="existing-default",
+                source="pre-profile integration behavior",
+                rationale="Default profile preserves standalone temperature writes.",
+            ),
+            requires_power_on=True,
+            expected_status={"target_temp": target_temperature},
+        )
+
     def parse_base_mode(self, base_mode: Any) -> str | None:
         """Parse a protocol baseMode into an integration mode string."""
         return {
@@ -59,6 +86,27 @@ class ProtocolProfile:
             "7": MODE_FAN,
             "8": MODE_AUTO,
         }.get(str(base_mode))
+
+    def build_power_off_command(self) -> TclCommandBundle:
+        """Build a power-off command bundle for the profile."""
+        return TclCommandBundle(
+            intent="power:off",
+            payload={
+                "optSleepMd": "0",
+                "optECO": "0",
+                "optHealthy": "0",
+                "optSuper": "0",
+                "optHeat": "0",
+                "turnOn": "0",
+            },
+            evidence=CaptureEvidence(
+                level="existing-default",
+                source="pre-profile integration behavior",
+                rationale="Default profile preserves app shutdown group behavior.",
+            ),
+            requires_power_on=False,
+            expected_status={"power": False},
+        )
 
 
 class Legacy2743138Profile(ProtocolProfile):
@@ -71,8 +119,9 @@ class Legacy2743138Profile(ProtocolProfile):
         return CaptureEvidence(
             level="capture-supported",
             source=(
-                "newly_captured/tcl_1778556941.jsonl and "
-                "newly_captured/tcl_1778557400.jsonl"
+                "newly_captured/tcl_1778556941.jsonl, "
+                "newly_captured/tcl_1778557400.jsonl, and "
+                "newly_captured/tcl_1778569147.jsonl"
             ),
             rationale=f"Legacy {mode} bundle shape was derived from observed app packets.",
         )
@@ -128,7 +177,7 @@ class Legacy2743138Profile(ProtocolProfile):
             )
 
         if mode in {MODE_COOL, MODE_HEAT}:
-            base_mode = "3" if mode == MODE_COOL else "4"
+            base_mode = "1" if mode == MODE_COOL else "4"
             fallback = 23.0 if mode == MODE_COOL else 28.0
             set_temp, degree_h = LegacyTemperatureCodec.encode(
                 target_temperature,
@@ -140,6 +189,7 @@ class Legacy2743138Profile(ProtocolProfile):
                 "setTemp": set_temp,
                 "degreeH": degree_h,
                 "windSpd": "0",
+                "optSuper": "0",
             }
             return TclCommandBundle(
                 intent=f"mode:{mode}",
@@ -155,10 +205,62 @@ class Legacy2743138Profile(ProtocolProfile):
         """Parse legacy status baseMode values."""
         return {
             "0": MODE_FAN,
+            "1": MODE_COOL,
             "2": MODE_DEHUMI,
-            "3": MODE_COOL,
             "4": MODE_HEAT,
         }.get(str(base_mode))
+
+    def build_temperature_command(
+        self,
+        target_temperature: float,
+        *,
+        current_mode: str | None = None,
+    ) -> TclCommandBundle:
+        """Build the legacy App-style temperature transaction.
+
+        Captures show standalone temperature slider writes only after the App
+        has placed the device in a temperature-capable mode. Do not send this
+        command from dry/fan/unknown contexts.
+        """
+        if current_mode not in {MODE_COOL, MODE_HEAT}:
+            raise UnsupportedModeError(
+                "Legacy temperature writes require a known cool or heat context."
+            )
+        set_temp, degree_h = LegacyTemperatureCodec.encode(
+            target_temperature,
+            fallback_celsius=target_temperature,
+        )
+        return TclCommandBundle(
+            intent=f"temperature:set:{current_mode}",
+            payload={
+                "setTemp": set_temp,
+                "degreeH": degree_h,
+                "optSuper": "0",
+            },
+            evidence=self._evidence("temperature"),
+            requires_power_on=True,
+            expected_status={
+                "mode": current_mode,
+                "target_temp": target_temperature,
+            },
+        )
+
+    def build_power_off_command(self) -> TclCommandBundle:
+        """Build the capture-supported legacy app shutdown bundle."""
+        return TclCommandBundle(
+            intent="power:off",
+            payload={
+                "optSleepMd": "0",
+                "optECO": "0",
+                "optHealthy": "0",
+                "optSuper": "0",
+                "optHeat": "0",
+                "turnOn": "0",
+            },
+            evidence=self._evidence("power_off"),
+            requires_power_on=False,
+            expected_status={"power": False},
+        )
 
 
 def resolve_protocol_profile(device_id: str | None) -> ProtocolProfile:

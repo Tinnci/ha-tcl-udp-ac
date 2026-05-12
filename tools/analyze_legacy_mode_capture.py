@@ -177,7 +177,9 @@ def infer_profiles(commands: list[ObservedCommand]) -> list[InferredModeProfile]
         )
 
     cool_candidates = [
-        cmd for cmd in commands if cmd.payload.get("baseMode") == "3" and "turnOn" in cmd.payload
+        cmd
+        for cmd in commands
+        if cmd.payload.get("baseMode") == "1" and "setTemp" in cmd.payload
     ]
     if cool_candidates:
         chosen = cool_candidates[-1]
@@ -191,7 +193,34 @@ def infer_profiles(commands: list[ObservedCommand]) -> list[InferredModeProfile]
                 },
                 source_lines=[_line_ref(cmd) for cmd in cool_candidates],
                 evidence_level="capture-supported",
-                rationale="Observed app startup/cool bundle uses grouped power/mode/temp/fan fields.",
+                rationale=(
+                    "Newer captures show Cool context as baseMode=1 followed by "
+                    "temperature slider commands."
+                ),
+            )
+        )
+
+    heat_candidates = [
+        cmd
+        for cmd in commands
+        if cmd.payload.get("baseMode") == "4" and "setTemp" in cmd.payload
+    ]
+    if heat_candidates:
+        chosen = heat_candidates[-1]
+        profiles.append(
+            InferredModeProfile(
+                mode="heat",
+                payload={
+                    key: chosen.payload[key]
+                    for key in ("turnOn", "baseMode", "setTemp", "degreeH", "windSpd", "optSuper")
+                    if key in chosen.payload
+                },
+                source_lines=[_line_ref(cmd) for cmd in heat_candidates],
+                evidence_level="capture-supported",
+                rationale=(
+                    "Newer capture shows Heat context as baseMode=4 followed by "
+                    "temperature slider commands."
+                ),
             )
         )
 
@@ -275,6 +304,12 @@ def assert_legacy_mode_facts(summary: dict[str, Any]) -> None:
         errors.append("Fan candidate must contain baseMode=0.")
     if not dry or dry["payload"].get("baseMode") != "2":
         errors.append("Dry candidate must contain baseMode=2.")
+    cool = profiles.get("cool")
+    if not cool or cool["payload"].get("baseMode") != "1":
+        errors.append("Cool candidate must contain baseMode=1.")
+    heat = profiles.get("heat")
+    if not heat or heat["payload"].get("baseMode") != "4":
+        errors.append("Heat candidate must contain baseMode=4.")
 
     supported_base_modes = set(summary["supportedBaseModes"])
     if "7" in supported_base_modes:
@@ -364,6 +399,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("captures", nargs="+", type=Path)
     parser.add_argument("--device-id", default="2743138")
     parser.add_argument("--out-dir", type=Path, default=Path("docs/capture_analysis"))
+    parser.add_argument(
+        "--write-report",
+        action="store_true",
+        help="write JSON/Markdown reports under --out-dir",
+    )
     parser.add_argument("--assert-legacy-mode-facts", action="store_true")
     parser.add_argument("--json", action="store_true", help="print summary JSON")
     return parser.parse_args()
@@ -379,7 +419,8 @@ def main() -> None:
     summary = build_summary(args.captures, args.device_id)
     if args.assert_legacy_mode_facts:
         assert_legacy_mode_facts(summary)
-    write_outputs(summary, args.out_dir)
+    if args.write_report:
+        write_outputs(summary, args.out_dir)
     if args.json:
         print(json.dumps(summary, indent=2, ensure_ascii=False))
     else:

@@ -44,7 +44,7 @@ from .const import (
 )
 from .log_utils import log_debug, log_info, log_warning
 from .command_bundles import TclCommandBundle
-from .protocol_profiles import resolve_protocol_profile
+from .protocol_profiles import UnsupportedModeError, resolve_protocol_profile
 from .udp_client import UdpClient
 
 if TYPE_CHECKING:
@@ -749,16 +749,8 @@ class TclUdpApiClient:
             await self.async_send_command("TurnOn", "on")
             return
 
-        await self.async_send_commands(
-            [
-                ("Opt_sleepMode", "0"),
-                ("Opt_ECO", "off"),
-                ("OptHealthy", "off"),
-                ("Opt_super", "off"),
-                ("OptHeat", "off"),
-                ("TurnOn", "off"),
-            ]
-        )
+        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        await self.async_send_command_bundle(profile.build_power_off_command())
 
     async def async_set_power_mode(
         self, *, power: bool, mode_str: str | None = None
@@ -790,8 +782,28 @@ class TclUdpApiClient:
 
     async def async_set_temperature(self, temperature: float) -> None:
         """Set target temperature."""
-        # Home Assistant exposes Celsius; TCL protocol carries Fahrenheit-ish
-        # setTemp plus a half-Celsius flag.
+        profile = getattr(self, "_protocol_profile", None)
+        if profile is not None:
+            current_mode = self.get_last_status().get("mode")
+            try:
+                bundle = profile.build_temperature_command(
+                    float(temperature),
+                    current_mode=current_mode,
+                )
+            except UnsupportedModeError:
+                log_warning(
+                    LOGGER,
+                    "temperature_unsupported_for_profile_context",
+                    profile=getattr(profile, "name", "unknown"),
+                    current_mode=current_mode,
+                    temperature=temperature,
+                )
+                raise
+            await self.async_send_command_bundle(bundle)
+            return
+
+        # Test/fallback path for object instances that were constructed before
+        # protocol profiles existed.
         temp_value = float(temperature)
         temp_int, degree_half = self._map_set_temp(temp_value)
         await self.async_send_command(
