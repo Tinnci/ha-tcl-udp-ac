@@ -43,13 +43,14 @@ from .const import (
     MODE_HEAT,
 )
 from .log_utils import log_debug, log_info, log_warning
-from .command_bundles import TclCommandBundle
 from .protocol_profiles import UnsupportedModeError, resolve_protocol_profile
 from .temperature_validity import is_valid_outdoor_temperature
 from .udp_client import UdpClient
 
 if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
+
+    from .command_bundles import TclCommandBundle
 
 
 class TclUdpApiClientError(Exception):
@@ -465,7 +466,8 @@ class CloudClient:
         items: list[tuple[str, str]],
         seq: str,
     ) -> bool:
-        """Send multiple control tags in ONE cloud convertMqtt message.
+        """
+        Send multiple control tags in ONE cloud convertMqtt message.
 
         items: list of (HA_command, HA_value) pairs.
         """
@@ -706,7 +708,8 @@ class TclUdpApiClient:
         value: str,
         degree_half: int | None = None,
     ) -> None:
-        """Send a single command via both cloud and UDP.
+        """
+        Send a single command via both cloud and UDP.
 
         Args:
             command: XML tag name (e.g., 'TurnOn', 'SetTemp', 'BaseMode')
@@ -726,7 +729,8 @@ class TclUdpApiClient:
         self,
         items: list[tuple[str, str]],
     ) -> None:
-        """Send multiple tags in ONE message via both cloud and UDP.
+        """
+        Send multiple tags in ONE message via both cloud and UDP.
 
         items: list of (tag, value) pairs, e.g. [("TurnOn", "on"), ("BaseMode", "cool")]
         """
@@ -756,7 +760,8 @@ class TclUdpApiClient:
     async def async_set_power_mode(
         self, *, power: bool, mode_str: str | None = None
     ) -> None:
-        """Set power and mode in a single combined message.
+        """
+        Set power and mode in a single combined message.
 
         When turning on, always include mode to avoid the device using
         a stale mode from a previous session.

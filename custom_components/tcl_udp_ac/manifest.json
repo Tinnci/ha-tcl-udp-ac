@@ -7,5 +7,5 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Tinnci/ha-tcl-udp-ac/issues",
-  "version": "0.1.1"
+  "version": "0.1.2"
 }

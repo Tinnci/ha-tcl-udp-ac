@@ -1,11 +1,13 @@
+# ruff: noqa: S101, PLR2004, S314, SLF001
 """Temperature unit tests for Home Assistant-facing climate behavior."""
 
 from __future__ import annotations
 
 import asyncio
-import xml.etree.ElementTree as ET
 import unittest
+import xml.etree.ElementTree as ET
 from types import MethodType
+from typing import Any
 
 from tests.test_protocol_commands import load_integration_module
 
@@ -14,9 +16,11 @@ class TemperatureUnitTest(unittest.TestCase):
     """The integration should expose Celsius to Home Assistant."""
 
     def setUp(self) -> None:
+        """Set up the test case API module."""
         self.api = load_integration_module("api")
 
     def test_cloud_status_prefers_celsius_target_temperature(self) -> None:
+        """Test that cloud status parsing prioritizes Celsius set temperatures."""
         client = self.api.CloudClient(
             session=None,
             enabled=False,
@@ -56,24 +60,33 @@ class TemperatureUnitTest(unittest.TestCase):
             }
         )
 
-        self.assertEqual(status["target_temp"], 23.0)
-        self.assertEqual(status["current_temp"], 29.4)
-        self.assertEqual(status["outdoor_temp"], 26.0)
+        assert status["target_temp"] == 23.0
+        assert status["current_temp"] == 29.4
+        assert status["outdoor_temp"] == 26.0
 
-    def test_set_temperature_accepts_celsius_and_sends_protocol_fahrenheit(self) -> None:
+    def test_set_temperature_accepts_celsius_and_sends_protocol_fahrenheit(
+        self,
+    ) -> None:
+        """Test that set temperature converts Celsius input to Fahrenheit correctly."""
         client = object.__new__(self.api.TclUdpApiClient)
         calls = []
 
-        async def fake_send_command(self, command, value, degree_half=None):
+        async def fake_send_command(
+            _self: Any,
+            command: str,
+            value: str,
+            degree_half: int | None = None,
+        ) -> None:
             calls.append((command, value, degree_half))
 
         client.async_send_command = MethodType(fake_send_command, client)
 
         asyncio.run(client.async_set_temperature(23.0))
 
-        self.assertEqual(calls, [("SetTemp", "73", 0)])
+        assert calls == [("SetTemp", "73", 0)]
 
     def test_udp_status_converts_protocol_temperatures_to_celsius(self) -> None:
+        """Test that local UDP status elements are converted to Celsius."""
         udp_client = load_integration_module("udp_client").UdpClient(
             action_jid="user@tcl.com/PH-android-zx01-2",
             action_source="1",
@@ -90,11 +103,12 @@ class TemperatureUnitTest(unittest.TestCase):
 
         status = udp_client._parse_status(root)
 
-        self.assertEqual(status["target_temp"], 22.8)
-        self.assertEqual(status["current_temp"], 29.4)
-        self.assertEqual(status["outdoor_temp"], 26.0)
+        assert status["target_temp"] == 22.8
+        assert status["current_temp"] == 29.4
+        assert status["outdoor_temp"] == 26.0
 
     def test_celsius_mapping_round_trips_within_half_degree_step(self) -> None:
+        """Test mapping round trips are precise enough for setpoints."""
         client = object.__new__(self.api.TclUdpApiClient)
 
         for temp_c in (16, 20.5, 23, 23.5, 25.5, 30.5, 31):
@@ -104,7 +118,7 @@ class TemperatureUnitTest(unittest.TestCase):
                 1,
             )
 
-            self.assertLessEqual(abs(round_trip_c - temp_c), 0.25, temp_c)
+            assert abs(round_trip_c - temp_c) <= 0.25, temp_c
 
 
 if __name__ == "__main__":
