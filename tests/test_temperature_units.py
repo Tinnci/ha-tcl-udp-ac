@@ -52,13 +52,13 @@ class TemperatureUnitTest(unittest.TestCase):
                 "celsiusSetTemp": 23.0,
                 "setTemp": "73",
                 "inTemp": "85",
-                "outTemp": "86",
+                "outTemp": "176",
             }
         )
 
         self.assertEqual(status["target_temp"], 23.0)
         self.assertEqual(status["current_temp"], 29.4)
-        self.assertEqual(status["outdoor_temp"], 30.0)
+        self.assertEqual(status["outdoor_temp"], 26.0)
 
     def test_set_temperature_accepts_celsius_and_sends_protocol_fahrenheit(self) -> None:
         client = object.__new__(self.api.TclUdpApiClient)
@@ -84,7 +84,7 @@ class TemperatureUnitTest(unittest.TestCase):
             "<SetTemp>73</SetTemp>"
             "<DegreeH>0</DegreeH>"
             "<InTemp>85</InTemp>"
-            "<OutTemp>86</OutTemp>"
+            "<OutTemp>176</OutTemp>"
             "</status>"
         )
 
@@ -92,7 +92,7 @@ class TemperatureUnitTest(unittest.TestCase):
 
         self.assertEqual(status["target_temp"], 22.8)
         self.assertEqual(status["current_temp"], 29.4)
-        self.assertEqual(status["outdoor_temp"], 30.0)
+        self.assertEqual(status["outdoor_temp"], 26.0)
 
     def test_celsius_mapping_round_trips_within_half_degree_step(self) -> None:
         client = object.__new__(self.api.TclUdpApiClient)

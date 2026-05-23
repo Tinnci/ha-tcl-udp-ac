@@ -333,10 +333,8 @@ class UdpClient:
         val = self._get_node_value(node)
         if val:
             try:
-                outdoor_c = round(
-                    self._fahrenheit_to_celsius(float(val)),
-                    1,
-                )
+                # TCL inverter outdoor temp uses Celsius + 150 offset encoding
+                outdoor_c = round(float(val) - 150.0, 1)
                 if is_valid_outdoor_temperature(outdoor_c):
                     status["outdoor_temp"] = outdoor_c
             except ValueError:

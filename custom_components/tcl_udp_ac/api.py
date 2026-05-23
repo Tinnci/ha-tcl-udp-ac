@@ -260,10 +260,8 @@ class CloudClient:
 
         outdoor_temp = self._cloud_int(cur_status.get("outTemp"))
         if outdoor_temp is not None:
-            outdoor_c = round(
-                self._fahrenheit_to_celsius(float(outdoor_temp)),
-                1,
-            )
+            # TCL inverter outdoor temp uses Celsius + 150 offset encoding
+            outdoor_c = round(float(outdoor_temp) - 150.0, 1)
             if is_valid_outdoor_temperature(outdoor_c):
                 status["outdoor_temp"] = outdoor_c
 
