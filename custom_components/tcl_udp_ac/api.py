@@ -163,6 +163,10 @@ class CloudClient:
         """Return True when status fetch is enabled and configured."""
         return bool(self._enabled and self._tid and self._session)
 
+    def update_token(self, token: str | None) -> None:
+        """Update the access token used for cloud requests."""
+        self._token = token
+
     @property
     def control_enabled(self) -> bool:
         """Return True when cloud control is enabled and configured."""
@@ -642,6 +646,10 @@ class TclUdpApiClient:
     def cloud_enabled(self) -> bool:
         """Return True if cloud status fetch is enabled and configured."""
         return self._cloud.status_enabled
+
+    def update_cloud_token(self, token: str | None) -> None:
+        """Update the cloud access token on the live client (after refresh)."""
+        self._cloud.update_token(token)
 
     def merge_status(self, status: dict[str, Any]) -> None:
         """Merge status into the last known status."""

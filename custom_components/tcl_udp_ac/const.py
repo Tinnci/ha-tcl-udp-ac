@@ -42,6 +42,21 @@ DEFAULT_CLOUD_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7"
 DEFAULT_ENABLE_FAN_ONLY_MODE = False
 DEFAULT_ENABLE_AUTO_MODE = False
 
+# TCL+ account/auth API (cn.account.tcl.com). These credentials are extracted
+# from the TCL+ Android app (production env) and are used to log in and refresh
+# tokens. They are overridable in advanced config in case TCL rotates them.
+DEFAULT_ACCOUNT_BASE_URL = "https://cn.account.tcl.com"
+DEFAULT_ACCOUNT_APP_ID = "55271606743758954"
+DEFAULT_ACCOUNT_APP_SECRET = (
+    "431dba39e008c3fb2c6c1fadf44a7a6b102d016fae83b921cee79205023b1ff6"  # noqa: S105
+)
+DEFAULT_ACCOUNT_TENANT_ID = "TCLPLUS"
+# bType for SMS login flows (observed in capture).
+ACCOUNT_BTYPE_LOGIN = "2"
+# Stored refresh token (empty until a login or manual entry provides one).
+DEFAULT_CLOUD_REFRESH_TOKEN = ""
+DEFAULT_CLOUD_ACCOUNT_ID = ""
+
 # Config keys
 CONF_ACTION_JID = "action_jid"
 CONF_ACTION_SOURCE = "action_source"
@@ -72,6 +87,14 @@ CONF_CLOUD_ACCEPT_ENCODING = "cloud_accept_encoding"
 CONF_CLOUD_ACCEPT_LANGUAGE = "cloud_accept_language"
 CONF_ENABLE_FAN_ONLY_MODE = "enable_fan_only_mode"
 CONF_ENABLE_AUTO_MODE = "enable_auto_mode"
+
+# Account/auth config keys
+CONF_CLOUD_REFRESH_TOKEN = "cloud_refresh_token"  # noqa: S105
+CONF_CLOUD_ACCOUNT_ID = "cloud_account_id"
+CONF_ACCOUNT_BASE_URL = "account_base_url"
+CONF_ACCOUNT_APP_ID = "account_app_id"
+CONF_ACCOUNT_APP_SECRET = "account_app_secret"  # noqa: S105
+CONF_ACCOUNT_TENANT_ID = "account_tenant_id"
 
 # Protocol value mappings
 # HVAC Modes (BaseMode tag values)

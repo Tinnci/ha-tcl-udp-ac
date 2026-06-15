@@ -7,14 +7,26 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from .account_client import (
+    AccountClient,
+    TclAccountAuthError,
+    TclAccountError,
+    TclTokens,
+)
 from .const import (
     CONF_ACCOUNT,
+    CONF_ACCOUNT_APP_ID,
+    CONF_ACCOUNT_APP_SECRET,
+    CONF_ACCOUNT_BASE_URL,
+    CONF_ACCOUNT_TENANT_ID,
     CONF_ACTION_JID,
     CONF_ACTION_SOURCE,
     CONF_CLOUD_ACCEPT,
     CONF_CLOUD_ACCEPT_ENCODING,
     CONF_CLOUD_ACCEPT_LANGUAGE,
+    CONF_CLOUD_ACCOUNT_ID,
     CONF_CLOUD_APP_BUILD_VERSION,
     CONF_CLOUD_APP_PACKAGE,
     CONF_CLOUD_APP_VERSION,
@@ -26,6 +38,7 @@ from .const import (
     CONF_CLOUD_FROM,
     CONF_CLOUD_ORIGIN,
     CONF_CLOUD_PLATFORM,
+    CONF_CLOUD_REFRESH_TOKEN,
     CONF_CLOUD_SDK_VERSION,
     CONF_CLOUD_SYSTEM_VERSION,
     CONF_CLOUD_T_APP_VERSION,
@@ -39,6 +52,10 @@ from .const import (
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ACCOUNT,
+    DEFAULT_ACCOUNT_APP_ID,
+    DEFAULT_ACCOUNT_APP_SECRET,
+    DEFAULT_ACCOUNT_BASE_URL,
+    DEFAULT_ACCOUNT_TENANT_ID,
     DEFAULT_ACTION_JID,
     DEFAULT_ACTION_SOURCE,
     DEFAULT_CLOUD_ACCEPT,
@@ -114,6 +131,16 @@ ADVANCED_CONFIG_KEYS = tuple(
     key for key in DEFAULT_CONFIG_VALUES if key not in BASIC_CONFIG_KEYS
 )
 
+# Device fields collected after a successful login (tokens are auto-filled).
+DEVICE_CONFIG_KEYS = (
+    CONF_CLOUD_TID,
+    CONF_CLOUD_FROM,
+    CONF_CLOUD_TO,
+    CONF_CLOUD_CONTROL,
+    CONF_ENABLE_FAN_ONLY_MODE,
+    CONF_ENABLE_AUTO_MODE,
+)
+
 
 def _schema_for_keys(
     keys: tuple[str, ...],
@@ -123,9 +150,9 @@ def _schema_for_keys(
     source = values or DEFAULT_CONFIG_VALUES
     return vol.Schema(
         {
-            vol.Optional(key, default=source.get(key, DEFAULT_CONFIG_VALUES[key])): type(
-                DEFAULT_CONFIG_VALUES[key]
-            )
+            vol.Optional(
+                key, default=source.get(key, DEFAULT_CONFIG_VALUES[key])
+            ): type(DEFAULT_CONFIG_VALUES[key])
             for key in keys
         }
     )
@@ -139,11 +166,36 @@ def _entry_values(entry: config_entries.ConfigEntry) -> dict[str, Any]:
     return values
 
 
+def _account_client(hass: Any, data: dict[str, Any]) -> AccountClient:
+    """Build an AccountClient from config values (or defaults)."""
+    session = async_get_clientsession(hass)
+    return AccountClient(
+        session,
+        base_url=data.get(CONF_ACCOUNT_BASE_URL, DEFAULT_ACCOUNT_BASE_URL),
+        app_id=data.get(CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
+        app_secret=data.get(CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET),
+        tenant_id=data.get(CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID),
+    )
+
+
+def _data_with_tokens(base: dict[str, Any], tokens: TclTokens) -> dict[str, Any]:
+    """Merge login tokens into a config data dict."""
+    data = dict(base)
+    data[CONF_CLOUD_ENABLED] = True
+    data[CONF_CLOUD_TOKEN] = tokens.access_token
+    data[CONF_CLOUD_REFRESH_TOKEN] = tokens.refresh_token
+    if tokens.account_id:
+        data[CONF_CLOUD_ACCOUNT_ID] = tokens.account_id
+    return data
+
+
 class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for TCL UDP AC."""
 
     VERSION = 1
     _basic_user_input: dict[str, Any]
+    _login_tokens: TclTokens
+    _sms_mobile: str
 
     @staticmethod
     @callback
@@ -155,9 +207,113 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self,
+        user_input: dict | None = None,  # noqa: ARG002
+    ) -> config_entries.ConfigFlowResult:
+        """Present a menu of login methods."""
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["login_password", "login_sms", "manual"],
+        )
+
+    async def async_step_login_password(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Log in with account and password."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            account = _account_client(self.hass, {})
+            try:
+                self._login_tokens = await account.async_login_password(
+                    user_input["username"], user_input["password"]
+                )
+            except TclAccountAuthError:
+                errors["base"] = "invalid_auth"
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_device()
+
+        schema = vol.Schema(
+            {
+                vol.Required("username"): str,
+                vol.Required("password"): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="login_password", data_schema=schema, errors=errors
+        )
+
+    async def async_step_login_sms(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Request an SMS code for the given mobile number."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._sms_mobile = user_input["mobile"]
+            account = _account_client(self.hass, {})
+            try:
+                await account.async_request_sms_code(self._sms_mobile)
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_sms_code()
+
+        schema = vol.Schema({vol.Required("mobile"): str})
+        return self.async_show_form(
+            step_id="login_sms", data_schema=schema, errors=errors
+        )
+
+    async def async_step_sms_code(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Submit the SMS code to complete login."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            account = _account_client(self.hass, {})
+            try:
+                self._login_tokens = await account.async_login_sms(
+                    self._sms_mobile, user_input["code"]
+                )
+            except TclAccountAuthError:
+                errors["base"] = "invalid_auth"
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_device()
+
+        schema = vol.Schema({vol.Required("code"): str})
+        return self.async_show_form(
+            step_id="sms_code", data_schema=schema, errors=errors
+        )
+
+    async def async_step_device(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Collect device fields after login; tokens are already obtained."""
+        if user_input is not None:
+            data = dict(DEFAULT_CONFIG_VALUES)
+            data.update(user_input)
+            data = _data_with_tokens(data, self._login_tokens)
+            unique_id = data.get(CONF_CLOUD_TID) or "tcl_udp_ac"
+            await self.async_set_unique_id(str(unique_id))
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(title="TCL UDP Air Conditioner", data=data)
+
+        return self.async_show_form(
+            step_id="device",
+            data_schema=_schema_for_keys(DEVICE_CONFIG_KEYS),
+            errors={},
+        )
+
+    async def async_step_manual(
+        self,
         user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
-        """Handle a flow initialized by the user."""
+        """Handle manual token entry (original flow)."""
         errors = {}
         if user_input is not None:
             self._basic_user_input = dict(user_input)
@@ -176,7 +332,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         return self.async_show_form(
-            step_id="user",
+            step_id="manual",
             data_schema=_schema_for_keys(BASIC_CONFIG_KEYS),
             errors=errors,
         )
@@ -202,6 +358,44 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             step_id="advanced",
             data_schema=_schema_for_keys(ADVANCED_CONFIG_KEYS),
             errors={},
+        )
+
+    async def async_step_reauth(
+        self,
+        _entry_data: dict[str, Any],
+    ) -> config_entries.ConfigFlowResult:
+        """Handle reauthentication when the cloud token can no longer refresh."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Re-login with password and update the existing entry's tokens."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+        if user_input is not None:
+            account = _account_client(self.hass, dict(entry.data))
+            try:
+                tokens = await account.async_login_password(
+                    user_input["username"], user_input["password"]
+                )
+            except TclAccountAuthError:
+                errors["base"] = "invalid_auth"
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                new_data = _data_with_tokens(dict(entry.data), tokens)
+                return self.async_update_reload_and_abort(entry, data=new_data)
+
+        schema = vol.Schema(
+            {
+                vol.Required("username"): str,
+                vol.Required("password"): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="reauth_confirm", data_schema=schema, errors=errors
         )
 
 

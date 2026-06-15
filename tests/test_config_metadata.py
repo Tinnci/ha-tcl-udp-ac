@@ -7,7 +7,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 TRANSLATIONS_DIR = ROOT / "custom_components/tcl_udp_ac/translations"
 PRIMARY_TRANSLATION_LANGUAGES = {
@@ -84,7 +83,7 @@ class ConfigMetadataTest(unittest.TestCase):
         translations = json.loads(
             (TRANSLATIONS_DIR / "en.json").read_text()
         )
-        data = translations["config"]["step"]["user"]["data"]
+        data = translations["config"]["step"]["manual"]["data"]
         advanced_data = translations["config"]["step"]["advanced"]["data"]
         options_data = translations["options"]["step"]["init"]["data"]
 
@@ -100,13 +99,27 @@ class ConfigMetadataTest(unittest.TestCase):
         self.assertIn("async_step_advanced", config_flow)
         self.assertNotIn(
             "vol.Optional(CONF_CLOUD_USER_AGENT",
-            config_flow.split("async_step_user", 1)[1].split("async_step_advanced", 1)[0],
+            config_flow.split("async_step_manual", 1)[1].split(
+                "async_step_advanced", 1
+            )[0],
         )
+
+    def test_login_and_reauth_steps_exist(self) -> None:
+        config_flow = (ROOT / "custom_components/tcl_udp_ac/config_flow.py").read_text()
+
+        for step in (
+            "async_step_login_password",
+            "async_step_login_sms",
+            "async_step_sms_code",
+            "async_step_reauth",
+            "async_step_reauth_confirm",
+        ):
+            self.assertIn(step, config_flow)
 
     def test_basic_and_advanced_translation_labels_are_complete(self) -> None:
         translations = json.loads((TRANSLATIONS_DIR / "en.json").read_text())
 
-        user_data = translations["config"]["step"]["user"]["data"]
+        user_data = translations["config"]["step"]["manual"]["data"]
         advanced_data = translations["config"]["step"]["advanced"]["data"]
         options_data = translations["options"]["step"]["init"]["data"]
 
@@ -119,7 +132,7 @@ class ConfigMetadataTest(unittest.TestCase):
         entities = translations["entity"]
 
         self.assertIn("outdoor_temperature", entities["sensor"])
-        for key in {
+        for key in (
             "eco_mode",
             "display",
             "health_mode",
@@ -127,7 +140,7 @@ class ConfigMetadataTest(unittest.TestCase):
             "turbo_mode",
             "aux_heat",
             "beep",
-        }:
+        ):
             self.assertIn(key, entities["switch"])
 
     def test_primary_translation_files_match_english_shape(self) -> None:

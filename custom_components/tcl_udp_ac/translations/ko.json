@@ -2,6 +2,56 @@
   "config": {
     "step": {
       "user": {
+        "title": "TCL Air Conditioner",
+        "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
+        "menu_options": {
+          "login_password": "Log in with account and password",
+          "login_sms": "Log in with SMS verification code",
+          "manual": "Enter a captured token manually"
+        }
+      },
+      "login_password": {
+        "title": "TCL+ account login",
+        "description": "Log in with your TCL+ account. The password is hashed before being sent.",
+        "data": {
+          "username": "Account (phone or email)",
+          "password": "Password"
+        }
+      },
+      "login_sms": {
+        "title": "SMS login",
+        "description": "Enter your mobile number to receive a verification code.",
+        "data": {
+          "mobile": "Mobile number"
+        }
+      },
+      "sms_code": {
+        "title": "Enter verification code",
+        "description": "Enter the SMS code you received.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
+      "device": {
+        "description": "Login succeeded. Enter the device TID and JIDs to enable cloud control.",
+        "data": {
+          "cloud_tid": "클라우드 장치 TID",
+          "cloud_from": "클라우드 발신자 JID",
+          "cloud_to": "클라우드 장치 JID",
+          "cloud_control": "클라우드 제어 활성화",
+          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
+          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate TCL+",
+        "description": "Your TCL+ session expired. Log in again to refresh access.",
+        "data": {
+          "username": "Account (phone or email)",
+          "password": "Password"
+        }
+      },
+      "manual": {
         "description": "로컬 UDP 제어와 선택적 TCL+ 클라우드 대체 상태 조회를 사용해 TCL 에어컨을 설정합니다. 클라우드 액세스 토큰은 만료됩니다. 클라우드 요청이 실패하기 시작하면 새 TCL+ 캡처에서 토큰을 갱신하세요.",
         "data": {
           "cloud_enabled": "클라우드 상태 대체 조회 활성화",
@@ -43,10 +93,13 @@
     },
     "error": {
       "connection": "UDP 리스너를 시작할 수 없습니다.",
+      "invalid_auth": "Login failed: incorrect account, password, or code.",
+      "cannot_connect": "Could not reach the TCL+ service. Try again.",
       "unknown": "알 수 없는 오류가 발생했습니다."
     },
     "abort": {
-      "already_configured": "이 항목은 이미 구성되어 있습니다."
+      "already_configured": "이 항목은 이미 구성되어 있습니다.",
+      "reauth_successful": "Re-authentication was successful."
     }
   },
   "options": {

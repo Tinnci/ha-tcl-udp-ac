@@ -1,4 +1,5 @@
-"""Small Home Assistant stubs for unit tests.
+"""
+Small Home Assistant stubs for unit tests.
 
 These stubs are intentionally minimal. They let tests import the custom
 integration entity modules without requiring Home Assistant as a test
@@ -102,6 +103,9 @@ def install_homeassistant_stubs() -> None:
     class ConfigEntryNotReady(Exception):
         pass
 
+    class ConfigEntryAuthFailed(Exception):
+        pass
+
     class HomeAssistantError(Exception):
         pass
 
@@ -171,6 +175,7 @@ def install_homeassistant_stubs() -> None:
     core.callback = lambda func: func
     core.HomeAssistant = object
     exceptions.ConfigEntryNotReady = ConfigEntryNotReady
+    exceptions.ConfigEntryAuthFailed = ConfigEntryAuthFailed
     exceptions.HomeAssistantError = HomeAssistantError
     aiohttp_client.async_get_clientsession = lambda _hass: None
     entity.EntityCategory = EntityCategory

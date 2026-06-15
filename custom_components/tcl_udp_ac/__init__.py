@@ -10,8 +10,8 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
-from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.const import Platform
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
@@ -76,6 +76,7 @@ from .const import (
 )
 from .coordinator import TclUdpDataUpdateCoordinator
 from .data import TclUdpData
+from .token_manager import TokenManager
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -247,6 +248,15 @@ async def async_setup_entry(
         client=client,
         integration=async_get_loaded_integration(hass, entry.domain),
         coordinator=coordinator,
+    )
+
+    # Token manager handles cloud token auto-refresh when a refresh token is
+    # configured (login flow). In manual-token mode it is a no-op.
+    entry.runtime_data.token_manager = TokenManager(
+        hass=hass,
+        entry=entry,
+        client=client,
+        session=session,
     )
 
     try:

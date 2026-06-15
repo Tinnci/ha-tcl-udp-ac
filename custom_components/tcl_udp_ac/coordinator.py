@@ -22,15 +22,22 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         # For UDP push-based updates, we return the last known status
         # But we also trigger a SyncStatusReq as a manual poll fallback
+        runtime = self.config_entry.runtime_data
+        client = runtime.client
+        token_manager = getattr(runtime, "token_manager", None)
+        if client.cloud_enabled and token_manager is not None:
+            # Refresh the cloud token if near expiry; raises ConfigEntryAuthFailed
+            # when reauth is required (HA then prompts the user to log in again).
+            await token_manager.async_ensure_fresh_token()
         try:
-            await self.config_entry.runtime_data.client.async_request_status()
-            if self.config_entry.runtime_data.client.cloud_enabled:
-                await self.config_entry.runtime_data.client.async_fetch_cloud_status()
-            status = self.config_entry.runtime_data.client.get_last_status()
+            await client.async_request_status()
+            if client.cloud_enabled:
+                await client.async_fetch_cloud_status()
+            status = client.get_last_status()
         except TclUdpApiClientError:
-            if self.config_entry.runtime_data.client.cloud_enabled:
-                await self.config_entry.runtime_data.client.async_fetch_cloud_status()
-            status = self.config_entry.runtime_data.client.get_last_status()
+            if client.cloud_enabled:
+                await client.async_fetch_cloud_status()
+            status = client.get_last_status()
 
         if not status:
             raise UpdateFailed("No status received from TCL UDP AC")

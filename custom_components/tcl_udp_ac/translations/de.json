@@ -2,6 +2,56 @@
   "config": {
     "step": {
       "user": {
+        "title": "TCL Air Conditioner",
+        "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
+        "menu_options": {
+          "login_password": "Log in with account and password",
+          "login_sms": "Log in with SMS verification code",
+          "manual": "Enter a captured token manually"
+        }
+      },
+      "login_password": {
+        "title": "TCL+ account login",
+        "description": "Log in with your TCL+ account. The password is hashed before being sent.",
+        "data": {
+          "username": "Account (phone or email)",
+          "password": "Password"
+        }
+      },
+      "login_sms": {
+        "title": "SMS login",
+        "description": "Enter your mobile number to receive a verification code.",
+        "data": {
+          "mobile": "Mobile number"
+        }
+      },
+      "sms_code": {
+        "title": "Enter verification code",
+        "description": "Enter the SMS code you received.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
+      "device": {
+        "description": "Login succeeded. Enter the device TID and JIDs to enable cloud control.",
+        "data": {
+          "cloud_tid": "Cloud-Geräte-TID",
+          "cloud_from": "Cloud-Absender-JID",
+          "cloud_to": "Cloud-Geräte-JID",
+          "cloud_control": "Cloud-Steuerung aktivieren",
+          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
+          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate TCL+",
+        "description": "Your TCL+ session expired. Log in again to refresh access.",
+        "data": {
+          "username": "Account (phone or email)",
+          "password": "Password"
+        }
+      },
+      "manual": {
         "description": "Richte eine TCL-Klimaanlage mit lokaler UDP-Steuerung und optionalem TCL+-Cloud-Fallback ein. Cloud-Zugriffstoken laufen ab; aktualisiere sie aus einem neuen TCL+-Mitschnitt, wenn Cloud-Anfragen fehlschlagen.",
         "data": {
           "cloud_enabled": "Cloud-Status-Fallback aktivieren",
@@ -43,10 +93,13 @@
     },
     "error": {
       "connection": "UDP-Listener konnte nicht gestartet werden.",
+      "invalid_auth": "Login failed: incorrect account, password, or code.",
+      "cannot_connect": "Could not reach the TCL+ service. Try again.",
       "unknown": "Unbekannter Fehler aufgetreten."
     },
     "abort": {
-      "already_configured": "Dieser Eintrag ist bereits konfiguriert."
+      "already_configured": "Dieser Eintrag ist bereits konfiguriert.",
+      "reauth_successful": "Re-authentication was successful."
     }
   },
   "options": {

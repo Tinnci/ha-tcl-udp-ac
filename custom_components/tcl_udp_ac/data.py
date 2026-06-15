@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
     from .api import TclUdpApiClient
     from .coordinator import TclUdpDataUpdateCoordinator
+    from .token_manager import TokenManager
 
 
 type TclUdpConfigEntry = ConfigEntry[TclUdpData]
@@ -23,3 +24,4 @@ class TclUdpData:
     client: TclUdpApiClient
     coordinator: TclUdpDataUpdateCoordinator
     integration: Integration
+    token_manager: TokenManager | None = None

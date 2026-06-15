@@ -2,6 +2,56 @@
   "config": {
     "step": {
       "user": {
+        "title": "TCL 空调",
+        "description": "选择连接 TCL+ 云端的方式。使用 TCL+ 账号登录可自动获取并续期令牌；也可手动粘贴从应用抓包得到的令牌。",
+        "menu_options": {
+          "login_password": "使用账号和密码登录",
+          "login_sms": "使用短信验证码登录",
+          "manual": "手动输入抓包令牌"
+        }
+      },
+      "login_password": {
+        "title": "TCL+ 账号登录",
+        "description": "使用你的 TCL+ 账号登录。密码会先经过哈希再发送。",
+        "data": {
+          "username": "账号（手机号或邮箱）",
+          "password": "密码"
+        }
+      },
+      "login_sms": {
+        "title": "短信登录",
+        "description": "输入手机号以接收验证码。",
+        "data": {
+          "mobile": "手机号"
+        }
+      },
+      "sms_code": {
+        "title": "输入验证码",
+        "description": "输入你收到的短信验证码。",
+        "data": {
+          "code": "验证码"
+        }
+      },
+      "device": {
+        "description": "登录成功。输入设备 TID 与 JID 以启用云端控制。",
+        "data": {
+          "cloud_tid": "云端设备 TID",
+          "cloud_from": "云端发送方 JID",
+          "cloud_to": "云端设备 JID",
+          "cloud_control": "启用云端控制",
+          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
+          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+        }
+      },
+      "reauth_confirm": {
+        "title": "重新认证 TCL+",
+        "description": "你的 TCL+ 会话已过期。请重新登录以恢复访问。",
+        "data": {
+          "username": "账号（手机号或邮箱）",
+          "password": "密码"
+        }
+      },
+      "manual": {
         "description": "使用本地 UDP 控制和可选的 TCL+ 云端回退来设置 TCL 空调。云端访问令牌会过期；当云端请求开始失败时，请从新的 TCL+ 抓包中刷新令牌。",
         "data": {
           "cloud_enabled": "启用云端状态回退",
@@ -43,10 +93,13 @@
     },
     "error": {
       "connection": "无法启动 UDP 监听器。",
+      "invalid_auth": "登录失败：账号、密码或验证码错误。",
+      "cannot_connect": "无法连接 TCL+ 服务，请重试。",
       "unknown": "发生未知错误。"
     },
     "abort": {
-      "already_configured": "此条目已配置。"
+      "already_configured": "此条目已配置。",
+      "reauth_successful": "重新认证成功。"
     }
   },
   "options": {
