@@ -8,12 +8,10 @@ import sys
 import types
 import unittest
 import warnings
-from pathlib import Path
 from types import SimpleNamespace
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import PACKAGE, ROOT, load_integration_module
-
 
 install_homeassistant_stubs()
 

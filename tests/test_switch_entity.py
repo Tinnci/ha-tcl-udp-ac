@@ -10,7 +10,6 @@ from types import SimpleNamespace
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
 
-
 install_homeassistant_stubs()
 
 

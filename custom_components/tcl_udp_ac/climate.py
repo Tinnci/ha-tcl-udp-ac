@@ -26,6 +26,9 @@ from .const import (
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ENABLE_AUTO_MODE,
     DEFAULT_ENABLE_FAN_ONLY_MODE,
+    LOGGER,
+)
+from .const import (
     FAN_AUTO as TCL_FAN_AUTO,
 )
 from .const import (
@@ -36,9 +39,6 @@ from .const import (
 )
 from .const import (
     FAN_MIDDLE as TCL_FAN_MIDDLE,
-)
-from .const import (
-    LOGGER,
 )
 from .const import (
     MODE_AUTO as TCL_MODE_AUTO,
@@ -332,12 +332,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             udp_mode = HVAC_MODE_MAP.get(hvac_mode)
             is_on = bool(self.coordinator.data and self.coordinator.data.get("power"))
 
-            if not is_on:
-                await client.async_set_mode_profile(
-                    udp_mode,
-                    target_temperature=self.target_temperature,
-                )
-            elif udp_mode is not None:
+            if not is_on or udp_mode is not None:
                 await client.async_set_mode_profile(
                     udp_mode,
                     target_temperature=self.target_temperature,

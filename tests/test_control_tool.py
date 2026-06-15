@@ -10,7 +10,6 @@ load_integration_module("const")
 load_integration_module("protocol_profiles")
 from tools import test_control_api
 
-
 USER_DEVICES_JSONL = """
 {"type":"response","url":"https://io.zx.tcljd.com/v1/tclplus/user/user_devices","body":"{\\"success\\":true,\\"data\\":[{\\"deviceId\\":\\"45816970\\",\\"protocol\\":\\"1\\",\\"identifiers\\":[{\\"identifier\\":\\"targetTemperature\\",\\"value\\":26},{\\"identifier\\":\\"workMode\\",\\"value\\":1},{\\"identifier\\":\\"powerSwitch\\",\\"value\\":0}],\\"listControl\\":[{\\"identifier\\":\\"targetTemperature\\",\\"dataType\\":{\\"type\\":\\"double\\",\\"specs\\":{\\"unit\\":\\"C\\",\\"min\\":\\"16\\",\\"max\\":\\"31\\",\\"step\\":\\"0.5\\"}}},{\\"identifier\\":\\"workMode\\",\\"dataType\\":{\\"type\\":\\"enum\\",\\"specs\\":{\\"1\\":\\"cool\\",\\"2\\":\\"dry\\",\\"3\\":\\"fan\\",\\"4\\":\\"heat\\",\\"5\\":\\"AI\\"}}}]},{\\"deviceId\\":\\"2743138\\",\\"protocol\\":\\"0\\",\\"identifiers\\":[{\\"identifier\\":\\"turnOn\\",\\"value\\":\\"0\\"},{\\"identifier\\":\\"setTemp\\",\\"value\\":\\"73\\"},{\\"identifier\\":\\"degreeH\\",\\"value\\":\\"0\\"}],\\"listControl\\":[]}]}"} 
 """.strip()

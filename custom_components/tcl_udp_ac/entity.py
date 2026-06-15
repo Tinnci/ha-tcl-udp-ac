@@ -5,8 +5,8 @@ from __future__ import annotations
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .coordinator import TclUdpDataUpdateCoordinator
 from .const import CONF_CLOUD_TID
+from .coordinator import TclUdpDataUpdateCoordinator
 
 
 class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):

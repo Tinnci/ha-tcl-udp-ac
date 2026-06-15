@@ -10,7 +10,6 @@ from tools.analyze_legacy_mode_capture import (
     build_summary,
 )
 
-
 CAPTURES = [
     Path("newly_captured/tcl_1778556941.jsonl"),
     Path("newly_captured/tcl_1778557400.jsonl"),

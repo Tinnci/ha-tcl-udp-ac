@@ -312,7 +312,8 @@ class Legacy2743138Profile(ProtocolProfile):
         *,
         current_mode: str | None = None,
     ) -> TclCommandBundle:
-        """Build the legacy App-style temperature transaction.
+        """
+        Build the legacy App-style temperature transaction.
 
         Captures show standalone temperature slider writes only after the App
         has placed the device in a temperature-capable mode. Do not send this

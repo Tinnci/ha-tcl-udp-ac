@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-
 STATUS_ONLY_ENTRIES = [
     {
         "ts": 1,
@@ -48,7 +47,7 @@ MIXED_ENTRIES = [
             "accesstoken": "REDACTED",
             "content-type": "application/json; charset=UTF-8",
         },
-        "body": "{\"source\":\"APP\",\"params\":\"<message>...</message>\"}",
+        "body": '{"source":"APP","params":"<message>...</message>"}',
     },
     {
         "ts": 11,
@@ -56,7 +55,7 @@ MIXED_ENTRIES = [
         "url": "https://io.zx.tcljd.com/v1/control/convertMqtt/1",
         "status_code": 200,
         "headers": {"content-type": "application/json"},
-        "body": "{\"success\":true}",
+        "body": '{"success":true}',
     },
     {
         "ts": 12,
@@ -78,9 +77,9 @@ MIXED_ENTRIES = [
         "status_code": 200,
         "headers": {"content-type": "text/html;charset=UTF-8"},
         "body": (
-            "{\"curStatus\":{\"turnOn\":\"1\",\"setTemp\":\"75\","
-            "\"baseMode\":\"4\",\"actionJid\":"
-            "\"user@tcl.com/PH-android-zx01-2\"},\"LINE_STATUS\":\"2\"}"
+            '{"curStatus":{"turnOn":"1","setTemp":"75",'
+            '"baseMode":"4","actionJid":'
+            '"user@tcl.com/PH-android-zx01-2"},"LINE_STATUS":"2"}'
         ),
     },
 ]

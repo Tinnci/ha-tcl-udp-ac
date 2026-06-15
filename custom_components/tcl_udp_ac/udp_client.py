@@ -435,7 +435,8 @@ class UdpClient:
         self,
         items: list[tuple[str, str]],
     ) -> None:
-        """Send multiple tags in a single SetMessage XML (UDP only).
+        """
+        Send multiple tags in a single SetMessage XML (UDP only).
 
         items: list of (tag, value) pairs, e.g. [("TurnOn", "on"), ("BaseMode", "cool")]
         """

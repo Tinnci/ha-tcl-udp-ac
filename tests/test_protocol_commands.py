@@ -10,7 +10,6 @@ import unittest
 from pathlib import Path
 from types import MethodType
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = "custom_components.tcl_udp_ac"
 
