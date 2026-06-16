@@ -37,6 +37,7 @@ class FakeSession:
         self._public_key_text = PUBLIC_KEY_B64
         self.token_response: str | None = None
         self.sms_response = '{"status":"SUCCESS","data":{"key":"x"}}'
+        self.device_response = '{"success":true,"code":"200","data":[]}'
 
     def get(self, url, headers=None, timeout=None):
         url_str = str(url)
@@ -45,6 +46,8 @@ class FakeSession:
             return FakeResponse(self._public_key_text)
         if "smsCaptcha" in url_str:
             return FakeResponse(self.sms_response)
+        if "user/user_devices" in url_str:
+            return FakeResponse(self.device_response)
         # refershToken
         return FakeResponse(self.token_response or "{}")
 
@@ -146,6 +149,60 @@ class AccountClientTest(unittest.TestCase):
         quick = next(c for c in session.post_calls if "quickLogin" in c["url"])
         # quickLogin posts with no body (params are in the encrypted query).
         self.assertIsNone(quick["data"])
+
+    def test_list_devices_returns_ac_devices_with_derived_jids(self) -> None:
+        session = FakeSession()
+        session.device_response = json.dumps(
+            {
+                "success": True,
+                "code": "200",
+                "data": [
+                    {
+                        "deviceId": "45816970",
+                        "category": "AC",
+                        "productKey": "1112013595N",
+                        "masterId": "14427826",
+                        "nickName": "Living room AC",
+                        "locationName": "Living room",
+                        "mac": "e0:01:c7:05:b3:ca",
+                        "deviceType": "KFRd-35G/D-STA22Bp(B1)",
+                        "protocol": "0",
+                        "isOnline": "1",
+                        "energy": 1,
+                    },
+                    {
+                        "deviceId": "tv-1",
+                        "category": "TV",
+                        "productKey": "tv-product",
+                        "masterId": "14427826",
+                    },
+                ],
+            }
+        )
+        mod, client = _client(session)
+
+        devices = asyncio.run(client.async_list_devices("access.jwt.sig"))
+
+        self.assertEqual(len(devices), 1)
+        device = devices[0]
+        self.assertEqual(device.device_id, "45816970")
+        self.assertEqual(device.product_key, "1112013595N")
+        self.assertEqual(device.name, "Living room AC")
+        self.assertEqual(device.room, "Living room")
+        self.assertEqual(device.protocol, "0")
+        self.assertTrue(device.is_online)
+        self.assertTrue(device.energy)
+        self.assertTrue(device.supports_legacy_cloud_control)
+        self.assertEqual(
+            device.cloud_from_jid,
+            "14427826@tcl.com/PH-android-zx01-2",
+        )
+        self.assertEqual(
+            device.cloud_to_jid,
+            "45816970@tcl.com/AC-linux-zx01-1",
+        )
+        devices_call = next(c for c in session.get_calls if "user_devices" in c["url"])
+        self.assertEqual(devices_call["headers"]["accesstoken"], "access.jwt.sig")
 
 
 if __name__ == "__main__":

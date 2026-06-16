@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.2.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -28,6 +28,7 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
   - **Beep**: Enable/disable command confirmation beeps.
 - **🌤️ Sensors**:
   - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
+- **☁️ TCL+ Login**: Log in with a TCL+ account to obtain refreshable cloud tokens and select discovered AC devices. The integration fills the cloud TID and legacy JIDs automatically when TCL+ returns device metadata.
 
 ## 📦 Installation
 
@@ -64,8 +65,23 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 1. Go to **Settings** > **Devices & Services**.
 2. Click **+ Add Integration**.
 3. Search for **TCL UDP Air Conditioner**.
-4. The integration should automatically discover devices on your network.
-   - If prompted, you can adjust settings like Cloud fallback options (though local control is preferred).
+4. Choose a setup method:
+   - **TCL+ account login**: log in with password or SMS, then select a discovered AC device. The integration stores refreshable tokens and fills the cloud TID plus legacy sender/device JIDs from TCL+ account metadata.
+   - **Manual token entry**: paste a captured token and provide the cloud TID/JIDs yourself.
+5. Keep local UDP as the primary control path. Cloud status fallback and legacy cloud control are optional helpers for networks that miss UDP updates.
+6. For newer TCL+ protocol 1 devices, captured traffic shows TSL-style APIs such as `/v1/thing/status`. This release discovers those devices and stores their TID/JID defaults, but the newer cloud status/control path is not fully mapped yet.
+
+### Cloud Energy and Runtime Statistics
+
+Captured TCL+ traffic includes `/v1/ac/statistics/electricity/summary?timeType=1|2|3`, which returns historical electricity and running-hours report buckets with daily/monthly/yearly detail. Home Assistant energy dashboards expect sensors with clear energy semantics, units, and state classes, such as kWh device energy sensors. Because the TCL+ summary endpoint is a report API rather than a live monotonic meter, this release does not expose those values as HA energy sensors yet.
+
+See `docs/tcl_cloud_api_notes.md` for the captured API mapping and HA entity notes.
+
+Related captured endpoints:
+
+- `/v1/ac/statistics/electricity/summary`: AC electricity/runtime report summary and history.
+- `/v1/dashboard/energyStatistics/detail`: dashboard-level overview, not clearly tied to a single AC device.
+- `/v1/tclplus/eneryStatis/devices/consumable-deficiency/count`: consumable-deficiency count, not energy usage.
 
 ### Network Requirements
 

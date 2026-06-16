@@ -29,6 +29,14 @@ from yarl import URL
 
 from .const import (
     ACCOUNT_BTYPE_LOGIN,
+    DEFAULT_CLOUD_APP_PACKAGE,
+    DEFAULT_CLOUD_APP_VERSION,
+    DEFAULT_CLOUD_BASE_URL,
+    DEFAULT_CLOUD_BRAND,
+    DEFAULT_CLOUD_PLATFORM,
+    DEFAULT_CLOUD_SDK_VERSION,
+    DEFAULT_CLOUD_SYSTEM_VERSION,
+    DEFAULT_CLOUD_USER_AGENT,
     LOGGER,
 )
 from .tcl_crypto import (
@@ -64,6 +72,48 @@ class TclTokens:
     account_id: str | None = None
 
 
+@dataclass(frozen=True)
+class TclCloudDevice:
+    """TCL+ cloud device metadata discovered from the account."""
+
+    device_id: str
+    category: str
+    product_key: str | None = None
+    master_id: str | None = None
+    name: str | None = None
+    room: str | None = None
+    mac: str | None = None
+    model: str | None = None
+    protocol: str | None = None
+    is_online: bool | None = None
+    energy: bool = False
+
+    @property
+    def supports_legacy_cloud_control(self) -> bool:
+        """Return True when the device matches the captured XMPP cloud path."""
+        return self.protocol in {None, "", "0"}
+
+    @property
+    def cloud_from_jid(self) -> str | None:
+        """Return the sender JID used by the TCL+ app's legacy cloud control."""
+        if not self.master_id:
+            return None
+        return f"{self.master_id}@tcl.com/PH-android-zx01-2"
+
+    @property
+    def cloud_to_jid(self) -> str:
+        """Return the device JID used by the TCL+ app's legacy cloud control."""
+        return f"{self.device_id}@tcl.com/AC-linux-zx01-1"
+
+    @property
+    def title(self) -> str:
+        """Return a human-readable device title for config forms."""
+        parts = [self.name or self.model or self.device_id]
+        if self.room:
+            parts.append(self.room)
+        return " - ".join(parts)
+
+
 class AccountClient:
     """Client for the TCL+ account/auth API."""
 
@@ -75,10 +125,12 @@ class AccountClient:
         app_id: str,
         app_secret: str,
         tenant_id: str,
+        cloud_base_url: str = DEFAULT_CLOUD_BASE_URL,
     ) -> None:
         """Initialize the account client."""
         self._session = session
         self._base_url = base_url.rstrip("/")
+        self._cloud_base_url = cloud_base_url.rstrip("/")
         self._app_id = app_id
         self._app_secret = app_secret
         self._tenant_id = tenant_id
@@ -142,10 +194,26 @@ class AccountClient:
             async with self._session.get(
                 url, headers=headers, timeout=_REQUEST_TIMEOUT
             ) as resp:
-                return await resp.text()
+                text = await resp.text()
+                if resp.status != HTTPStatus.OK:
+                    msg = f"Account request HTTP {resp.status}"
+                    raise TclAccountError(msg)
+                return text
         except (TimeoutError, aiohttp.ClientError) as exc:
             msg = "Account request failed"
             raise TclAccountError(msg) from exc
+
+    async def _get_json_response(
+        self, url_str: str, headers: Mapping[str, str]
+    ) -> dict[str, Any]:
+        """GET a JSON response from TCL account or cloud APIs."""
+        text = await self._get_response(url_str, headers)
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            msg = "TCL response was not JSON"
+            raise TclAccountError(msg) from exc
+        return payload
 
     def _parse_token_payload(self, text: str) -> dict[str, Any]:
         try:
@@ -168,6 +236,79 @@ class AccountClient:
             refresh_token=str(payload.get("refreshToken") or ""),
             account_id=str(account_id) if account_id is not None else None,
         )
+
+    @staticmethod
+    def _cloud_bool(value: object) -> bool:
+        return str(value).lower() in {"1", "true", "yes", "on"}
+
+    def _cloud_headers(self, access_token: str) -> dict[str, str]:
+        """Build headers for TCL+ cloud account/device list requests."""
+        return {
+            "accesstoken": access_token,
+            "platform": DEFAULT_CLOUD_PLATFORM,
+            "user-agent": DEFAULT_CLOUD_USER_AGENT,
+            "apppackagename": DEFAULT_CLOUD_APP_PACKAGE,
+            "appversion": DEFAULT_CLOUD_APP_VERSION,
+            "sdkversion": DEFAULT_CLOUD_SDK_VERSION,
+            "systemversion": DEFAULT_CLOUD_SYSTEM_VERSION,
+            "brand": DEFAULT_CLOUD_BRAND,
+            "accept-encoding": "gzip",
+        }
+
+    @staticmethod
+    def _parse_cloud_device(raw: Mapping[str, Any]) -> TclCloudDevice | None:
+        device_id = raw.get("deviceId")
+        if not device_id:
+            return None
+
+        product_key = raw.get("productKey")
+        master_id = raw.get("masterId")
+        name = raw.get("nickName") or raw.get("deviceName")
+        room = raw.get("locationName")
+        mac = raw.get("mac")
+        model = raw.get("deviceType")
+        protocol = raw.get("protocol")
+        is_online = raw.get("isOnline")
+
+        return TclCloudDevice(
+            device_id=str(device_id),
+            category=str(raw.get("category") or ""),
+            product_key=str(product_key) if product_key is not None else None,
+            master_id=str(master_id) if master_id is not None else None,
+            name=str(name) if name is not None else None,
+            room=str(room) if room is not None else None,
+            mac=str(mac) if mac is not None else None,
+            model=str(model) if model is not None else None,
+            protocol=str(protocol) if protocol is not None else None,
+            is_online=(
+                AccountClient._cloud_bool(is_online)
+                if is_online is not None
+                else None
+            ),
+            energy=AccountClient._cloud_bool(raw.get("energy")),
+        )
+
+    async def async_list_devices(
+        self, access_token: str, *, category: str = "AC"
+    ) -> list[TclCloudDevice]:
+        """List TCL+ devices visible to the account."""
+        url = f"{self._cloud_base_url}/v1/tclplus/user/user_devices"
+        payload = await self._get_json_response(url, self._cloud_headers(access_token))
+        if payload.get("success") is False:
+            err = payload.get("message") or payload.get("msg") or "device list failed"
+            raise TclAccountError(str(err))
+
+        devices: list[TclCloudDevice] = []
+        for raw in payload.get("data") or []:
+            if not isinstance(raw, dict):
+                continue
+            device = self._parse_cloud_device(raw)
+            if device is None:
+                continue
+            if category and device.category != category:
+                continue
+            devices.append(device)
+        return devices
 
     async def async_refresh(self, refresh_token: str, account_id: str) -> TclTokens:
         """Exchange a refresh token for a fresh access/refresh token pair."""

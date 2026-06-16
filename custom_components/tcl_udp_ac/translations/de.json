@@ -33,7 +33,7 @@
         }
       },
       "device": {
-        "description": "Login succeeded. Enter the device TID and JIDs to enable cloud control.",
+        "description": "Login succeeded. Choose a discovered AC device. If no devices were discovered, enter the device TID and JIDs manually.",
         "data": {
           "cloud_tid": "Cloud-Geräte-TID",
           "cloud_from": "Cloud-Absender-JID",

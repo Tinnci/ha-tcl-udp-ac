@@ -13,6 +13,7 @@ from .account_client import (
     AccountClient,
     TclAccountAuthError,
     TclAccountError,
+    TclCloudDevice,
     TclTokens,
 )
 from .const import (
@@ -175,6 +176,7 @@ def _account_client(hass: Any, data: dict[str, Any]) -> AccountClient:
         app_id=data.get(CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
         app_secret=data.get(CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET),
         tenant_id=data.get(CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID),
+        cloud_base_url=data.get(CONF_CLOUD_BASE_URL, DEFAULT_CLOUD_BASE_URL),
     )
 
 
@@ -189,11 +191,70 @@ def _data_with_tokens(base: dict[str, Any], tokens: TclTokens) -> dict[str, Any]
     return data
 
 
+def _device_label(device: TclCloudDevice) -> str:
+    """Return the label shown in the discovered-device selector."""
+    label = device.title
+    details = []
+    if device.device_id:
+        details.append(device.device_id)
+    if device.product_key:
+        details.append(device.product_key)
+    if device.protocol is not None:
+        details.append(f"protocol {device.protocol}")
+    if details:
+        return f"{label} ({', '.join(details)})"
+    return label
+
+
+def _default_device_cloud_control(devices: list[TclCloudDevice]) -> bool:
+    """Return a cautious cloud-control default for discovered devices."""
+    if not devices:
+        return DEFAULT_CLOUD_CONTROL
+    return devices[0].supports_legacy_cloud_control
+
+
+def _device_select_schema(devices: list[TclCloudDevice]) -> vol.Schema:
+    """Build the post-login device selection schema."""
+    choices = {device.device_id: _device_label(device) for device in devices}
+    default_device = devices[0].device_id if devices else None
+    return vol.Schema(
+        {
+            vol.Required(CONF_CLOUD_TID, default=default_device): vol.In(choices),
+            vol.Optional(
+                CONF_CLOUD_CONTROL, default=_default_device_cloud_control(devices)
+            ): type(DEFAULT_CLOUD_CONTROL),
+            vol.Optional(
+                CONF_ENABLE_FAN_ONLY_MODE, default=DEFAULT_ENABLE_FAN_ONLY_MODE
+            ): type(DEFAULT_ENABLE_FAN_ONLY_MODE),
+            vol.Optional(
+                CONF_ENABLE_AUTO_MODE, default=DEFAULT_ENABLE_AUTO_MODE
+            ): type(DEFAULT_ENABLE_AUTO_MODE),
+        }
+    )
+
+
+def _data_with_device(
+    base: dict[str, Any],
+    device: TclCloudDevice,
+    user_input: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge discovered device metadata into config data."""
+    data = dict(base)
+    data.update(user_input)
+    data[CONF_CLOUD_TID] = device.device_id
+    data[CONF_CLOUD_FROM] = device.cloud_from_jid or DEFAULT_CLOUD_FROM
+    data[CONF_CLOUD_TO] = device.cloud_to_jid
+    if device.master_id:
+        data[CONF_ACCOUNT] = device.master_id
+    return data
+
+
 class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for TCL UDP AC."""
 
     VERSION = 1
     _basic_user_input: dict[str, Any]
+    _login_devices: list[TclCloudDevice]
     _login_tokens: TclTokens
     _sms_mobile: str
 
@@ -232,6 +293,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except TclAccountError:
                 errors["base"] = "cannot_connect"
             else:
+                await self._async_load_login_devices(account)
                 return await self.async_step_device()
 
         schema = vol.Schema(
@@ -282,6 +344,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except TclAccountError:
                 errors["base"] = "cannot_connect"
             else:
+                await self._async_load_login_devices(account)
                 return await self.async_step_device()
 
         schema = vol.Schema({vol.Required("code"): str})
@@ -296,18 +359,54 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Collect device fields after login; tokens are already obtained."""
         if user_input is not None:
             data = dict(DEFAULT_CONFIG_VALUES)
-            data.update(user_input)
+            devices = getattr(self, "_login_devices", [])
+            selected_device = next(
+                (
+                    device
+                    for device in devices
+                    if device.device_id == user_input.get(CONF_CLOUD_TID)
+                ),
+                None,
+            )
+            if selected_device is not None:
+                data = _data_with_device(data, selected_device, user_input)
+            else:
+                data.update(user_input)
             data = _data_with_tokens(data, self._login_tokens)
             unique_id = data.get(CONF_CLOUD_TID) or "tcl_udp_ac"
             await self.async_set_unique_id(str(unique_id))
             self._abort_if_unique_id_configured()
-            return self.async_create_entry(title="TCL UDP Air Conditioner", data=data)
+            title = (
+                selected_device.title
+                if selected_device is not None
+                else "TCL UDP Air Conditioner"
+            )
+            return self.async_create_entry(title=title, data=data)
+
+        devices = getattr(self, "_login_devices", [])
+        if devices:
+            return self.async_show_form(
+                step_id="device",
+                data_schema=_device_select_schema(devices),
+                errors={},
+            )
 
         return self.async_show_form(
             step_id="device",
             data_schema=_schema_for_keys(DEVICE_CONFIG_KEYS),
             errors={},
         )
+
+    async def _async_load_login_devices(self, account: AccountClient) -> None:
+        """Load account AC devices after a successful TCL+ login."""
+        try:
+            self._login_devices = await account.async_list_devices(
+                self._login_tokens.access_token
+            )
+        except TclAccountError:
+            # Device discovery is a convenience layer. Keep the login flow usable
+            # by falling back to the manual TID/JID form.
+            self._login_devices = []
 
     async def async_step_manual(
         self,

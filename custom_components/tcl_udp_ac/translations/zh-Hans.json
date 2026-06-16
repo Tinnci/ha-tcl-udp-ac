@@ -33,7 +33,7 @@
         }
       },
       "device": {
-        "description": "登录成功。输入设备 TID 与 JID 以启用云端控制。",
+        "description": "登录成功。请选择自动发现的空调设备；如果未发现设备，请手动输入设备 TID 与 JID。",
         "data": {
           "cloud_tid": "云端设备 TID",
           "cloud_from": "云端发送方 JID",
