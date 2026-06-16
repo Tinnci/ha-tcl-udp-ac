@@ -1,0 +1,57 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - "main"
+  pull_request:
+    branches:
+      - "main"
+
+permissions: {}
+
+jobs:
+  unit-tests:
+    name: "Unit tests"
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      # The suite stubs Home Assistant (see tests/ha_stubs.py), so only the
+      # runtime libraries the integration imports directly are needed.
+      - name: Install test dependencies
+        run: python3 -m pip install aiohttp cryptography yarl
+
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+
+  metrics:
+    name: "Metrics (report only)"
+    runs-on: "ubuntu-latest"
+    # Report-only: complexity/maintainability trends should never block a merge.
+    continue-on-error: true
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+          cache: "pip"
+
+      - name: Install metrics tools
+        run: python3 -m pip install radon
+
+      - name: Cyclomatic complexity
+        run: radon cc custom_components/tcl_udp_ac -s -a
+
+      - name: Maintainability index
+        run: radon mi custom_components/tcl_udp_ac -s
