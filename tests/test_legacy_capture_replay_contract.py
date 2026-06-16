@@ -20,6 +20,11 @@ class LegacyCaptureReplayContractTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        if not all(path.exists() for path in CAPTURES):
+            raise unittest.SkipTest(
+                "local capture fixtures (newly_captured/*.jsonl) are gitignored; "
+                "run locally with captures present"
+            )
         cls.summary = build_summary(CAPTURES, "2743138")
         cls.profiles = load_integration_module("protocol_profiles")
         cls.const = load_integration_module("const")
