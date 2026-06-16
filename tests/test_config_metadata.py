@@ -80,9 +80,7 @@ class ConfigMetadataTest(unittest.TestCase):
         self.assertIn("homeassistant", hacs)
 
     def test_config_fields_have_translation_labels(self) -> None:
-        translations = json.loads(
-            (TRANSLATIONS_DIR / "en.json").read_text()
-        )
+        translations = json.loads((TRANSLATIONS_DIR / "en.json").read_text())
         data = translations["config"]["step"]["manual"]["data"]
         advanced_data = translations["config"]["step"]["advanced"]["data"]
         options_data = translations["options"]["step"]["init"]["data"]
@@ -163,7 +161,9 @@ class ConfigMetadataTest(unittest.TestCase):
         self.assertFalse((ROOT / "custom_components/tcl_udp_ac/strings.json").exists())
 
     @classmethod
-    def _leaf_paths(cls, value: object, prefix: tuple[str, ...] = ()) -> set[tuple[str, ...]]:
+    def _leaf_paths(
+        cls, value: object, prefix: tuple[str, ...] = ()
+    ) -> set[tuple[str, ...]]:
         if isinstance(value, dict):
             paths: set[tuple[str, ...]] = set()
             for key, child in value.items():
@@ -178,7 +178,9 @@ class ConfigMetadataTest(unittest.TestCase):
         elif isinstance(value, str):
             self.assertNotIn("[%key:", value)
 
-    def test_backup_poll_interval_is_short_enough_for_external_state_changes(self) -> None:
+    def test_backup_poll_interval_is_short_enough_for_external_state_changes(
+        self,
+    ) -> None:
         init_text = (ROOT / "custom_components/tcl_udp_ac/__init__.py").read_text()
         match = re.search(r"SCAN_INTERVAL\s*=\s*timedelta\(minutes=(\d+)\)", init_text)
 

@@ -21,7 +21,9 @@ class FakeClient:
     async def async_set_power(self, *, power: bool) -> None:
         self.calls.append(("async_set_power", {"power": power}))
 
-    async def async_set_power_mode(self, *, power: bool, mode_str: str | None = None) -> None:
+    async def async_set_power_mode(
+        self, *, power: bool, mode_str: str | None = None
+    ) -> None:
         self.calls.append(
             ("async_set_power_mode", {"power": power, "mode_str": mode_str})
         )
@@ -144,7 +146,9 @@ class ClimateEntityTest(unittest.TestCase):
 
         self.assertEqual(entity.hvac_action, self.climate.HVACAction.OFF)
 
-    def test_legacy_profile_blocks_unsupported_auto_even_if_option_enabled(self) -> None:
+    def test_legacy_profile_blocks_unsupported_auto_even_if_option_enabled(
+        self,
+    ) -> None:
         entity = self.climate.TclUdpClimate(
             FakeCoordinator(
                 entry_data={"cloud_tid": "2743138"},
@@ -261,7 +265,9 @@ class ClimateEntityTest(unittest.TestCase):
         )
         self.assertEqual(coordinator.refresh_count, 1)
 
-    def test_set_temperature_without_current_mode_uses_temperature_service(self) -> None:
+    def test_set_temperature_without_current_mode_uses_temperature_service(
+        self,
+    ) -> None:
         coordinator = FakeCoordinator({"power": False})
         entity = self.climate.TclUdpClimate(coordinator)
 
@@ -295,7 +301,9 @@ class ClimateEntityTest(unittest.TestCase):
         )
         self.assertEqual(coordinator.refresh_count, 1)
 
-    def test_set_temperature_with_off_hvac_mode_turns_off_without_temp_write(self) -> None:
+    def test_set_temperature_with_off_hvac_mode_turns_off_without_temp_write(
+        self,
+    ) -> None:
         coordinator = FakeCoordinator({"power": True, "mode": "cool"})
         entity = self.climate.TclUdpClimate(coordinator)
 

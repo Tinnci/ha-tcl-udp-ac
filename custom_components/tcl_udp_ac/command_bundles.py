@@ -71,8 +71,7 @@ class TclCommandBundle:
             "optSolidWd": "OptSolidWd",
         }
         return [
-            (command_map.get(key, key), value)
-            for key, value in self.payload.items()
+            (command_map.get(key, key), value) for key, value in self.payload.items()
         ]
 
 

@@ -18,7 +18,9 @@ USER_DEVICES_JSONL = """
 class ControlToolTest(unittest.TestCase):
     """The harness should keep live experiments explicit and safe."""
 
-    def test_extract_device_capabilities_identifies_tsl_and_legacy_devices(self) -> None:
+    def test_extract_device_capabilities_identifies_tsl_and_legacy_devices(
+        self,
+    ) -> None:
         capabilities = test_control_api.extract_device_capabilities_from_capture_text(
             USER_DEVICES_JSONL
         )
@@ -28,12 +30,16 @@ class ControlToolTest(unittest.TestCase):
         self.assertFalse(capabilities["2743138"]["has_tsl_target_temperature"])
         self.assertIn("setTemp", capabilities["2743138"]["identifiers"])
 
-    def test_temperature_experiment_plan_refuses_unknown_tsl_write_for_legacy_tid(self) -> None:
+    def test_temperature_experiment_plan_refuses_unknown_tsl_write_for_legacy_tid(
+        self,
+    ) -> None:
         capabilities = test_control_api.extract_device_capabilities_from_capture_text(
             USER_DEVICES_JSONL
         )
 
-        plan = test_control_api.build_temperature_experiment_plan("2743138", capabilities)
+        plan = test_control_api.build_temperature_experiment_plan(
+            "2743138", capabilities
+        )
 
         self.assertEqual(plan["legacy_protocol"], "convertMqtt/setTemp")
         self.assertFalse(plan["current_device_has_tsl_target_temperature"])
@@ -48,9 +54,9 @@ class ControlToolTest(unittest.TestCase):
             dry_run=True,
         )
         calls = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_grouped_mode("fan", label_prefix="mode")
 
@@ -72,7 +78,9 @@ class ControlToolTest(unittest.TestCase):
         )
 
     def test_mode_matrix_is_available_as_named_dispatch(self) -> None:
-        self.assertEqual(test_control_api.TEST_DISPATCH["mode-matrix"], "test_mode_matrix")
+        self.assertEqual(
+            test_control_api.TEST_DISPATCH["mode-matrix"], "test_mode_matrix"
+        )
 
     def test_mode_matrix_uses_captured_profile_bundles(self) -> None:
         runner = test_control_api.TestRunner(
@@ -81,9 +89,9 @@ class ControlToolTest(unittest.TestCase):
             dry_run=True,
         )
         calls = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_mode_matrix()
 
@@ -116,10 +124,7 @@ class ControlToolTest(unittest.TestCase):
             calls,
         )
         emitted_base_modes = {
-            value
-            for _, items in calls
-            for key, value in items
-            if key == "baseMode"
+            value for _, items in calls for key, value in items if key == "baseMode"
         }
         self.assertNotIn("7", emitted_base_modes)
         self.assertNotIn("8", emitted_base_modes)
@@ -131,9 +136,9 @@ class ControlToolTest(unittest.TestCase):
             dry_run=True,
         )
         calls = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_grouped_mode("selffeel", label_prefix="mode")
 

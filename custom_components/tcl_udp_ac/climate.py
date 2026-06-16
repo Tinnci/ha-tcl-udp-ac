@@ -65,6 +65,7 @@ if TYPE_CHECKING:
 
     from .coordinator import TclUdpDataUpdateCoordinator
     from .data import TclUdpConfigEntry
+    from .protocol_profiles import DeviceCapabilities
 
 # Protocol mappings
 # Fan Speed
@@ -131,16 +132,15 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         self._attr_unique_id = self._entity_unique_id("climate")
         self._attr_hvac_modes = self._build_hvac_modes()
 
-    def _capabilities(self):
+    def _capabilities(self) -> DeviceCapabilities:
         """Return profile capabilities for this config entry."""
         entry = self.coordinator.config_entry
-        device_id = (
-            getattr(entry, "options", {}).get(CONF_CLOUD_TID)
-            or getattr(entry, "data", {}).get(CONF_CLOUD_TID)
-        )
+        device_id = getattr(entry, "options", {}).get(CONF_CLOUD_TID) or getattr(
+            entry, "data", {}
+        ).get(CONF_CLOUD_TID)
         return resolve_protocol_profile(device_id).capabilities
 
-    def _entry_option(self, key: str, default: bool) -> bool:
+    def _entry_option(self, key: str, *, default: bool) -> bool:
         """Return boolean option from config entry options or data."""
         entry = self.coordinator.config_entry
         if key in getattr(entry, "options", {}):
@@ -156,14 +156,12 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             for mode in capabilities.verified_hvac_modes
             if mode in HVAC_MODE_MAP_REV
         )
-        if (
-            TCL_MODE_FAN in capabilities.experimental_hvac_modes
-            and self._entry_option(CONF_ENABLE_FAN_ONLY_MODE, DEFAULT_ENABLE_FAN_ONLY_MODE)
+        if TCL_MODE_FAN in capabilities.experimental_hvac_modes and self._entry_option(
+            CONF_ENABLE_FAN_ONLY_MODE, default=DEFAULT_ENABLE_FAN_ONLY_MODE
         ):
             modes.append(HVACMode.FAN_ONLY)
-        if (
-            TCL_MODE_AUTO in capabilities.experimental_hvac_modes
-            and self._entry_option(CONF_ENABLE_AUTO_MODE, DEFAULT_ENABLE_AUTO_MODE)
+        if TCL_MODE_AUTO in capabilities.experimental_hvac_modes and self._entry_option(
+            CONF_ENABLE_AUTO_MODE, default=DEFAULT_ENABLE_AUTO_MODE
         ):
             modes.append(HVACMode.AUTO)
         return modes
@@ -288,7 +286,9 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                 return
 
             target_temperature = (
-                float(temperature) if temperature is not None else self.target_temperature
+                float(temperature)
+                if temperature is not None
+                else self.target_temperature
             )
             await client.async_set_mode_profile(
                 udp_mode,

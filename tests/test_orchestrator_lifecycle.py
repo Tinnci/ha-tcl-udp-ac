@@ -195,7 +195,9 @@ class SensorUnitTest(unittest.TestCase):
 
         entity = sensor_mod.TclUdpOutdoorTempSensor(coordinator)
 
-        self.assertEqual(entity._attr_native_unit_of_measurement, const.UnitOfTemperature.CELSIUS)
+        self.assertEqual(
+            entity._attr_native_unit_of_measurement, const.UnitOfTemperature.CELSIUS
+        )
         self.assertEqual(entity.native_value, 30.0)
 
 

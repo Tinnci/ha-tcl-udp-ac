@@ -144,7 +144,7 @@ class UdpClient:
         """Get the last received status."""
         return self._last_status
 
-    def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:  # noqa: PLR0912, PLR0915
+    def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle incoming status update from device."""
         try:
             message = data.decode("utf-8")
@@ -281,7 +281,7 @@ class UdpClient:
         if val is not None:
             status[status_key] = val.lower() == "on" or val == "1"
 
-    def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:  # noqa: C901, PLR0912, PLR0915
+    def _parse_status(self, status_msg: ET.Element) -> dict[str, Any]:  # noqa: C901
         """Parse status message XML, supporting multiple formats."""
         status: dict[str, Any] = {}
         parsed_tags = set()

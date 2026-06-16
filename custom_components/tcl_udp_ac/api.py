@@ -133,7 +133,7 @@ class CloudClient:
 
     _HALF_C_IN_F = 0.5 * 9 / 5
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         session: aiohttp.ClientSession | None,
         *,
@@ -232,9 +232,7 @@ class CloudClient:
     def _celsius_to_fahrenheit(temp_c: float) -> float:
         return temp_c * 1.8 + 32.0
 
-    def _parse_cloud_status(  # noqa: PLR0912, PLR0915
-        self, cur_status: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
         status: dict[str, Any] = {}
 
         power = self._cloud_bool(cur_status.get("turnOn"))
@@ -402,9 +400,7 @@ class CloudClient:
             items.append(("DegreeH", str(degree_half)))
         return await self.async_send_commands(items, seq)
 
-    def _map_cloud_item(
-        self, command: str, value: str
-    ) -> tuple[str, str] | None:
+    def _map_cloud_item(self, command: str, value: str) -> tuple[str, str] | None:
         """Map a HA-style command/value to cloud tag/value."""
         tag_map = {
             "TurnOn": "turnOn",
@@ -549,7 +545,7 @@ class TclUdpApiClient:
 
     _HALF_C_IN_F = 0.5 * 9 / 5
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         action_jid: str = "homeassistant@tcl.com/ha-plugin",
         action_source: str = "1",

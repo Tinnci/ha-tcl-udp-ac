@@ -8,12 +8,88 @@ select = [
     "ALL",
 ]
 
+# Mirrors the Home Assistant core ignore list (rules HA disables project-wide,
+# e.g. because the formatter owns them or they are too opinionated), plus the
+# formatter-conflict rules from the integration_blueprint template.
 ignore = [
-    "ANN401", # Dynamically typed expressions (typing.Any) are disallowed
-    "D203", # no-blank-line-before-class (incompatible with formatter)
-    "D212", # multi-line-summary-first-line (incompatible with formatter)
-    "COM812", # incompatible with formatter
-    "ISC001", # incompatible with formatter
+    "ANN401",   # Dynamically typed expressions (typing.Any) are disallowed
+    "ASYNC109", # Async function definition with a timeout parameter
+    "ASYNC110", # Use `asyncio.Event` instead of sleep in a `while` loop
+    "ASYNC240", # Use of os.* in async functions
+    "B008",     # Do not perform function call in argument defaults
+    "B019",     # Use of functools.lru_cache on methods can leak memory
+    "COM812",   # incompatible with formatter
+    "COM819",   # incompatible with formatter
+    "D202",     # No blank lines allowed after function docstring
+    "D203",     # no-blank-line-before-class (incompatible with formatter)
+    "D206",     # incompatible with formatter
+    "D212",     # multi-line-summary-first-line (incompatible with formatter)
+    "D213",     # Multi-line docstring summary should start at the second line
+    "D300",     # incompatible with formatter
+    "D406",     # Section name should end with a newline
+    "D407",     # Section name underlining
+    "D417",     # Missing argument descriptions in the docstring
+    "E111",     # indentation (incompatible with formatter)
+    "E114",     # indentation (incompatible with formatter)
+    "E117",     # over-indented (incompatible with formatter)
+    "E501",     # line too long (the formatter owns line length)
+    "FURB116",  # f-string number conversion
+    "ISC001",   # incompatible with formatter
+    "PLC1901",  # nb: my-string == "" can be simplified
+    "PLE0605",  # Invalid format for __all__
+    "PLR0911",  # Too many return statements
+    "PLR0912",  # Too many branches
+    "PLR0913",  # Too many arguments in function definition
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic value used in comparison
+    "PLW0108",  # Lambda may be unnecessary
+    "PLW1641",  # __eq__ without __hash__
+    "PLW2901",  # Outer loop variable overwritten by inner assignment
+    "PT011",    # pytest.raises is too broad
+    "PT018",    # Assertion should be broken down into multiple parts
+    "Q",        # flake8-quotes (the formatter owns quoting)
+    "RUF001",   # String contains ambiguous unicode character
+    "RUF012",   # Mutable class attributes should be annotated with ClassVar
+    "RUF015",   # Prefer next(...) over single element slice
+    "RUF043",   # Pattern passed to match= contains metacharacters
+    "SIM102",   # Use a single if statement instead of nested if
+    "SIM103",   # Return the negated condition directly
+    "SIM108",   # Use ternary operator instead of if-else block
+    "SIM115",   # Use a context manager for opening files
+    "TC001",    # Move application import into a type-checking block
+    "TC002",    # Move third-party import into a type-checking block
+    "TC003",    # Move standard library import into a type-checking block
+    "TC006",    # Add quotes to type expression in typing.cast()
+    "TRY003",   # Avoid specifying long messages outside the exception class
+    "TRY400",   # Use logging.exception instead of logging.error
+    "UP047",    # Generic function should use type parameters
+    "UP049",    # Avoid private type parameter names
+    "W191",     # indentation contains tabs (incompatible with formatter)
+]
+
+[lint.per-file-ignores]
+# This integration is unit-tested with the standard library ``unittest`` plus a
+# minimal Home Assistant stub module loader (see ``tests/ha_stubs.py`` and
+# ``tests/test_protocol_commands.load_integration_module``), so pytest-style,
+# docstring, and annotation rules do not apply to the test suite.
+"tests/**" = [
+    "S101",    # asserts are the substance of unit tests
+    "S105",    # fake tokens in fixtures, not real secrets
+    "S106",    # fake passwords in fixtures, not real secrets
+    "S314",    # parsing trusted in-repo XML capture fixtures
+    "SLF001",  # tests deliberately assert on private internals
+    "PT",      # repo uses stdlib unittest, not pytest style
+    "D",       # test methods/classes are self-describing
+    "ANN",     # type annotations are not required in tests
+    "ARG",     # fakes accept unused args to match real signatures
+    "N818",    # test-only helper exception class names
+    "RUF059",  # unused unpacked variables in destructuring helpers
+    "PLC0415", # late imports inside the HA-stub module loader
+    "E402",    # HA stubs are installed before integration imports
+    "EM101",   # inline exception messages are fine in tests
+    "PYI034",  # __aenter__ return typing in fake async context managers
+    "UP037",   # quoted annotations in fakes
+    "W291",    # raw capture fixtures may embed trailing whitespace
 ]
 
 [lint.flake8-pytest-style]

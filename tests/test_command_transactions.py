@@ -31,7 +31,9 @@ class CommandTransactionTest(unittest.TestCase):
             status_after={"turnOn": "1", "baseMode": "0"},
         )
 
-        self.assertEqual(result.outcome, self.command_bundles.TransactionOutcome.APPLIED)
+        self.assertEqual(
+            result.outcome, self.command_bundles.TransactionOutcome.APPLIED
+        )
         self.assertEqual(result.matches, {"turnOn": "1", "baseMode": "0"})
         self.assertEqual(result.mismatches, {})
 

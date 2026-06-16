@@ -54,7 +54,7 @@ class FakeAccountClient:
         self._error = error
         self.called = False
 
-    async def async_refresh(self, refresh_token, account_id):  # noqa: ARG002
+    async def async_refresh(self, refresh_token, account_id):
         self.called = True
         if self._error:
             raise self._error
@@ -68,7 +68,7 @@ def _build_manager(entry_data, account_client):
     client = FakeClient()
     tm = mod.TokenManager(hass=hass, entry=entry, client=client, session=object())
     # Inject the fake account client.
-    tm._account_client = lambda: account_client  # noqa: SLF001
+    tm._account_client = lambda: account_client
     return mod, tm, hass, entry, client
 
 

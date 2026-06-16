@@ -38,7 +38,7 @@ class FakeSession:
         self.token_response: str | None = None
         self.sms_response = '{"status":"SUCCESS","data":{"key":"x"}}'
 
-    def get(self, url, headers=None, timeout=None):  # noqa: ARG002
+    def get(self, url, headers=None, timeout=None):
         url_str = str(url)
         self.get_calls.append({"url": url_str, "headers": headers or {}})
         if "publicKey" in url_str:
@@ -48,7 +48,7 @@ class FakeSession:
         # refershToken
         return FakeResponse(self.token_response or "{}")
 
-    def post(self, url, data=None, headers=None, timeout=None):  # noqa: ARG002
+    def post(self, url, data=None, headers=None, timeout=None):
         self.post_calls.append(
             {"url": str(url), "data": data, "headers": headers or {}}
         )

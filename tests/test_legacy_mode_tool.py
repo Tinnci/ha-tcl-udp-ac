@@ -31,9 +31,9 @@ class LegacyModeToolTest(unittest.TestCase):
     def test_dry_run_matrix_emits_captured_profiles(self) -> None:
         runner = self._runner()
         calls: list[tuple[str, list[tuple[str, str]]]] = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_mode_matrix()
 
@@ -54,15 +54,17 @@ class LegacyModeToolTest(unittest.TestCase):
     def test_auto_is_reported_unsupported_without_payload(self) -> None:
         runner = self._runner()
         calls: list[tuple[str, list[tuple[str, str]]]] = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_grouped_mode("auto", label_prefix="mode")
 
         self.assertEqual(calls, [])
 
-    def test_dry_run_output_names_capture_profiles_and_temperature_experiment(self) -> None:
+    def test_dry_run_output_names_capture_profiles_and_temperature_experiment(
+        self,
+    ) -> None:
         runner = self._runner()
         stream = io.StringIO()
         with redirect_stdout(stream):
@@ -76,9 +78,9 @@ class LegacyModeToolTest(unittest.TestCase):
     def test_temperature_matrix_dry_run_prints_contextual_candidates(self) -> None:
         runner = self._runner()
         calls: list[tuple[str, list[tuple[str, str]]]] = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_temperature_matrix(temp_f=75, degree_h="0")
 
@@ -95,16 +97,20 @@ class LegacyModeToolTest(unittest.TestCase):
             ],
         )
         payloads = {label: dict(items) for label, items in calls}
-        self.assertEqual(payloads["temp-matrix-A-field-only"], {"setTemp": "75", "degreeH": "0"})
+        self.assertEqual(
+            payloads["temp-matrix-A-field-only"], {"setTemp": "75", "degreeH": "0"}
+        )
         self.assertEqual(payloads["temp-matrix-C-mode-temp"]["baseMode"], "1")
-        self.assertEqual(payloads["temp-matrix-F-mode-temp-super-clear"]["optSuper"], "0")
+        self.assertEqual(
+            payloads["temp-matrix-F-mode-temp-super-clear"]["optSuper"], "0"
+        )
 
     def test_temperature_matrix_accepts_forced_mode_context(self) -> None:
         runner = self._runner()
         calls: list[tuple[str, list[tuple[str, str]]]] = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_temperature_matrix(temp_f=75, degree_h="0", mode="heat")
 
@@ -114,9 +120,9 @@ class LegacyModeToolTest(unittest.TestCase):
     def test_temperature_matrix_can_run_single_candidate(self) -> None:
         runner = self._runner()
         calls: list[tuple[str, list[tuple[str, str]]]] = []
-        runner.cloud_control = lambda items, label="control": calls.append(
-            (label, items)
-        ) or True
+        runner.cloud_control = lambda items, label="control": (
+            calls.append((label, items)) or True
+        )
 
         runner.test_temperature_matrix(
             temp_f=77,

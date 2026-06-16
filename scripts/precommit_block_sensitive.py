@@ -7,9 +7,7 @@ import re
 import sys
 from pathlib import Path
 
-JWT_RE = re.compile(
-    r"eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}"
-)
+JWT_RE = re.compile(r"eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}")
 ACCESS_TOKEN_RE = re.compile(
     r"\baccess?token\b\s*[:=]\s*['\"]?[^'\"\s]{16,}", re.IGNORECASE
 )

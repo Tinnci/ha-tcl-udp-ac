@@ -32,7 +32,9 @@ class LegacyModeCaptureAnalysisTest(unittest.TestCase):
         self.assertGreater(len(self.summary["observedCommands"]), 10)
 
     def test_fan_candidate_uses_base_mode_zero(self) -> None:
-        profiles = {profile["mode"]: profile for profile in self.summary["inferredProfiles"]}
+        profiles = {
+            profile["mode"]: profile for profile in self.summary["inferredProfiles"]
+        }
 
         self.assertEqual(profiles["fan_only"]["payload"]["baseMode"], "0")
         self.assertTrue(profiles["fan_only"]["source_lines"])
@@ -44,13 +46,17 @@ class LegacyModeCaptureAnalysisTest(unittest.TestCase):
         self.assertNotIn("8", supported_modes)
 
     def test_dry_candidate_uses_base_mode_two(self) -> None:
-        profiles = {profile["mode"]: profile for profile in self.summary["inferredProfiles"]}
+        profiles = {
+            profile["mode"]: profile for profile in self.summary["inferredProfiles"]
+        }
 
         self.assertEqual(profiles["dry"]["payload"]["baseMode"], "2")
         self.assertIn("setTemp", profiles["dry"]["payload"])
 
     def test_cool_and_heat_candidates_use_current_mode_numbers(self) -> None:
-        profiles = {profile["mode"]: profile for profile in self.summary["inferredProfiles"]}
+        profiles = {
+            profile["mode"]: profile for profile in self.summary["inferredProfiles"]
+        }
 
         self.assertEqual(profiles["cool"]["payload"]["baseMode"], "1")
         self.assertEqual(profiles["heat"]["payload"]["baseMode"], "4")

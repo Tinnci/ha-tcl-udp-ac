@@ -272,7 +272,8 @@ async def async_setup_entry(
         await coordinator.async_config_entry_first_refresh()
     except TclUdpApiClientCommunicationError as exception:
         await client.async_close()
-        raise ConfigEntryNotReady("TCL UDP listener is not ready") from exception
+        msg = "TCL UDP listener is not ready"
+        raise ConfigEntryNotReady(msg) from exception
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))

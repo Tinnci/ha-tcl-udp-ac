@@ -117,7 +117,7 @@ class ProtocolProfile:
         self,
         mode: str,
         *,
-        target_temperature: float | None = None,
+        target_temperature: float | None = None,  # noqa: ARG002  # interface parity
     ) -> TclCommandBundle:
         """Build a mode command bundle for the profile."""
         base_mode = {
@@ -128,7 +128,8 @@ class ProtocolProfile:
             MODE_AUTO: "8",
         }.get(mode)
         if base_mode is None:
-            raise UnsupportedModeError(f"Unsupported mode: {mode}")
+            msg = f"Unsupported mode: {mode}"
+            raise UnsupportedModeError(msg)
         return TclCommandBundle(
             intent=f"mode:{mode}",
             payload={"turnOn": "1", "baseMode": base_mode},
@@ -145,7 +146,7 @@ class ProtocolProfile:
         self,
         target_temperature: float,
         *,
-        current_mode: str | None = None,
+        current_mode: str | None = None,  # noqa: ARG002  # interface parity
     ) -> TclCommandBundle:
         """Build a target-temperature command bundle for the profile."""
         set_temp, degree_h = LegacyTemperatureCodec.encode(
@@ -205,6 +206,7 @@ class Legacy2743138Profile(ProtocolProfile):
     """Capture-derived profile for legacy TCL device 2743138."""
 
     def __init__(self, device_id: str | None = "2743138") -> None:
+        """Initialize the legacy 2743138 capture-derived profile."""
         super().__init__(
             device_id=device_id,
             name="legacy_2743138",
@@ -230,9 +232,8 @@ class Legacy2743138Profile(ProtocolProfile):
     ) -> TclCommandBundle:
         """Build a capture-derived legacy mode command bundle."""
         if mode == MODE_AUTO:
-            raise UnsupportedModeError(
-                "Auto/AI is not capture-supported for legacy device 2743138."
-            )
+            msg = "Auto/AI is not capture-supported for legacy device 2743138."
+            raise UnsupportedModeError(msg)
 
         if mode == MODE_FAN:
             payload = {
@@ -295,7 +296,8 @@ class Legacy2743138Profile(ProtocolProfile):
                 expected_status={"power": True, "mode": mode},
             )
 
-        raise UnsupportedModeError(f"Unsupported legacy mode: {mode}")
+        msg = f"Unsupported legacy mode: {mode}"
+        raise UnsupportedModeError(msg)
 
     def parse_base_mode(self, base_mode: Any) -> str | None:
         """Parse legacy status baseMode values."""
@@ -320,9 +322,8 @@ class Legacy2743138Profile(ProtocolProfile):
         command from dry/fan/unknown contexts.
         """
         if current_mode not in {MODE_COOL, MODE_HEAT}:
-            raise UnsupportedModeError(
-                "Legacy temperature writes require a known cool or heat context."
-            )
+            msg = "Legacy temperature writes require a known cool or heat context."
+            raise UnsupportedModeError(msg)
         set_temp, degree_h = LegacyTemperatureCodec.encode(
             target_temperature,
             fallback_celsius=target_temperature,

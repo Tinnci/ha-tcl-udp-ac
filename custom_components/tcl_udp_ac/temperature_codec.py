@@ -27,7 +27,9 @@ class LegacyTemperatureCodec:
         return cls.MIN_CELSIUS <= float(temp_c) <= cls.MAX_CELSIUS
 
     @classmethod
-    def encode(cls, temp_c: float | None, *, fallback_celsius: float) -> tuple[str, str]:
+    def encode(
+        cls, temp_c: float | None, *, fallback_celsius: float
+    ) -> tuple[str, str]:
         """Encode a Celsius target, using fallback when target is missing/invalid."""
         target = float(temp_c) if cls.is_valid_celsius(temp_c) else fallback_celsius
         desired_c_rounded = round(target * 2) / 2

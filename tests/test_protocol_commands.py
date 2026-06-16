@@ -86,14 +86,22 @@ class CloudProtocolMappingTest(unittest.TestCase):
         )
 
     def test_heat_mode_maps_to_captured_base_mode_value(self) -> None:
-        self.assertEqual(self.client._map_cloud_item("BaseMode", "heat"), ("baseMode", "4"))
+        self.assertEqual(
+            self.client._map_cloud_item("BaseMode", "heat"), ("baseMode", "4")
+        )
 
     def test_sleep_mode_switch_uses_numeric_cloud_value(self) -> None:
-        self.assertEqual(self.client._map_cloud_item("Opt_sleepMode", "on"), ("optSleepMd", "1"))
-        self.assertEqual(self.client._map_cloud_item("Opt_sleepMode", "off"), ("optSleepMd", "0"))
+        self.assertEqual(
+            self.client._map_cloud_item("Opt_sleepMode", "on"), ("optSleepMd", "1")
+        )
+        self.assertEqual(
+            self.client._map_cloud_item("Opt_sleepMode", "off"), ("optSleepMd", "0")
+        )
 
     def test_solid_wind_can_be_cleared_with_swing_commands(self) -> None:
-        self.assertEqual(self.client._map_cloud_item("OptSolidWd", "off"), ("optSolidWd", "0"))
+        self.assertEqual(
+            self.client._map_cloud_item("OptSolidWd", "off"), ("optSolidWd", "0")
+        )
 
 
 class EntityCommandTest(unittest.TestCase):
@@ -135,11 +143,13 @@ class EntityCommandTest(unittest.TestCase):
 
         self.assertEqual(
             calls,
-            [[
-                ("WindDirection_V", "on"),
-                ("WindDirection_H", "off"),
-                ("OptSolidWd", "off"),
-            ]],
+            [
+                [
+                    ("WindDirection_V", "on"),
+                    ("WindDirection_H", "off"),
+                    ("OptSolidWd", "off"),
+                ]
+            ],
         )
 
     def test_power_off_uses_app_shutdown_group(self) -> None:
@@ -155,14 +165,16 @@ class EntityCommandTest(unittest.TestCase):
 
         self.assertEqual(
             calls,
-            [[
-                ("Opt_sleepMode", "0"),
-                ("Opt_ECO", "0"),
-                ("OptHealthy", "0"),
-                ("Opt_super", "0"),
-                ("OptHeat", "0"),
-                ("TurnOn", "0"),
-            ]],
+            [
+                [
+                    ("Opt_sleepMode", "0"),
+                    ("Opt_ECO", "0"),
+                    ("OptHealthy", "0"),
+                    ("Opt_super", "0"),
+                    ("OptHeat", "0"),
+                    ("TurnOn", "0"),
+                ]
+            ],
         )
 
 

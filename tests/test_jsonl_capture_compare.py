@@ -150,9 +150,7 @@ def test_header_sets_differ_between_get_and_post() -> None:
     post_headers = find_entries(entries, "POST", "/v1/control/convertMqtt/")[0][
         "headers"
     ]
-    get_headers = find_entries(entries, "GET", "/device/getdevicestatus")[0][
-        "headers"
-    ]
+    get_headers = find_entries(entries, "GET", "/device/getdevicestatus")[0]["headers"]
 
     assert "platform" in post_headers
     assert "apppackagename" in post_headers

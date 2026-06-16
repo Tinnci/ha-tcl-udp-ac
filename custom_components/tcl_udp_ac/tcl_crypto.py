@@ -75,7 +75,7 @@ def decode_jwt_claims(token: str) -> dict:
     signature (the server does that).
     """
     parts = token.split(".")
-    if len(parts) < 2:  # noqa: PLR2004
+    if len(parts) < 2:
         return {}
     payload = parts[1]
     payload += "=" * (-len(payload) % 4)

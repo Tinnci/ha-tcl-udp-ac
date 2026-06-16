@@ -1,4 +1,3 @@
-# ruff: noqa: S101, PLR2004, S314, SLF001
 """Temperature unit tests for Home Assistant-facing climate behavior."""
 
 from __future__ import annotations

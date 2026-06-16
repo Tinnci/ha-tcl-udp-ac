@@ -29,10 +29,9 @@ async def async_setup_entry(
     """Set up the switch platform."""
     coordinator = entry.runtime_data.coordinator
     config_entry = coordinator.config_entry
-    device_id = (
-        getattr(config_entry, "options", {}).get(CONF_CLOUD_TID)
-        or getattr(config_entry, "data", {}).get(CONF_CLOUD_TID)
-    )
+    device_id = getattr(config_entry, "options", {}).get(CONF_CLOUD_TID) or getattr(
+        config_entry, "data", {}
+    ).get(CONF_CLOUD_TID)
     capabilities = resolve_protocol_profile(device_id).capabilities
     async_add_entities(
         [
@@ -45,13 +44,14 @@ async def async_setup_entry(
 class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     """TCL UDP Switch class."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         coordinator: TclUdpDataUpdateCoordinator,
         capability_or_api_key: SwitchCapability | str,
         data_key: str | None = None,
         _name: str | None = None,
         icon: str | None = None,
+        *,
         category: EntityCategory | None = None,
         available_modes: set[str] | None = None,
         requires_power: bool = False,
@@ -62,7 +62,8 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
             capability = capability_or_api_key
         else:
             if data_key is None or icon is None:
-                raise ValueError("data_key and icon are required for switch capability")
+                msg = "data_key and icon are required for switch capability"
+                raise ValueError(msg)
             capability = SwitchCapability(
                 api_key=capability_or_api_key,
                 data_key=data_key,
@@ -119,16 +120,15 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
         if not self.available:
-            raise HomeAssistantError(
-                f"{self._attr_name} is not available in the current HVAC mode"
-            )
+            msg = f"{self._attr_name} is not available in the current HVAC mode"
+            raise HomeAssistantError(msg)
         log_info(
             LOGGER,
             "entity_switch_turn_on",
             entity=self.entity_id,
             key=self._key,
         )
-        await self._async_set_enabled(True)
+        await self._async_set_enabled(enabled=True)
 
     async def async_turn_off(self, **_kwargs: Any) -> None:
         """Turn the switch off."""
@@ -138,9 +138,9 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
             entity=self.entity_id,
             key=self._key,
         )
-        await self._async_set_enabled(False)
+        await self._async_set_enabled(enabled=False)
 
-    async def _async_set_enabled(self, enabled: bool) -> None:
+    async def _async_set_enabled(self, *, enabled: bool) -> None:
         """Route switch actions to the matching client setter."""
         client = self.coordinator.config_entry.runtime_data.client
         method_name = f"async_set_{self._data_key}"

@@ -40,7 +40,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             status = client.get_last_status()
 
         if not status:
-            raise UpdateFailed("No status received from TCL UDP AC")
+            msg = "No status received from TCL UDP AC"
+            raise UpdateFailed(msg)
         return status
 
     async def async_handle_status_update(self, status: dict[str, Any]) -> None:
