@@ -8,6 +8,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+MANIFEST_PATH = ROOT / "custom_components/tcl_udp_ac/manifest.json"
+HACS_PATH = ROOT / "hacs.json"
+README_PATH = ROOT / "README.md"
+CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 TRANSLATIONS_DIR = ROOT / "custom_components/tcl_udp_ac/translations"
 PRIMARY_TRANSLATION_LANGUAGES = {
     "de",
@@ -64,20 +68,30 @@ class ConfigMetadataTest(unittest.TestCase):
     """Home Assistant metadata should be explicit and setup UI should be labeled."""
 
     def test_manifest_declares_device_integration_type(self) -> None:
-        manifest = json.loads(
-            (ROOT / "custom_components/tcl_udp_ac/manifest.json").read_text()
-        )
+        manifest = json.loads(MANIFEST_PATH.read_text())
 
         self.assertEqual(manifest["domain"], "tcl_udp_ac")
         self.assertEqual(manifest["integration_type"], "device")
         self.assertEqual(manifest["iot_class"], "local_push")
         self.assertTrue(manifest["config_flow"])
+        self.assertRegex(manifest["version"], r"^\d+\.\d+\.\d+$")
 
     def test_hacs_metadata_exists(self) -> None:
-        hacs = json.loads((ROOT / "hacs.json").read_text())
+        hacs = json.loads(HACS_PATH.read_text())
 
         self.assertEqual(hacs["name"], "TCL UDP Air Conditioner")
+        self.assertFalse(hacs["content_in_root"])
+        self.assertIn("hacs", hacs)
         self.assertIn("homeassistant", hacs)
+
+    def test_release_version_is_consistent_across_user_facing_metadata(self) -> None:
+        manifest = json.loads(MANIFEST_PATH.read_text())
+        version = manifest["version"]
+        readme = README_PATH.read_text()
+        changelog = CHANGELOG_PATH.read_text()
+
+        self.assertIn(f"version-{version}-blue", readme)
+        self.assertIn(f"## {version}", changelog)
 
     def test_config_fields_have_translation_labels(self) -> None:
         translations = json.loads((TRANSLATIONS_DIR / "en.json").read_text())

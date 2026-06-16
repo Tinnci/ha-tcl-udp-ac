@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.2.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -40,10 +40,23 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 5. Click **Add**, then find "TCL UDP Air Conditioner" in the list and install it.
 6. Restart Home Assistant.
 
+### Updating with HACS
+
+1. Open **HACS** in Home Assistant.
+2. Go to **Integrations** and open **TCL UDP Air Conditioner**.
+3. Install the latest released version.
+4. Restart Home Assistant when HACS prompts for it.
+
 ### Option 2: Manual Installation
 
 1. Download the `custom_components/tcl_udp_ac` folder from this repository.
 2. Copy it to your Home Assistant's `config/custom_components/` directory.
+3. Restart Home Assistant.
+
+### Removing the Integration
+
+1. Remove the integration from **Settings** > **Devices & Services**.
+2. Delete `custom_components/tcl_udp_ac` from your Home Assistant config folder.
 3. Restart Home Assistant.
 
 ## ⚙️ Configuration
