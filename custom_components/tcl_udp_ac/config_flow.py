@@ -39,6 +39,7 @@ from .const import (
     CONF_CLOUD_FROM,
     CONF_CLOUD_ORIGIN,
     CONF_CLOUD_PLATFORM,
+    CONF_CLOUD_PRODUCT_KEY,
     CONF_CLOUD_REFRESH_TOKEN,
     CONF_CLOUD_SDK_VERSION,
     CONF_CLOUD_SYSTEM_VERSION,
@@ -130,6 +131,9 @@ BASIC_CONFIG_KEYS = (
 )
 ADVANCED_CONFIG_KEYS = tuple(
     key for key in DEFAULT_CONFIG_VALUES if key not in BASIC_CONFIG_KEYS
+)
+OPTIONS_CONFIG_KEYS = tuple(
+    key for key in DEFAULT_CONFIG_VALUES if key != CONF_CLOUD_TOKEN
 )
 
 # Device fields collected after a successful login (tokens are auto-filled).
@@ -244,6 +248,8 @@ def _data_with_device(
     data[CONF_CLOUD_TID] = device.device_id
     data[CONF_CLOUD_FROM] = device.cloud_from_jid or DEFAULT_CLOUD_FROM
     data[CONF_CLOUD_TO] = device.cloud_to_jid
+    if device.product_key:
+        data[CONF_CLOUD_PRODUCT_KEY] = device.product_key
     if device.master_id:
         data[CONF_ACCOUNT] = device.master_id
     return data
@@ -511,5 +517,5 @@ class TclUdpOptionsFlowHandler(config_entries.OptionsFlow):
         values = _entry_values(self.config_entry)
         return self.async_show_form(
             step_id="init",
-            data_schema=_schema_for_keys(tuple(DEFAULT_CONFIG_VALUES), values),
+            data_schema=_schema_for_keys(OPTIONS_CONFIG_KEYS, values),
         )

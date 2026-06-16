@@ -97,6 +97,15 @@ async def async_setup_entry(
     async_add_entities([TclUdpClimate(entry.runtime_data.coordinator)])
 
 
+async def _async_after_command(coordinator: TclUdpDataUpdateCoordinator) -> None:
+    """Confirm command application when the coordinator supports it."""
+    confirm = getattr(coordinator, "async_confirm_pending_command", None)
+    if confirm is not None:
+        await confirm()
+        return
+    await coordinator.async_request_refresh()
+
+
 class TclUdpClimate(TclUdpEntity, ClimateEntity):
     """TCL UDP AC Climate entity."""
 
@@ -278,7 +287,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
             if ha_mode == HVACMode.OFF:
                 await client.async_set_power(power=False)
-                await self.coordinator.async_request_refresh()
+                await _async_after_command(self.coordinator)
                 return
 
             udp_mode = HVAC_MODE_MAP.get(ha_mode)
@@ -294,7 +303,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                 udp_mode,
                 target_temperature=target_temperature,
             )
-            await self.coordinator.async_request_refresh()
+            await _async_after_command(self.coordinator)
             return
 
         if temperature is not None:
@@ -310,11 +319,11 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                     udp_mode,
                     target_temperature=float(temperature),
                 )
-                await self.coordinator.async_request_refresh()
+                await _async_after_command(self.coordinator)
                 return
 
             await client.async_set_temperature(float(temperature))
-            await self.coordinator.async_request_refresh()
+            await _async_after_command(self.coordinator)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
@@ -338,7 +347,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                     target_temperature=self.target_temperature,
                 )
 
-        await self.coordinator.async_request_refresh()
+        await _async_after_command(self.coordinator)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new fan mode."""
@@ -353,7 +362,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         speed_val = FAN_MODE_MAP.get(fan_mode)
         if speed_val is not None:
             await client.async_set_fan_speed(speed_val)
-            await self.coordinator.async_request_refresh()
+            await _async_after_command(self.coordinator)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new swing mode."""
@@ -369,7 +378,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         horizontal = swing_mode in (SWING_HORIZONTAL, SWING_BOTH)
 
         await client.async_set_swing(vertical=vertical, horizontal=horizontal)
-        await self.coordinator.async_request_refresh()
+        await _async_after_command(self.coordinator)
 
     async def async_turn_on(self) -> None:
         """Turn on the AC."""

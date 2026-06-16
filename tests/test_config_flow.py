@@ -64,6 +64,7 @@ class ConfigFlowTest(unittest.TestCase):
             "45816970@tcl.com/AC-linux-zx01-1",
         )
         self.assertEqual(data[self.config_flow.CONF_ACCOUNT], "14427826")
+        self.assertEqual(data[self.config_flow.CONF_CLOUD_PRODUCT_KEY], "1112013595N")
         self.assertEqual(data[self.config_flow.CONF_CLOUD_TOKEN], "access.jwt.sig")
         self.assertEqual(
             data[self.config_flow.CONF_CLOUD_REFRESH_TOKEN], "refresh.jwt.sig"

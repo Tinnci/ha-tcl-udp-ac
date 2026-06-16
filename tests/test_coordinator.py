@@ -17,6 +17,7 @@ class FakeClient:
 
     def __init__(self, *, cloud_enabled: bool = True, fail_udp: bool = False) -> None:
         self.cloud_enabled = cloud_enabled
+        self.cloud_statistics_enabled = False
         self.fail_udp = fail_udp
         self.calls = []
         self.last_status = {"power": False, "target_temp": 23.0}
@@ -30,6 +31,15 @@ class FakeClient:
         self.calls.append("async_fetch_cloud_status")
         self.last_status = {"power": True, "target_temp": 24.0}
         return self.last_status
+
+    async def async_fetch_cloud_energy_statistics(self) -> dict | None:
+        self.calls.append("async_fetch_cloud_energy_statistics")
+        return {
+            "energy_kwh": 3.4,
+            "running_hours": 163.3,
+            "period_start": "2026-06-01",
+            "period_end": "2026-06-30",
+        }
 
     def get_last_status(self) -> dict:
         self.calls.append("get_last_status")
@@ -81,6 +91,25 @@ class CoordinatorTest(unittest.TestCase):
             ["async_request_status", "async_fetch_cloud_status", "get_last_status"],
         )
         self.assertEqual(result, {"power": True, "target_temp": 24.0})
+
+    def test_update_includes_cloud_statistics_when_enabled(self) -> None:
+        client = FakeClient(cloud_enabled=True)
+        client.cloud_statistics_enabled = True
+        coordinator = self.make_coordinator(client)
+
+        result = asyncio.run(coordinator._async_update_data())
+
+        self.assertEqual(
+            client.calls,
+            [
+                "async_request_status",
+                "async_fetch_cloud_status",
+                "get_last_status",
+                "async_fetch_cloud_energy_statistics",
+            ],
+        )
+        self.assertEqual(result["energy_statistics"]["energy_kwh"], 3.4)
+        self.assertEqual(result["energy_statistics"]["running_hours"], 163.3)
 
 
 if __name__ == "__main__":

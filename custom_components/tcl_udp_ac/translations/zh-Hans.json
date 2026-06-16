@@ -102,6 +102,12 @@
       "reauth_successful": "重新认证成功。"
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "TCL 空调命令未确认",
+      "description": "Home Assistant 已向 TCL 空调发送命令，但设备没有在确认超时时间内上报预期状态。请检查本地 UDP 连通性、TCL+ 云端回退以及此型号是否支持该命令。"
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "室外温度"
+      },
+      "current_month_energy": {
+        "name": "本月用电量"
+      },
+      "current_month_runtime": {
+        "name": "本月运行时长"
       }
     },
     "switch": {

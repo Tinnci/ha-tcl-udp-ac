@@ -108,7 +108,9 @@ class ConfigMetadataTest(unittest.TestCase):
 
         self.assertIn("BASIC_CONFIG_KEYS", config_flow)
         self.assertIn("ADVANCED_CONFIG_KEYS", config_flow)
+        self.assertIn("OPTIONS_CONFIG_KEYS", config_flow)
         self.assertIn("async_step_advanced", config_flow)
+        self.assertIn("key != CONF_CLOUD_TOKEN", config_flow)
         self.assertNotIn(
             "vol.Optional(CONF_CLOUD_USER_AGENT",
             config_flow.split("async_step_manual", 1)[1].split(
@@ -144,6 +146,8 @@ class ConfigMetadataTest(unittest.TestCase):
         entities = translations["entity"]
 
         self.assertIn("outdoor_temperature", entities["sensor"])
+        self.assertIn("current_month_energy", entities["sensor"])
+        self.assertIn("current_month_runtime", entities["sensor"])
         for key in (
             "eco_mode",
             "display",

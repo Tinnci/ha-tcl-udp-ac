@@ -109,6 +109,34 @@ class TokenManagerTest(unittest.TestCase):
             tm_mod.time.time = original
         self.assertFalse(acct.called)
 
+    def test_token_values_prefer_entry_data_over_stale_options(self) -> None:
+        access_iat = self.now - 100
+        access_exp = self.now + 30 * 86400
+        expired_iat = self.now - 70 * 86400
+        acct = FakeAccountClient()
+        tm_mod, tm, _hass, entry, _client = _build_manager(
+            {
+                "cloud_access_token": _jwt(access_exp, access_iat),
+                "cloud_refresh_token": _jwt(self.now + 60 * 86400, access_iat),
+                "cloud_account_id": "data-account",
+            },
+            acct,
+        )
+        entry.options = {
+            "cloud_access_token": _jwt(self.now - 86400, expired_iat),
+            "cloud_refresh_token": _jwt(self.now - 100, expired_iat),
+            "cloud_account_id": "stale-options-account",
+        }
+
+        original = tm_mod.time.time
+        tm_mod.time.time = lambda: self.now
+        try:
+            asyncio.run(tm.async_ensure_fresh_token())
+        finally:
+            tm_mod.time.time = original
+
+        self.assertFalse(acct.called)
+
     def test_expired_access_triggers_refresh_and_persist(self) -> None:
         # Access token past 70% of life -> refresh.
         iat = self.now - 29 * 86400

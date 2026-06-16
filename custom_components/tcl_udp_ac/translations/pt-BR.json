@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "Comando do ar-condicionado TCL não confirmado",
+      "description": "O Home Assistant enviou um comando ao ar-condicionado TCL, mas o dispositivo não informou o estado esperado dentro do tempo limite de confirmação. Verifique o alcance UDP local, o fallback de nuvem TCL+ e se este modelo oferece suporte ao comando."
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "Temperatura externa"
+      },
+      "current_month_energy": {
+        "name": "Energia do mês atual"
+      },
+      "current_month_runtime": {
+        "name": "Tempo de funcionamento do mês atual"
       }
     },
     "switch": {

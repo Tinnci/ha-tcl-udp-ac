@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "Comando del climatizzatore TCL non confermato",
+      "description": "Home Assistant ha inviato un comando al climatizzatore TCL, ma il dispositivo non ha segnalato lo stato atteso entro il timeout di conferma. Controlla la raggiungibilità UDP locale, il fallback cloud TCL+ e se questo modello supporta il comando."
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "Temperatura esterna"
+      },
+      "current_month_energy": {
+        "name": "Energia del mese corrente"
+      },
+      "current_month_runtime": {
+        "name": "Tempo di funzionamento del mese corrente"
       }
     },
     "switch": {

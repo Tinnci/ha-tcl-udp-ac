@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import (
@@ -9,7 +10,8 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfEnergy, UnitOfTemperature, UnitOfTime
+from homeassistant.helpers.entity import EntityCategory
 
 from .entity import TclUdpEntity
 from .temperature_validity import is_valid_outdoor_temperature
@@ -29,7 +31,13 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     coordinator = entry.runtime_data.coordinator
-    async_add_entities([TclUdpOutdoorTempSensor(coordinator)])
+    async_add_entities(
+        [
+            TclUdpOutdoorTempSensor(coordinator),
+            TclUdpCurrentMonthEnergySensor(coordinator),
+            TclUdpCurrentMonthRuntimeSensor(coordinator),
+        ]
+    )
 
 
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
@@ -61,3 +69,96 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
             if is_valid_outdoor_temperature(val):
                 return val
         return None
+
+
+class TclUdpCloudStatisticsSensor(TclUdpEntity, SensorEntity):
+    """Base class for TCL+ cloud report statistics sensors."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def _statistics(self) -> dict | None:
+        data = self.coordinator.data or {}
+        stats = data.get("energy_statistics")
+        if isinstance(stats, dict):
+            return stats
+        return None
+
+    @property
+    def available(self) -> bool:
+        """Return true if the TCL+ report value is available."""
+        base_available = getattr(super(), "available", True)
+        return base_available and self.native_value is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str] | None:
+        """Return the report period used by TCL+ for this value."""
+        stats = self._statistics()
+        if not stats:
+            return None
+        attrs = {}
+        if stats.get("period_start"):
+            attrs["period_start"] = str(stats["period_start"])
+        if stats.get("period_end"):
+            attrs["period_end"] = str(stats["period_end"])
+        return attrs or None
+
+    @property
+    def last_reset(self) -> datetime | None:
+        """Return the TCL+ report period start as the statistics reset boundary."""
+        stats = self._statistics()
+        if not stats or not stats.get("period_start"):
+            return None
+        try:
+            return datetime.fromisoformat(str(stats["period_start"])).replace(
+                tzinfo=UTC
+            )
+        except ValueError:
+            return None
+
+
+class TclUdpCurrentMonthEnergySensor(TclUdpCloudStatisticsSensor):
+    """TCL+ current-month reported electricity usage."""
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+
+    def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._attr_name = None
+        self._attr_translation_key = "current_month_energy"
+        self._attr_unique_id = self._entity_unique_id("current_month_energy")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return TCL+'s current-month kWh report value."""
+        stats = self._statistics()
+        if not stats:
+            return None
+        value = stats.get("energy_kwh")
+        return float(value) if value is not None else None
+
+
+class TclUdpCurrentMonthRuntimeSensor(TclUdpCloudStatisticsSensor):
+    """TCL+ current-month reported running hours."""
+
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+
+    def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator)
+        self._attr_name = None
+        self._attr_translation_key = "current_month_runtime"
+        self._attr_unique_id = self._entity_unique_id("current_month_runtime")
+
+    @property
+    def native_value(self) -> float | None:
+        """Return TCL+'s current-month runtime report value."""
+        stats = self._statistics()
+        if not stats:
+            return None
+        value = stats.get("running_hours")
+        return float(value) if value is not None else None

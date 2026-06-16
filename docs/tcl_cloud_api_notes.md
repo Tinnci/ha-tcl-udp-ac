@@ -84,7 +84,17 @@ the capture. For example, one monthly block reported a period `electricity`
 value that differed from the summed daily `electricity` and `realElectricity`
 values. Treat this endpoint as a TCL+ reporting API, not as a live meter.
 
-Integration status: not connected yet.
+Integration status in `0.4.0`: connected for current-month report totals when
+the device was discovered through TCL+ login and a `productKey` is available.
+The integration fetches `timeType=2`, selects the current calendar month when it
+is present, and exposes diagnostic sensors for:
+
+- current-month energy in kWh;
+- current-month runtime in hours.
+
+These sensors use report-total semantics and are not marked as
+`total_increasing` utility meters. The report `period_start` is exposed as the
+sensor statistics reset boundary.
 
 `POST /v1/dashboard/energyStatistics/detail`
 
@@ -112,14 +122,32 @@ Useful HA references:
 - Config flow: <https://developers.home-assistant.io/docs/config_entries_config_flow_handler/>
 - Sensor entity metadata: <https://developers.home-assistant.io/docs/core/entity/sensor/>
 - Energy dashboard device sensors: <https://www.home-assistant.io/docs/energy/individual-devices/>
+- Repairs issues: <https://developers.home-assistant.io/docs/core/integration-quality-scale/rules/repair-issues>
 
-Potential future mapping:
+## Command availability and confirmation
 
-- A daily/monthly report entity could be diagnostic, but should not pretend to
-  be a live increasing meter.
+The TCL transports can accept a command without the AC applying it. The
+integration therefore treats command sending and state confirmation as separate
+steps:
+
+- API client methods record the expected status projection for supported
+  climate/switch commands.
+- The coordinator refreshes state for up to 30 seconds after the command.
+- If the expected status appears, the command is marked confirmed.
+- If it does not appear in time, the integration logs a warning, fires the
+  `tcl_udp_ac_command_result` event, and creates a Home Assistant Repairs issue.
+
+This deliberately avoids repeated persistent notifications. Users who want
+push/mobile alerts can automate from the event and filter by `outcome:
+not_confirmed`.
+
+Current and potential future mapping:
+
+- The current-month report entities are diagnostic and do not pretend to be live
+  increasing meters.
 - A Home Assistant energy dashboard sensor should only be added if we can
   produce a stable kWh value with appropriate `device_class`, unit, and
   `state_class`, or import historical statistics through the proper recorder
   statistics path.
-- Runtime can use HA duration semantics only if the source value is clearly
-  defined as a current-period or cumulative duration.
+- Runtime uses HA duration semantics only for the clearly labeled current-month
+  report total.

@@ -34,6 +34,7 @@ from .const import (
     CONF_CLOUD_FROM,
     CONF_CLOUD_ORIGIN,
     CONF_CLOUD_PLATFORM,
+    CONF_CLOUD_PRODUCT_KEY,
     CONF_CLOUD_SDK_VERSION,
     CONF_CLOUD_SYSTEM_VERSION,
     CONF_CLOUD_T_APP_VERSION,
@@ -126,8 +127,11 @@ async def async_setup_entry(
     cloud_tid = entry.options.get(
         CONF_CLOUD_TID, entry.data.get(CONF_CLOUD_TID, DEFAULT_CLOUD_TID)
     )
-    cloud_token = entry.options.get(
-        CONF_CLOUD_TOKEN, entry.data.get(CONF_CLOUD_TOKEN, DEFAULT_CLOUD_TOKEN)
+    # Tokens are maintained internally in config entry data. Older versions
+    # allowed the access token in options; keep that as a fallback only so a
+    # stale option cannot override a freshly refreshed token.
+    cloud_token = entry.data.get(
+        CONF_CLOUD_TOKEN, entry.options.get(CONF_CLOUD_TOKEN, DEFAULT_CLOUD_TOKEN)
     )
     cloud_from = entry.options.get(
         CONF_CLOUD_FROM, entry.data.get(CONF_CLOUD_FROM, DEFAULT_CLOUD_FROM)
@@ -138,6 +142,10 @@ async def async_setup_entry(
     cloud_base_url = entry.options.get(
         CONF_CLOUD_BASE_URL,
         entry.data.get(CONF_CLOUD_BASE_URL, DEFAULT_CLOUD_BASE_URL),
+    )
+    cloud_product_key = entry.options.get(
+        CONF_CLOUD_PRODUCT_KEY,
+        entry.data.get(CONF_CLOUD_PRODUCT_KEY, ""),
     )
     cloud_control = entry.options.get(
         CONF_CLOUD_CONTROL, entry.data.get(CONF_CLOUD_CONTROL, DEFAULT_CLOUD_CONTROL)
@@ -224,6 +232,8 @@ async def async_setup_entry(
         cloud_from=cloud_from,
         cloud_to=cloud_to,
         cloud_base_url=cloud_base_url,
+        cloud_product_key=cloud_product_key,
+        cloud_user_id=account,
         cloud_control=cloud_control,
         cloud_user_agent=cloud_user_agent,
         cloud_platform=cloud_platform,

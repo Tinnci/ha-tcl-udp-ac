@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "TCL AC command was not confirmed",
+      "description": "Home Assistant sent a command to the TCL air conditioner, but the device did not report the expected state within the confirmation timeout. Check local UDP reachability, TCL+ cloud fallback, and whether the command is supported by this model."
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "Outdoor temperature"
+      },
+      "current_month_energy": {
+        "name": "Current month energy"
+      },
+      "current_month_runtime": {
+        "name": "Current month runtime"
       }
     },
     "switch": {

@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "La commande du climatiseur TCL n'a pas été confirmée",
+      "description": "Home Assistant a envoyé une commande au climatiseur TCL, mais l'appareil n'a pas signalé l'état attendu avant l'expiration du délai de confirmation. Vérifiez l'accès UDP local, le repli cloud TCL+ et la prise en charge de la commande par ce modèle."
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "Température extérieure"
+      },
+      "current_month_energy": {
+        "name": "Énergie du mois en cours"
+      },
+      "current_month_runtime": {
+        "name": "Durée de fonctionnement du mois en cours"
       }
     },
     "switch": {

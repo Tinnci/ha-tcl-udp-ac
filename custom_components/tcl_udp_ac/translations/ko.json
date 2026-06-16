@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "TCL 에어컨 명령이 확인되지 않았습니다",
+      "description": "Home Assistant가 TCL 에어컨에 명령을 보냈지만 확인 제한 시간 안에 장치가 예상 상태를 보고하지 않았습니다. 로컬 UDP 연결, TCL+ 클라우드 대체 경로, 이 모델의 명령 지원 여부를 확인하세요."
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "실외 온도"
+      },
+      "current_month_energy": {
+        "name": "이번 달 에너지"
+      },
+      "current_month_runtime": {
+        "name": "이번 달 운전 시간"
       }
     },
     "switch": {

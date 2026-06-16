@@ -41,6 +41,15 @@ async def async_setup_entry(
     )
 
 
+async def _async_after_command(coordinator: TclUdpDataUpdateCoordinator) -> None:
+    """Confirm command application when the coordinator supports it."""
+    confirm = getattr(coordinator, "async_confirm_pending_command", None)
+    if confirm is not None:
+        await confirm()
+        return
+    await coordinator.async_request_refresh()
+
+
 class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     """TCL UDP Switch class."""
 
@@ -146,4 +155,4 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
             await getattr(client, method_name)(enabled=enabled)
-            await self.coordinator.async_request_refresh()
+            await _async_after_command(self.coordinator)

@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -28,6 +28,8 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
   - **Beep**: Enable/disable command confirmation beeps.
 - **🌤️ Sensors**:
   - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
+  - **Current Month Energy**: TCL+ cloud report total for the current month, exposed as a diagnostic kWh total when device metadata is available.
+  - **Current Month Runtime**: TCL+ cloud report running hours for the current month, exposed as a diagnostic duration total when device metadata is available.
 - **☁️ TCL+ Login**: Log in with a TCL+ account to obtain refreshable cloud tokens and select discovered AC devices. The integration fills the cloud TID and legacy JIDs automatically when TCL+ returns device metadata.
 
 ## 📦 Installation
@@ -71,9 +73,23 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 5. Keep local UDP as the primary control path. Cloud status fallback and legacy cloud control are optional helpers for networks that miss UDP updates.
 6. For newer TCL+ protocol 1 devices, captured traffic shows TSL-style APIs such as `/v1/thing/status`. This release discovers those devices and stores their TID/JID defaults, but the newer cloud status/control path is not fully mapped yet.
 
+### TCL+ Authentication
+
+When you configure the integration with TCL+ login, Home Assistant stores the access and refresh tokens in the config entry and refreshes them in the background before cloud requests. Tokens are not shown again in the options flow. If the refresh token expires or TCL+ rejects it, Home Assistant raises a re-authentication flow so you can log in again.
+
+Manual token entry remains available for captured-token setups, but manual tokens cannot be refreshed automatically.
+
+### Command Confirmation and Notifications
+
+For supported commands, the integration now separates "command sent" from "device applied it." After a climate or switch command, Home Assistant refreshes state for up to 30 seconds and checks whether the expected status is reported back.
+
+If the status matches, the pending command is cleared. If it does not match in time, the integration logs a warning, fires a `tcl_udp_ac_command_result` event with `outcome: not_confirmed`, and creates a Home Assistant Repairs issue. It does not create repeated persistent notifications by default; users can build their own automations from the event if they want mobile/persistent alerts.
+
 ### Cloud Energy and Runtime Statistics
 
-Captured TCL+ traffic includes `/v1/ac/statistics/electricity/summary?timeType=1|2|3`, which returns historical electricity and running-hours report buckets with daily/monthly/yearly detail. Home Assistant energy dashboards expect sensors with clear energy semantics, units, and state classes, such as kWh device energy sensors. Because the TCL+ summary endpoint is a report API rather than a live monotonic meter, this release does not expose those values as HA energy sensors yet.
+Captured TCL+ traffic includes `/v1/ac/statistics/electricity/summary?timeType=1|2|3`, which returns historical electricity and running-hours report buckets with daily/monthly/yearly detail. The integration exposes the current-month TCL+ report totals as diagnostic sensors when the device was discovered through TCL+ login and a `productKey` is available.
+
+Home Assistant energy dashboards expect sensors with clear energy semantics, units, and state classes, such as kWh device energy sensors. Because the TCL+ summary endpoint is a report API rather than a live monotonic meter, these diagnostic sensors use total report semantics and are not marked as total-increasing utility meters.
 
 See `docs/tcl_cloud_api_notes.md` for the captured API mapping and HA entity notes.
 

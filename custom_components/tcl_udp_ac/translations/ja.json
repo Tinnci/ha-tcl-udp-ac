@@ -102,6 +102,12 @@
       "reauth_successful": "Re-authentication was successful."
     }
   },
+  "issues": {
+    "command_not_confirmed": {
+      "title": "TCL エアコンのコマンドが確認されませんでした",
+      "description": "Home Assistant は TCL エアコンにコマンドを送信しましたが、確認タイムアウト内に期待した状態が報告されませんでした。ローカル UDP 到達性、TCL+ クラウドフォールバック、このモデルでのコマンド対応状況を確認してください。"
+    }
+  },
   "options": {
     "step": {
       "init": {
@@ -144,6 +150,12 @@
     "sensor": {
       "outdoor_temperature": {
         "name": "外気温"
+      },
+      "current_month_energy": {
+        "name": "今月の消費電力量"
+      },
+      "current_month_runtime": {
+        "name": "今月の運転時間"
       }
     },
     "switch": {

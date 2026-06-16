@@ -31,6 +31,7 @@ def install_homeassistant_stubs() -> None:
     aiohttp_client = types.ModuleType("homeassistant.helpers.aiohttp_client")
     device_registry = types.ModuleType("homeassistant.helpers.device_registry")
     update_coordinator = types.ModuleType("homeassistant.helpers.update_coordinator")
+    issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
     entity = types.ModuleType("homeassistant.helpers.entity")
     loader = types.ModuleType("homeassistant.loader")
 
@@ -61,6 +62,12 @@ def install_homeassistant_stubs() -> None:
         CELSIUS = "°C"
         FAHRENHEIT = "°F"
 
+    class UnitOfEnergy(enum.StrEnum):
+        KILO_WATT_HOUR = "kWh"
+
+    class UnitOfTime(enum.StrEnum):
+        HOURS = "h"
+
     class Platform(enum.StrEnum):
         CLIMATE = "climate"
         SWITCH = "switch"
@@ -68,6 +75,7 @@ def install_homeassistant_stubs() -> None:
 
     class EntityCategory(enum.StrEnum):
         CONFIG = "config"
+        DIAGNOSTIC = "diagnostic"
 
     class ClimateEntity:
         entity_id = "climate.tcl_air_conditioner"
@@ -94,6 +102,9 @@ def install_homeassistant_stubs() -> None:
         async def async_config_entry_first_refresh(self):
             self.data = await self._async_update_data()
 
+        async def async_request_refresh(self):
+            self.data = await self._async_update_data()
+
         def async_set_updated_data(self, data):
             self.data = data
 
@@ -108,6 +119,9 @@ def install_homeassistant_stubs() -> None:
 
     class HomeAssistantError(Exception):
         pass
+
+    class IssueSeverity(enum.StrEnum):
+        WARNING = "warning"
 
     class ConfigFlow:
         def __init_subclass__(cls, **_kwargs):
@@ -138,9 +152,12 @@ def install_homeassistant_stubs() -> None:
 
     class SensorDeviceClass(enum.StrEnum):
         TEMPERATURE = "temperature"
+        ENERGY = "energy"
+        DURATION = "duration"
 
     class SensorStateClass(enum.StrEnum):
         MEASUREMENT = "measurement"
+        TOTAL = "total"
 
     class DeviceInfo(dict):
         pass
@@ -166,7 +183,9 @@ def install_homeassistant_stubs() -> None:
 
     const.ATTR_TEMPERATURE = "temperature"
     const.Platform = Platform
+    const.UnitOfEnergy = UnitOfEnergy
     const.UnitOfTemperature = UnitOfTemperature
+    const.UnitOfTime = UnitOfTime
 
     config_entries.ConfigEntry = object
     config_entries.ConfigFlow = ConfigFlow
@@ -180,6 +199,9 @@ def install_homeassistant_stubs() -> None:
     aiohttp_client.async_get_clientsession = lambda _hass: None
     entity.EntityCategory = EntityCategory
     device_registry.DeviceInfo = DeviceInfo
+    issue_registry.IssueSeverity = IssueSeverity
+    issue_registry.async_create_issue = lambda *_args, **_kwargs: None
+    issue_registry.async_delete_issue = lambda *_args, **_kwargs: None
     update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
     update_coordinator.CoordinatorEntity = CoordinatorEntity
     update_coordinator.UpdateFailed = UpdateFailed
@@ -197,6 +219,7 @@ def install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.helpers"] = helpers
     sys.modules["homeassistant.helpers.aiohttp_client"] = aiohttp_client
     sys.modules["homeassistant.helpers.device_registry"] = device_registry
+    sys.modules["homeassistant.helpers.issue_registry"] = issue_registry
     sys.modules["homeassistant.helpers.update_coordinator"] = update_coordinator
     sys.modules["homeassistant.helpers.entity"] = entity
     sys.modules["homeassistant.loader"] = loader

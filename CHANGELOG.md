@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Add TCL+ electricity/runtime report parsing and diagnostic sensors for current-month energy and runtime.
+- Store discovered TCL+ product keys internally so statistics requests include the device context seen in app traffic.
+- Keep TCL+ access/refresh token maintenance hidden from options while preserving HA reauth prompts when refresh can no longer continue.
+- Use HA sensor semantics for report totals: energy/duration device classes with total state class, not total-increasing energy-dashboard meters.
+- Confirm supported commands against refreshed device state, emit a `tcl_udp_ac_command_result` event, and create a Home Assistant Repairs issue when a command is not reflected in state within the timeout.
+
 ## 0.3.0
 
 - Add TCL+ post-login AC discovery so users can select a device instead of manually entering the cloud TID and JIDs.

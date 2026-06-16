@@ -7,7 +7,7 @@ import json
 import secrets
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
@@ -145,6 +145,8 @@ class CloudClient:
         base_url: str,
         control_enabled: bool,
         headers: CloudHeaderProfile,
+        product_key: str | None = None,
+        user_id: str | None = None,
     ) -> None:
         """Initialize the cloud API client."""
         self._session = session
@@ -154,6 +156,8 @@ class CloudClient:
         self._from = from_jid
         self._to = to_jid
         self._base_url = base_url.rstrip("/")
+        self._product_key = product_key
+        self._user_id = user_id
         self._control_enabled = control_enabled
         self._headers = headers
         self._profile = resolve_protocol_profile(tid)
@@ -162,6 +166,17 @@ class CloudClient:
     def status_enabled(self) -> bool:
         """Return True when status fetch is enabled and configured."""
         return bool(self._enabled and self._tid and self._session)
+
+    @property
+    def statistics_enabled(self) -> bool:
+        """Return True when cloud statistics can be fetched."""
+        return bool(
+            self._enabled
+            and self._tid
+            and self._token
+            and self._product_key
+            and self._session
+        )
 
     def update_token(self, token: str | None) -> None:
         """Update the access token used for cloud requests."""
@@ -325,6 +340,120 @@ class CloudClient:
             status["beep"] = beep
 
         return status
+
+    def _build_statistics_headers(self) -> dict[str, str]:
+        """Build TCL+ headers for AC electricity/runtime statistics."""
+        headers = self._headers.build(token=self._token, include_token=True)
+        if self._tid:
+            headers["deviceid"] = self._tid
+        if self._product_key:
+            headers["productkey"] = self._product_key
+        if self._user_id:
+            headers["userid"] = self._user_id
+        return headers
+
+    @staticmethod
+    def _month_from_row(row: dict[str, Any]) -> str | None:
+        data_list = row.get("dataList")
+        if not isinstance(data_list, list) or not data_list:
+            return None
+        for item in data_list:
+            if not isinstance(item, dict):
+                continue
+            time_value = item.get("time")
+            if isinstance(time_value, str) and len(time_value) >= 7:
+                return time_value[:7]
+        return None
+
+    @staticmethod
+    def _number(value: Any) -> float | None:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _parse_electricity_summary(
+        self, payload: dict[str, Any], *, today: date | None = None
+    ) -> dict[str, Any] | None:
+        """Parse TCL+ electricity summary into HA-safe report statistics."""
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            return None
+        rows = data.get("ecoDetails")
+        if not isinstance(rows, list):
+            return None
+
+        current_month = (today or datetime.now(UTC).date()).strftime("%Y-%m")
+        candidates = [row for row in rows if isinstance(row, dict)]
+        selected = next(
+            (row for row in candidates if self._month_from_row(row) == current_month),
+            None,
+        )
+        if selected is None and candidates:
+            selected = candidates[-1]
+        if selected is None:
+            return None
+
+        period_start = period_end = None
+        data_list = selected.get("dataList")
+        if isinstance(data_list, list):
+            times = [
+                item.get("time")
+                for item in data_list
+                if isinstance(item, dict) and isinstance(item.get("time"), str)
+            ]
+            if times:
+                period_start = times[0]
+                period_end = times[-1]
+
+        stats = {
+            "period_start": period_start,
+            "period_end": period_end,
+            "energy_kwh": self._number(selected.get("electricity")),
+            "running_hours": self._number(selected.get("runningHours")),
+            "eco_hours": self._number(selected.get("ecoHours")),
+            "electricity_bill": self._number(selected.get("electricityBill")),
+            "carbon_emission": self._number(selected.get("carbonEmission")),
+        }
+        if stats["energy_kwh"] is None and stats["running_hours"] is None:
+            return None
+        return stats
+
+    async def async_fetch_energy_statistics(self) -> dict[str, Any] | None:
+        """Fetch current-month TCL+ electricity/runtime report statistics."""
+        if not self.statistics_enabled:
+            return None
+
+        url = f"{self._base_url}/v1/ac/statistics/electricity/summary?timeType=2"
+        try:
+            async with self._session.get(
+                url, headers=self._build_statistics_headers(), timeout=10
+            ) as resp:
+                text = await resp.text()
+                if resp.status != HTTPStatus.OK:
+                    log_warning(
+                        LOGGER,
+                        "cloud_statistics_http_error",
+                        status=resp.status,
+                        tid=self._tid,
+                    )
+                    return None
+        except (TimeoutError, aiohttp.ClientError) as exc:
+            log_warning(LOGGER, "cloud_statistics_request_failed", error=exc)
+            return None
+
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            log_debug(LOGGER, "cloud_statistics_not_json")
+            return None
+
+        stats = self._parse_electricity_summary(payload)
+        if stats is None:
+            log_debug(LOGGER, "cloud_statistics_empty", tid=self._tid)
+        return stats
 
     def _build_cloud_message(self, body_xml: str, seq: str) -> str | None:
         if not self._tid or not self._from or not self._to:
@@ -558,6 +687,8 @@ class TclUdpApiClient:
         cloud_from: str | None = None,
         cloud_to: str | None = None,
         cloud_base_url: str = "https://io.zx.tcljd.com",
+        cloud_product_key: str | None = None,
+        cloud_user_id: str | None = None,
         cloud_control: bool = False,
         cloud_user_agent: str = DEFAULT_CLOUD_USER_AGENT,
         cloud_platform: str = DEFAULT_CLOUD_PLATFORM,
@@ -613,10 +744,13 @@ class TclUdpApiClient:
             from_jid=cloud_from,
             to_jid=cloud_to,
             base_url=cloud_base_url,
+            product_key=cloud_product_key,
+            user_id=cloud_user_id,
             control_enabled=cloud_control,
             headers=header_profile,
         )
         self._cloud_sequence = 0
+        self._pending_command_confirmation: dict[str, Any] | None = None
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -643,6 +777,11 @@ class TclUdpApiClient:
         """Return True if cloud status fetch is enabled and configured."""
         return self._cloud.status_enabled
 
+    @property
+    def cloud_statistics_enabled(self) -> bool:
+        """Return True if cloud statistics fetch is enabled and configured."""
+        return self._cloud.statistics_enabled
+
     def update_cloud_token(self, token: str | None) -> None:
         """Update the cloud access token on the live client (after refresh)."""
         self._cloud.update_token(token)
@@ -650,6 +789,26 @@ class TclUdpApiClient:
     def merge_status(self, status: dict[str, Any]) -> None:
         """Merge status into the last known status."""
         self._udp.merge_status(status)
+
+    def _record_command_expectation(
+        self, intent: str, expected_status: dict[str, Any]
+    ) -> None:
+        """Remember the most recent command status projection for HA confirmation."""
+        self._pending_command_confirmation = {
+            "intent": intent,
+            "expected_status": dict(expected_status),
+            "created_at": time.time(),
+        }
+
+    def pending_command_confirmation(self) -> dict[str, Any] | None:
+        """Return the pending command confirmation request, if any."""
+        if self._pending_command_confirmation is None:
+            return None
+        return dict(self._pending_command_confirmation)
+
+    def clear_pending_command_confirmation(self) -> None:
+        """Clear the pending command confirmation request."""
+        self._pending_command_confirmation = None
 
     async def async_fetch_cloud_status(
         self,
@@ -680,6 +839,10 @@ class TclUdpApiClient:
                 retries,
             )
             await asyncio.sleep(retry_delay)
+
+    async def async_fetch_cloud_energy_statistics(self) -> dict[str, Any] | None:
+        """Fetch TCL+ electricity/runtime statistics."""
+        return await self._cloud.async_fetch_energy_statistics()
 
     async def async_send_cloud_command(self, command: str, value: str) -> bool:
         """Send a control command via cloud convertMqtt API."""
@@ -751,11 +914,13 @@ class TclUdpApiClient:
     async def async_send_command_bundle(self, bundle: TclCommandBundle) -> None:
         """Send a profile-built grouped command bundle."""
         await self.async_send_commands(bundle.to_command_items())
+        self._record_command_expectation(bundle.intent, bundle.expected_status)
 
     async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
         if power:
             await self.async_send_command("TurnOn", "on")
+            self._record_command_expectation("power:on", {"power": True})
             return
 
         profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
@@ -776,6 +941,10 @@ class TclUdpApiClient:
         if power and mode_str:
             items.append(("BaseMode", mode_str))
         await self.async_send_commands(items)
+        expected_status: dict[str, Any] = {"power": power}
+        if power and mode_str:
+            expected_status["mode"] = mode_str
+        self._record_command_expectation("power_mode:set", expected_status)
 
     async def async_set_mode_profile(
         self,
@@ -821,6 +990,9 @@ class TclUdpApiClient:
             str(temp_int),
             degree_half=degree_half,
         )
+        self._record_command_expectation(
+            "temperature:set", {"target_temp": float(temperature)}
+        )
 
     @staticmethod
     def _fahrenheit_to_celsius(temp_f: float) -> float:
@@ -861,6 +1033,7 @@ class TclUdpApiClient:
                 ("Opt_super", "off"),
             ]
         )
+        self._record_command_expectation("fan_speed:set", {"fan_speed": speed_str})
 
     async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
         """Set swing mode (both directions in one message)."""
@@ -871,41 +1044,54 @@ class TclUdpApiClient:
                 ("OptSolidWd", "off"),
             ]
         )
+        self._record_command_expectation(
+            "swing:set", {"swing_v": vertical, "swing_h": horizontal}
+        )
 
     async def async_set_mode(self, mode_str: str) -> None:
         """Set operation mode (expects 'cool', 'heat', 'fan', 'dehumi', 'selffeel')."""
         # Java: <BaseMode>cool</BaseMode>
         await self.async_send_command("BaseMode", mode_str)
+        self._record_command_expectation("mode:set", {"mode": mode_str})
 
     async def async_set_eco_mode(self, *, enabled: bool) -> None:
         """Set ECO mode."""
         # Java: <Opt_ECO>on</Opt_ECO>
         await self.async_send_command("Opt_ECO", "on" if enabled else "off")
+        self._record_command_expectation("switch:eco_mode", {"eco_mode": enabled})
 
     async def async_set_display(self, *, enabled: bool) -> None:
         """Set display on/off."""
         await self.async_send_command("OptDisplay", "on" if enabled else "off")
+        self._record_command_expectation("switch:display", {"display": enabled})
 
     async def async_set_health_mode(self, *, enabled: bool) -> None:
         """Set health mode."""
         await self.async_send_command("OptHealthy", "on" if enabled else "off")
+        self._record_command_expectation(
+            "switch:health_mode", {"health_mode": enabled}
+        )
 
     async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         """Set sleep mode."""
         await self.async_send_command("Opt_sleepMode", "1" if enabled else "0")
+        self._record_command_expectation("switch:sleep_mode", {"sleep_mode": enabled})
 
     async def async_set_turbo_mode(self, *, enabled: bool) -> None:
         """Set turbo (super) mode."""
         await self.async_send_command("Opt_super", "on" if enabled else "off")
+        self._record_command_expectation("switch:turbo_mode", {"turbo_mode": enabled})
 
     async def async_set_aux_heat(self, *, enabled: bool) -> None:
         """Set auxiliary (electric) heat on/off."""
         await self.async_send_command("OptHeat", "on" if enabled else "off")
+        self._record_command_expectation("switch:aux_heat", {"aux_heat": enabled})
 
     async def async_set_beep(self, *, enabled: bool) -> None:
         """Set beep on/off."""
         # Java: <BeepEnable>on</BeepEnable>
         await self.async_send_command("BeepEnable", "on" if enabled else "off")
+        self._record_command_expectation("switch:beep", {"beep": enabled})
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""

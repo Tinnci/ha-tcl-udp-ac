@@ -115,6 +115,7 @@ class CoordinatorRefreshFailureTest(unittest.TestCase):
 
         class Client:
             cloud_enabled = False
+            cloud_statistics_enabled = False
 
             async def async_request_status(self) -> None:
                 pass
