@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
+from .command_bundles import CommandTransport
 from .const import (
     DEFAULT_CLOUD_ACCEPT,
     DEFAULT_CLOUD_ACCEPT_ENCODING,
@@ -160,7 +161,7 @@ class CloudClient:
         self._user_id = user_id
         self._control_enabled = control_enabled
         self._headers = headers
-        self._profile = resolve_protocol_profile(tid)
+        self._profile = resolve_protocol_profile(tid, product_key=product_key)
 
     @property
     def status_enabled(self) -> bool:
@@ -195,6 +196,17 @@ class CloudClient:
             and self._session
         )
 
+    @property
+    def property_control_enabled(self) -> bool:
+        """Return True when TSL property control can be sent."""
+        return bool(
+            self._enabled
+            and self._control_enabled
+            and self._tid
+            and self._token
+            and self._session
+        )
+
     def _control_unavailable_reason(self) -> str:
         if not self._enabled:
             return "cloud disabled"
@@ -209,6 +221,22 @@ class CloudClient:
             missing.append("cloud_from")
         if not self._to:
             missing.append("cloud_to")
+        if missing:
+            return f"missing config: {', '.join(missing)}"
+        if not self._session:
+            return "http session not ready"
+        return "unknown"
+
+    def _property_control_unavailable_reason(self) -> str:
+        if not self._enabled:
+            return "cloud disabled"
+        if not self._control_enabled:
+            return "cloud control disabled"
+        missing = []
+        if not self._tid:
+            missing.append("cloud_tid")
+        if not self._token:
+            missing.append("cloud_access_token")
         if missing:
             return f"missing config: {', '.join(missing)}"
         if not self._session:
@@ -240,6 +268,46 @@ class CloudClient:
             return None
 
     @staticmethod
+    def _tsl_mode(val: Any) -> str | None:
+        return {
+            "1": MODE_COOL,
+            "2": MODE_DEHUMI,
+            "3": MODE_FAN,
+            "4": MODE_HEAT,
+            "5": MODE_AUTO,
+        }.get(str(val))
+
+    @classmethod
+    def _tsl_fan_speed(cls, cur_status: dict[str, Any]) -> str | None:
+        auto_switch = cls._cloud_bool(cur_status.get("windSpeedAutoSwitch"))
+        gear = cls._cloud_int(cur_status.get("windSpeed7Gear"))
+        if auto_switch or gear == 0:
+            return FAN_AUTO
+        if gear is None:
+            return None
+        if gear <= 2:
+            return FAN_LOW
+        if gear <= 4:
+            return FAN_MIDDLE
+        return FAN_HIGH
+
+    @staticmethod
+    def _tsl_direction_is_swing(
+        value: Any,
+        *,
+        swing_values: set[int],
+    ) -> bool | None:
+        try:
+            direction = int(value)
+        except (TypeError, ValueError):
+            return None
+        if direction in swing_values:
+            return True
+        if direction in {0, 8, 9, 10, 11, 12, 13}:
+            return False
+        return None
+
+    @staticmethod
     def _fahrenheit_to_celsius(temp_f: float) -> float:
         return (temp_f - 32.0) / 1.8
 
@@ -247,7 +315,7 @@ class CloudClient:
     def _celsius_to_fahrenheit(temp_c: float) -> float:
         return temp_c * 1.8 + 32.0
 
-    def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+    def _parse_legacy_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
         status: dict[str, Any] = {}
 
         power = self._cloud_bool(cur_status.get("turnOn"))
@@ -339,6 +407,101 @@ class CloudClient:
         if beep is not None:
             status["beep"] = beep
 
+        return status
+
+    def _parse_tsl_core_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status: dict[str, Any] = {}
+
+        power_switch = self._cloud_bool(cur_status.get("powerSwitch"))
+        if power_switch is not None:
+            status["power"] = power_switch
+
+        target = self._cloud_float(cur_status.get("targetTemperature"))
+        if target is not None:
+            status["target_temp"] = round(target, 1)
+
+        current = self._cloud_float(cur_status.get("currentTemperature"))
+        if current is not None:
+            status["current_temp"] = round(current, 1)
+
+        outdoor = self._cloud_float(cur_status.get("externalUnitTemperature"))
+        if outdoor is not None and is_valid_outdoor_temperature(outdoor):
+            status["outdoor_temp"] = round(outdoor, 1)
+
+        fan_speed = self._tsl_fan_speed(cur_status)
+        if fan_speed is not None:
+            status["fan_speed"] = fan_speed
+
+        work_mode = cur_status.get("workMode")
+        if work_mode is not None:
+            mapped = self._tsl_mode(work_mode)
+            if mapped:
+                status["mode"] = mapped
+            else:
+                LOGGER.debug("Unknown TSL workMode: %s", work_mode)
+
+        return status
+
+    def _parse_tsl_swing_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status: dict[str, Any] = {}
+
+        swing_h = self._cloud_bool(cur_status.get("horizontalSwitch"))
+        if swing_h is None:
+            swing_h = self._cloud_bool(cur_status.get("horizontalWind"))
+        if swing_h is None and "horizontalDirection" in cur_status:
+            swing_h = self._tsl_direction_is_swing(
+                cur_status.get("horizontalDirection"),
+                swing_values={1, 2, 3, 4},
+            )
+        if swing_h is not None:
+            status["swing_h"] = swing_h
+
+        swing_v = self._cloud_bool(cur_status.get("verticalSwitch"))
+        if swing_v is None:
+            swing_v = self._cloud_bool(cur_status.get("verticalWind"))
+        if swing_v is None and "verticalDirection" in cur_status:
+            swing_v = self._tsl_direction_is_swing(
+                cur_status.get("verticalDirection"),
+                swing_values={1, 2, 3},
+            )
+        if swing_v is not None:
+            status["swing_v"] = swing_v
+
+        return status
+
+    def _parse_tsl_feature_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status: dict[str, Any] = {}
+
+        feature_map = {
+            "ECO": "eco_mode",
+            "sleep": "sleep_mode",
+            "turbo": "turbo_mode",
+            "healthy": "health_mode",
+            "screen": "display",
+            "beepSwitch": "beep",
+        }
+        for raw_key, status_key in feature_map.items():
+            value = self._cloud_bool(cur_status.get(raw_key))
+            if value is not None:
+                status[status_key] = value
+
+        aux_heat = self._cloud_bool(
+            cur_status.get("PTCStatus", cur_status.get("eightAddHot"))
+        )
+        if aux_heat is not None:
+            status["aux_heat"] = aux_heat
+
+        return status
+
+    def _parse_tsl_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status = self._parse_tsl_core_status(cur_status)
+        status.update(self._parse_tsl_swing_status(cur_status))
+        status.update(self._parse_tsl_feature_status(cur_status))
+        return status
+
+    def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        status = self._parse_legacy_cloud_status(cur_status)
+        status.update(self._parse_tsl_cloud_status(cur_status))
         return status
 
     def _build_statistics_headers(self) -> dict[str, str]:
@@ -478,6 +641,111 @@ class CloudClient:
             f"</body>"
             f"</message>"
         )
+
+    @staticmethod
+    def _build_property_msg_id() -> str:
+        return f"ha_{secrets.randbelow(99000) + 1000}_{int(time.time() * 1000)}"
+
+    def _build_tsl_property_payload(self, bundle: TclCommandBundle) -> dict[str, Any]:
+        """Build the TCL+ property-control JSON body for a TSL bundle."""
+        payload: dict[str, Any] = {
+            "msgId": self._build_property_msg_id(),
+            "version": "1.0",
+            "params": [dict(bundle.payload)],
+            "source": "APP",
+        }
+        if bundle.module_id:
+            payload["moduleId"] = bundle.module_id
+        return payload
+
+    def _tsl_property_url(self, bundle: TclCommandBundle) -> str | None:
+        if not self._tid:
+            return None
+        path = "/v1/control/property" if bundle.source_type else "/v1/tclplus/property"
+        return f"{self._base_url}{path}/{self._tid}"
+
+    def _build_tsl_property_headers(self, bundle: TclCommandBundle) -> dict[str, str]:
+        """Build TCL+ headers for TSL property-control writes."""
+        headers = self._headers.build(
+            token=self._token,
+            include_token=True,
+            include_content_type=True,
+        )
+        if bundle.source_type:
+            headers["sourceType"] = str(bundle.source_type)
+        return headers
+
+    @staticmethod
+    def _tsl_property_response_ok(text: str) -> bool:
+        if not text:
+            return True
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            return True
+        code = payload.get("code")
+        return code in {None, "", 0, "0", 200, "200"} or payload.get("success") is True
+
+    async def async_send_tsl_property_bundle(self, bundle: TclCommandBundle) -> bool:
+        """Send a protocol 1 TSL property-control bundle."""
+        if not self.property_control_enabled:
+            if self._control_enabled:
+                log_warning(
+                    LOGGER,
+                    "tsl_property_control_unavailable",
+                    reason=self._property_control_unavailable_reason(),
+                )
+            return False
+
+        url = self._tsl_property_url(bundle)
+        if not url:
+            return False
+
+        payload = self._build_tsl_property_payload(bundle)
+        desc = ", ".join(f"{key}={value}" for key, value in bundle.payload.items())
+        try:
+            async with self._session.post(
+                url,
+                headers=self._build_tsl_property_headers(bundle),
+                json=payload,
+                timeout=10,
+            ) as resp:
+                text = await resp.text()
+                if resp.status != HTTPStatus.OK:
+                    log_warning(
+                        LOGGER,
+                        "tsl_property_control_http_error",
+                        status=resp.status,
+                        tid=self._tid,
+                        command=desc,
+                    )
+                    return False
+        except (TimeoutError, aiohttp.ClientError) as exc:
+            log_warning(
+                LOGGER,
+                "tsl_property_control_request_failed",
+                error=exc,
+                tid=self._tid,
+                command=desc,
+            )
+            return False
+
+        if not self._tsl_property_response_ok(text):
+            log_warning(
+                LOGGER,
+                "tsl_property_control_rejected",
+                tid=self._tid,
+                command=desc,
+            )
+            return False
+
+        log_info(
+            LOGGER,
+            "tsl_property_control_sent",
+            tid=self._tid,
+            command=desc,
+        )
+        return True
 
     async def async_fetch_status(self) -> dict[str, Any] | None:
         """Fetch device status from cloud API when enabled."""
@@ -709,7 +977,10 @@ class TclUdpApiClient:
         cloud_accept_language: str = DEFAULT_CLOUD_ACCEPT_LANGUAGE,
     ) -> None:
         """Initialize the API client."""
-        self._protocol_profile = resolve_protocol_profile(cloud_tid)
+        self._protocol_profile = resolve_protocol_profile(
+            cloud_tid,
+            product_key=cloud_product_key,
+        )
         self._udp = UdpClient(
             action_jid,
             action_source,
@@ -902,6 +1173,19 @@ class TclUdpApiClient:
         items: list of (tag, value) pairs, e.g. [("TurnOn", "on"), ("BaseMode", "cool")]
         """
         try:
+            profile = getattr(
+                self,
+                "_protocol_profile",
+                resolve_protocol_profile(None),
+            )
+            if not getattr(profile, "legacy_transport_enabled", True):
+                log_warning(
+                    LOGGER,
+                    "legacy_command_unsupported_for_profile",
+                    profile=getattr(profile, "name", "unknown"),
+                    command=", ".join(f"{key}={value}" for key, value in items),
+                )
+                return
             self._cloud_sequence += 1
             next_seq = str(self._cloud_sequence)
             if self._cloud.control_enabled:
@@ -913,18 +1197,24 @@ class TclUdpApiClient:
 
     async def async_send_command_bundle(self, bundle: TclCommandBundle) -> None:
         """Send a profile-built grouped command bundle."""
+        if bundle.transport == CommandTransport.TSL_PROPERTY:
+            sent = await self._cloud.async_send_tsl_property_bundle(bundle)
+            if sent:
+                self._record_command_expectation(bundle.intent, bundle.expected_status)
+            return
+
         await self.async_send_commands(bundle.to_command_items())
         self._record_command_expectation(bundle.intent, bundle.expected_status)
 
     async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
-        if power:
-            await self.async_send_command("TurnOn", "on")
-            self._record_command_expectation("power:on", {"power": True})
-            return
-
         profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
-        await self.async_send_command_bundle(profile.build_power_off_command())
+        bundle = (
+            profile.build_power_on_command()
+            if power
+            else profile.build_power_off_command()
+        )
+        await self.async_send_command_bundle(bundle)
 
     async def async_set_power_mode(
         self, *, power: bool, mode_str: str | None = None
@@ -1026,6 +1316,15 @@ class TclUdpApiClient:
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
+        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        if not profile.capabilities.supports_fan_speed:
+            log_warning(
+                LOGGER,
+                "fan_speed_unsupported_for_profile",
+                profile=getattr(profile, "name", "unknown"),
+                fan_speed=speed_str,
+            )
+            return
         await self.async_send_commands(
             [
                 ("WindSpeed", speed_str),
@@ -1037,6 +1336,16 @@ class TclUdpApiClient:
 
     async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
         """Set swing mode (both directions in one message)."""
+        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        if not profile.capabilities.supports_swing:
+            log_warning(
+                LOGGER,
+                "swing_unsupported_for_profile",
+                profile=getattr(profile, "name", "unknown"),
+                vertical=vertical,
+                horizontal=horizontal,
+            )
+            return
         await self.async_send_commands(
             [
                 ("WindDirection_V", "on" if vertical else "off"),
@@ -1068,9 +1377,7 @@ class TclUdpApiClient:
     async def async_set_health_mode(self, *, enabled: bool) -> None:
         """Set health mode."""
         await self.async_send_command("OptHealthy", "on" if enabled else "off")
-        self._record_command_expectation(
-            "switch:health_mode", {"health_mode": enabled}
-        )
+        self._record_command_expectation("switch:health_mode", {"health_mode": enabled})
 
     async def async_set_sleep_mode(self, *, enabled: bool) -> None:
         """Set sleep mode."""

@@ -115,7 +115,7 @@
 - Added metadata tests for `manifest.json`, HACS metadata, and config/options translation labels.
 - Normalized Home Assistant-facing temperatures to Celsius while still translating command temperatures to TCL protocol `setTemp`/`degreeH` values.
 - Fresh `user_devices` captures contain two AC devices: current legacy control target `2743138` with protocol `0`, `setTemp`, `degreeH`, and empty `listControl`; newer device `45816970` with protocol `1`, `targetTemperature`, and work modes `1=cool`, `2=dry`, `3=fan`, `4=heat`, `5=AI`.
-- Because the capture has no proven TSL write endpoint for `targetTemperature`, the temperature experiment must not send an invented TSL mutation. It should report comparable metadata and only mutate through the known legacy `convertMqtt/setTemp` path.
+- Earlier captures had no proven TSL write endpoint for `targetTemperature`, so live experiments avoided invented mutations. Later static analysis of TCL+ 6.0.4 identified the property-control wrapper used for protocol 1 writes; the implementation now gates that path to product `1112013595N` / device `45816970` and keeps fan speed, swing, and feature-switch writes disabled until confirmed.
 - The live harness should not advertise `baseMode=7` or `baseMode=8` as supported legacy profiles for `2743138`. Fan remains profile-gated as `baseMode=0`.
 - Live mode matrix showed bare `baseMode=2` for dry returned API success but did not change status from cool after 5 seconds. Grouped `turnOn=1 + baseMode=2` did apply dry mode.
 - Current legacy mapping: Cool is `baseMode=1`, Dry is `baseMode=2`, Heat is `baseMode=4`. Treat old `baseMode=3` Cool notes as superseded.

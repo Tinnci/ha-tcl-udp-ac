@@ -19,11 +19,37 @@ class ProtocolProfileTest(unittest.TestCase):
 
         self.assertIsInstance(profile, self.profiles.Legacy2743138Profile)
 
-    def test_resolver_uses_default_for_other_devices(self) -> None:
+    def test_resolver_selects_tsl_profile_for_protocol_one_target(self) -> None:
         profile = self.profiles.resolve_protocol_profile("45816970")
 
-        self.assertNotIsInstance(profile, self.profiles.Legacy2743138Profile)
+        self.assertIsInstance(profile, self.profiles.Tsl1112013595NProfile)
+        self.assertEqual(profile.name, "tsl_1112013595N")
+        self.assertFalse(profile.legacy_transport_enabled)
+
+    def test_resolver_uses_default_for_unknown_devices(self) -> None:
+        profile = self.profiles.resolve_protocol_profile("other")
+
         self.assertEqual(profile.name, "default")
+
+    def test_tsl_temperature_command_uses_property_transport(self) -> None:
+        profile = self.profiles.resolve_protocol_profile("45816970")
+        bundle = profile.build_temperature_command(25.5)
+
+        self.assertEqual(bundle.transport, self.profiles.CommandTransport.TSL_PROPERTY)
+        self.assertEqual(bundle.payload, {"targetTemperature": 25.5})
+        self.assertEqual(bundle.expected_status, {"target_temp": 25.5})
+
+    def test_tsl_mode_command_uses_work_mode_payload(self) -> None:
+        profile = self.profiles.resolve_protocol_profile("45816970")
+        bundle = profile.build_mode_command(self.const.MODE_HEAT, target_temperature=28)
+
+        self.assertEqual(bundle.transport, self.profiles.CommandTransport.TSL_PROPERTY)
+        self.assertEqual(
+            bundle.payload,
+            {"powerSwitch": 1, "workMode": 4, "targetTemperature": 28.0},
+        )
+        self.assertEqual(bundle.source_type, "2")
+        self.assertEqual(bundle.expected_status["mode"], self.const.MODE_HEAT)
 
     def test_legacy_fan_command_has_capture_evidence(self) -> None:
         profile = self.profiles.resolve_protocol_profile("2743138")

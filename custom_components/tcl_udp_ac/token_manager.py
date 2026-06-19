@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
 from .account_client import AccountClient, TclAccountAuthError, TclAccountError
+from .config_settings import entry_value
 from .const import (
     CONF_ACCOUNT_APP_ID,
     CONF_ACCOUNT_APP_SECRET,
@@ -40,13 +41,6 @@ if TYPE_CHECKING:
     from .data import TclUdpConfigEntry
 
 
-_TOKEN_DATA_KEYS = {
-    CONF_CLOUD_ACCOUNT_ID,
-    CONF_CLOUD_REFRESH_TOKEN,
-    CONF_CLOUD_TOKEN,
-}
-
-
 class TokenManager:
     """Manages cloud token refresh and persistence for a config entry."""
 
@@ -64,9 +58,7 @@ class TokenManager:
         self._session = session
 
     def _value(self, key: str, default: str) -> str:
-        if key in _TOKEN_DATA_KEYS:
-            return self._entry.data.get(key, self._entry.options.get(key, default))
-        return self._entry.options.get(key, self._entry.data.get(key, default))
+        return entry_value(self._entry, key, default)
 
     def _account_client(self) -> AccountClient:
         return AccountClient(

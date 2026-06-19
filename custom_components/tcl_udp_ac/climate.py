@@ -20,8 +20,8 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 
+from .config_settings import capabilities_for_entry, entry_value
 from .const import (
-    CONF_CLOUD_TID,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ENABLE_AUTO_MODE,
@@ -57,7 +57,6 @@ from .const import (
 )
 from .entity import TclUdpEntity
 from .log_utils import log_info
-from .protocol_profiles import resolve_protocol_profile
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -139,22 +138,30 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         super().__init__(coordinator)
         self._attr_name = None
         self._attr_unique_id = self._entity_unique_id("climate")
+        capabilities = self._capabilities()
+        features = (
+            ClimateEntityFeature.TARGET_TEMPERATURE
+            | ClimateEntityFeature.TURN_ON
+            | ClimateEntityFeature.TURN_OFF
+        )
+        if capabilities.supports_fan_speed:
+            features |= ClimateEntityFeature.FAN_MODE
+        else:
+            self._attr_fan_modes = []
+        if capabilities.supports_swing:
+            features |= ClimateEntityFeature.SWING_MODE
+        else:
+            self._attr_swing_modes = []
+        self._attr_supported_features = features
         self._attr_hvac_modes = self._build_hvac_modes()
 
     def _capabilities(self) -> DeviceCapabilities:
         """Return profile capabilities for this config entry."""
-        entry = self.coordinator.config_entry
-        device_id = getattr(entry, "options", {}).get(CONF_CLOUD_TID) or getattr(
-            entry, "data", {}
-        ).get(CONF_CLOUD_TID)
-        return resolve_protocol_profile(device_id).capabilities
+        return capabilities_for_entry(self.coordinator.config_entry)
 
     def _entry_option(self, key: str, *, default: bool) -> bool:
         """Return boolean option from config entry options or data."""
-        entry = self.coordinator.config_entry
-        if key in getattr(entry, "options", {}):
-            return bool(entry.options[key])
-        return bool(getattr(entry, "data", {}).get(key, default))
+        return bool(entry_value(self.coordinator.config_entry, key, default))
 
     def _build_hvac_modes(self) -> list[HVACMode]:
         """Build supported HVAC modes from verified modes plus opt-ins."""

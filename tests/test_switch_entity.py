@@ -91,6 +91,23 @@ class SwitchEntityTest(unittest.TestCase):
         self.assertEqual(aux_heat._attr_translation_key, "aux_heat")
         self.assertEqual(eco._attr_translation_key, "eco_mode")
 
+    def test_setup_uses_product_key_for_profile_switch_capabilities(self) -> None:
+        coordinator = FakeCoordinator(
+            entry_data={
+                "cloud_tid": "other-device",
+                "cloud_product_key": "1112013595N",
+            }
+        )
+        entry = SimpleNamespace(runtime_data=SimpleNamespace(coordinator=coordinator))
+        added = []
+
+        def add_entities(entities):
+            added.extend(entities)
+
+        asyncio.run(self.switch.async_setup_entry(None, entry, add_entities))
+
+        self.assertEqual(added, [])
+
     def test_feature_switch_uses_enabled_keyword(self) -> None:
         coordinator = FakeCoordinator({"sleep_mode": False})
         entity = self.switch.TclUdpSwitch(

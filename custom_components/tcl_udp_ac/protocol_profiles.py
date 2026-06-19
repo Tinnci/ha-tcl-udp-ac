@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .command_bundles import CaptureEvidence, TclCommandBundle
+from .command_bundles import CaptureEvidence, CommandTransport, TclCommandBundle
 from .const import MODE_AUTO, MODE_COOL, MODE_DEHUMI, MODE_FAN, MODE_HEAT
 from .temperature_codec import LegacyTemperatureCodec
 
@@ -41,6 +41,8 @@ class DeviceCapabilities:
         MODE_AUTO,
     )
     switches: dict[str, SwitchCapability] = field(default_factory=dict)
+    supports_fan_speed: bool = True
+    supports_swing: bool = True
 
 
 def _default_switch_capabilities() -> dict[str, SwitchCapability]:
@@ -104,6 +106,15 @@ LEGACY_2743138_CAPABILITIES = DeviceCapabilities(
     switches=_default_switch_capabilities(),
 )
 
+TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
+    # The captured listControl exposes cool/dry/fan/heat/AI, but keep fan/AI
+    # behind the existing opt-in until there is write confirmation.
+    experimental_hvac_modes=(MODE_FAN, MODE_AUTO),
+    switches={},
+    supports_fan_speed=False,
+    supports_swing=False,
+)
+
 
 @dataclass(frozen=True)
 class ProtocolProfile:
@@ -112,6 +123,7 @@ class ProtocolProfile:
     device_id: str | None = None
     name: str = "default"
     capabilities: DeviceCapabilities = DEFAULT_CAPABILITIES
+    legacy_transport_enabled: bool = True
 
     def build_mode_command(
         self,
@@ -199,6 +211,20 @@ class ProtocolProfile:
             ),
             requires_power_on=False,
             expected_status={"power": False},
+        )
+
+    def build_power_on_command(self) -> TclCommandBundle:
+        """Build a power-on command bundle for the profile."""
+        return TclCommandBundle(
+            intent="power:on",
+            payload={"turnOn": "1"},
+            evidence=CaptureEvidence(
+                level="existing-default",
+                source="pre-profile integration behavior",
+                rationale="Default profile preserves standalone power-on writes.",
+            ),
+            requires_power_on=False,
+            expected_status={"power": True},
         )
 
 
@@ -361,8 +387,140 @@ class Legacy2743138Profile(ProtocolProfile):
         )
 
 
-def resolve_protocol_profile(device_id: str | None) -> ProtocolProfile:
+class Tsl1112013595NProfile(ProtocolProfile):
+    """Static-analysis-derived TSL profile for product 1112013595N."""
+
+    _MODE_TO_WORK_MODE = {
+        MODE_COOL: 1,
+        MODE_DEHUMI: 2,
+        MODE_FAN: 3,
+        MODE_HEAT: 4,
+        MODE_AUTO: 5,
+    }
+
+    def __init__(self, device_id: str | None = "45816970") -> None:
+        """Initialize the TSL profile for the captured F-series AC."""
+        super().__init__(
+            device_id=device_id,
+            name="tsl_1112013595N",
+            capabilities=TSL_1112013595N_CAPABILITIES,
+            legacy_transport_enabled=False,
+        )
+
+    def _evidence(self, action: str) -> CaptureEvidence:
+        return CaptureEvidence(
+            level="static-analysis-supported",
+            source=(
+                "tcl_login_1781544117.jsonl and TCL+ 6.0.4 decompiled "
+                "CardACControlView/hg.a/IDevControlModule"
+            ),
+            rationale=(
+                "Protocol 1 device exposes TSL identifiers and TCL+ wraps "
+                f"{action} as property-control JSON rather than convertMqtt XML."
+            ),
+        )
+
+    @staticmethod
+    def _normalize_temperature(target_temperature: float) -> float:
+        rounded = round(float(target_temperature) * 2) / 2
+        return min(31.0, max(16.0, rounded))
+
+    def _property_bundle(
+        self,
+        *,
+        intent: str,
+        payload: dict[str, Any],
+        expected_status: dict[str, Any],
+        action: str,
+        module_id: str | None = None,
+        source_type: str | None = None,
+    ) -> TclCommandBundle:
+        return TclCommandBundle(
+            intent=intent,
+            payload=payload,
+            evidence=self._evidence(action),
+            requires_power_on=False,
+            expected_status=expected_status,
+            transport=CommandTransport.TSL_PROPERTY,
+            module_id=module_id,
+            source_type=source_type,
+        )
+
+    def build_mode_command(
+        self,
+        mode: str,
+        *,
+        target_temperature: float | None = None,
+    ) -> TclCommandBundle:
+        """Build a TSL property-control mode transaction."""
+        work_mode = self._MODE_TO_WORK_MODE.get(mode)
+        if work_mode is None:
+            msg = f"Unsupported TSL mode: {mode}"
+            raise UnsupportedModeError(msg)
+
+        payload: dict[str, Any] = {
+            "powerSwitch": 1,
+            "workMode": work_mode,
+        }
+        expected_status: dict[str, Any] = {"power": True, "mode": mode}
+        if target_temperature is not None:
+            target = self._normalize_temperature(target_temperature)
+            payload["targetTemperature"] = target
+            expected_status["target_temp"] = target
+
+        return self._property_bundle(
+            intent=f"mode:{mode}",
+            payload=payload,
+            expected_status=expected_status,
+            action=f"workMode={work_mode}",
+            # RN control panels call the same property bridge with sourceType=2.
+            source_type="2",
+        )
+
+    def build_temperature_command(
+        self,
+        target_temperature: float,
+        *,
+        current_mode: str | None = None,  # noqa: ARG002  # interface parity
+    ) -> TclCommandBundle:
+        """Build the TSL targetTemperature property transaction."""
+        target = self._normalize_temperature(target_temperature)
+        return self._property_bundle(
+            intent="temperature:set",
+            payload={"targetTemperature": target},
+            expected_status={"target_temp": target},
+            action="targetTemperature",
+        )
+
+    def build_power_off_command(self) -> TclCommandBundle:
+        """Build the TSL power-off property transaction."""
+        return self._property_bundle(
+            intent="power:off",
+            payload={"powerSwitch": 0},
+            expected_status={"power": False},
+            action="powerSwitch=0",
+            module_id="-100",
+        )
+
+    def build_power_on_command(self) -> TclCommandBundle:
+        """Build the TSL power-on property transaction."""
+        return self._property_bundle(
+            intent="power:on",
+            payload={"powerSwitch": 1},
+            expected_status={"power": True},
+            action="powerSwitch=1",
+            module_id="-100",
+        )
+
+
+def resolve_protocol_profile(
+    device_id: str | None,
+    *,
+    product_key: str | None = None,
+) -> ProtocolProfile:
     """Resolve a TCL protocol profile for a configured device id."""
     if str(device_id or "") == "2743138":
         return Legacy2743138Profile(device_id="2743138")
+    if str(product_key or "") == "1112013595N" or str(device_id or "") == "45816970":
+        return Tsl1112013595NProfile(device_id=device_id or "45816970")
     return ProtocolProfile(device_id=device_id)

@@ -8,10 +8,11 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
-from .const import CONF_CLOUD_TID, LOGGER
+from .config_settings import capabilities_for_entry
+from .const import LOGGER
 from .entity import TclUdpEntity
 from .log_utils import log_info
-from .protocol_profiles import SwitchCapability, resolve_protocol_profile
+from .protocol_profiles import SwitchCapability
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -28,11 +29,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up the switch platform."""
     coordinator = entry.runtime_data.coordinator
-    config_entry = coordinator.config_entry
-    device_id = getattr(config_entry, "options", {}).get(CONF_CLOUD_TID) or getattr(
-        config_entry, "data", {}
-    ).get(CONF_CLOUD_TID)
-    capabilities = resolve_protocol_profile(device_id).capabilities
+    capabilities = capabilities_for_entry(coordinator.config_entry)
     async_add_entities(
         [
             TclUdpSwitch(coordinator, capability)

@@ -22,6 +22,13 @@ class TransactionOutcome(StrEnum):
     FAILED = "failed"
 
 
+class CommandTransport(StrEnum):
+    """Transport family required by a command bundle."""
+
+    LEGACY_XML = "legacy_xml"
+    TSL_PROPERTY = "tsl_property"
+
+
 @dataclass(frozen=True)
 class TransactionResult:
     """Verification result for a command transaction."""
@@ -48,10 +55,13 @@ class TclCommandBundle:
     """A grouped TCL command payload produced by a protocol profile."""
 
     intent: str
-    payload: dict[str, str]
+    payload: dict[str, Any]
     evidence: CaptureEvidence
     requires_power_on: bool
     expected_status: dict[str, Any]
+    transport: CommandTransport = CommandTransport.LEGACY_XML
+    module_id: str | None = None
+    source_type: str | None = None
 
     def to_command_items(self) -> list[tuple[str, str]]:
         """Convert protocol fields to integration command item names."""
@@ -71,7 +81,8 @@ class TclCommandBundle:
             "optSolidWd": "OptSolidWd",
         }
         return [
-            (command_map.get(key, key), value) for key, value in self.payload.items()
+            (command_map.get(key, key), str(value))
+            for key, value in self.payload.items()
         ]
 
 

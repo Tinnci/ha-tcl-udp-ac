@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag, for example v0.5.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Package release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Determine release version
+        id: release
+        shell: bash
+        env:
+          VERSION_INPUT: ${{ inputs.version }}
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="${VERSION_INPUT}"
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify manifest version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          release_version = os.environ["RELEASE_VERSION"].removeprefix("v")
+          manifest = json.loads(
+              Path("custom_components/tcl_udp_ac/manifest.json").read_text()
+          )
+          manifest_version = str(manifest["version"])
+          if manifest_version != release_version:
+              raise SystemExit(
+                  f"manifest version {manifest_version} != release {release_version}"
+              )
+          PY
+
+      - name: Build release zip
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          mkdir -p dist
+          zip -r "dist/tcl_udp_ac-${RELEASE_VERSION}.zip" \
+            custom_components/tcl_udp_ac \
+            hacs.json \
+            README.md \
+            -x '*/__pycache__/*'
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          asset="dist/tcl_udp_ac-${RELEASE_VERSION}.zip"
+          if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_VERSION}" "${asset}" --clobber
+          else
+            gh release create "${RELEASE_VERSION}" "${asset}" \
+              --title "${RELEASE_VERSION}" \
+              --generate-notes
+          fi

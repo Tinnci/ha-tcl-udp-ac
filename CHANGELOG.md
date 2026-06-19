@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Add a TSL property-control profile for product `1112013595N` / device `45816970`, covering power, mode, and target-temperature writes.
+- Parse protocol 1 TCL+ status fields for power, mode, temperatures, fan telemetry, swing telemetry, and common feature state.
+- Disable unconfirmed fan speed, swing, and feature-switch writes for the TSL profile until their write payloads are verified.
+- Centralize config-entry settings/profile resolution so setup, entities, and token refresh use the same data/options precedence.
+- Add a GitHub Actions release workflow that packages the integration zip for version tags.
+
 ## 0.4.0
 
 - Add TCL+ electricity/runtime report parsing and diagnostic sensors for current-month energy and runtime.

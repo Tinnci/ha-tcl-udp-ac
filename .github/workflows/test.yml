@@ -27,7 +27,7 @@ jobs:
       # The suite stubs Home Assistant (see tests/ha_stubs.py), so only the
       # runtime libraries the integration imports directly are needed.
       - name: Install test dependencies
-        run: python3 -m pip install aiohttp cryptography yarl
+        run: python3 -m pip install aiohttp cryptography voluptuous yarl
 
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -p 'test_*.py'

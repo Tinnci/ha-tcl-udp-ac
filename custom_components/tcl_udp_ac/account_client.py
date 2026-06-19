@@ -39,6 +39,7 @@ from .const import (
     DEFAULT_CLOUD_USER_AGENT,
     LOGGER,
 )
+from .protocol_profiles import resolve_protocol_profile
 from .tcl_crypto import (
     TclCryptoError,
     encrypt_param,
@@ -92,6 +93,17 @@ class TclCloudDevice:
     def supports_legacy_cloud_control(self) -> bool:
         """Return True when the device matches the captured XMPP cloud path."""
         return self.protocol in {None, "", "0"}
+
+    @property
+    def supports_cloud_control(self) -> bool:
+        """Return True when this integration has a mapped cloud-control path."""
+        if self.supports_legacy_cloud_control:
+            return True
+        profile = resolve_protocol_profile(
+            self.device_id,
+            product_key=self.product_key,
+        )
+        return not profile.legacy_transport_enabled
 
     @property
     def cloud_from_jid(self) -> str | None:
@@ -281,9 +293,7 @@ class AccountClient:
             model=str(model) if model is not None else None,
             protocol=str(protocol) if protocol is not None else None,
             is_online=(
-                AccountClient._cloud_bool(is_online)
-                if is_online is not None
-                else None
+                AccountClient._cloud_bool(is_online) if is_online is not None else None
             ),
             energy=AccountClient._cloud_bool(raw.get("energy")),
         )

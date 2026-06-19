@@ -45,9 +45,8 @@ class ConfigFlowTest(unittest.TestCase):
         self.assertEqual(form["step_id"], "device")
         validated = form["data_schema"]({})
         self.assertEqual(validated[self.config_flow.CONF_CLOUD_TID], "45816970")
-        # Protocol 1 devices use the newer TSL APIs in captures, so the legacy
-        # convertMqtt cloud-control path should not be the discovered default.
-        self.assertFalse(validated[self.config_flow.CONF_CLOUD_CONTROL])
+        # Protocol 1 devices now have a mapped TSL property-control path.
+        self.assertTrue(validated[self.config_flow.CONF_CLOUD_CONTROL])
 
         entry = asyncio.run(flow.async_step_device(validated))
 
@@ -70,6 +69,20 @@ class ConfigFlowTest(unittest.TestCase):
             data[self.config_flow.CONF_CLOUD_REFRESH_TOKEN], "refresh.jwt.sig"
         )
         self.assertEqual(data[self.config_flow.CONF_CLOUD_ACCOUNT_ID], "121517358")
+
+    def test_unknown_protocol_one_product_does_not_default_cloud_control(
+        self,
+    ) -> None:
+        devices = [
+            self.account_client.TclCloudDevice(
+                device_id="99999999",
+                category="AC",
+                product_key="unknown",
+                protocol="1",
+            )
+        ]
+
+        self.assertFalse(self.config_flow._default_device_cloud_control(devices))
 
 
 if __name__ == "__main__":

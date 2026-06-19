@@ -41,9 +41,9 @@ Observed purpose: product metadata for selected devices. It returned
 `controlPanelType: "1"` for the newer `45816970` TSL device and
 `controlPanelType: "0"` for the legacy `2743138` XMPP device.
 
-Integration status: not connected yet. `user_devices.protocol` is now preserved
-so a later implementation can split legacy and TSL behavior without another
-config migration.
+Integration status: partially connected. `user_devices.protocol` and
+`productKey` are preserved and the `1112013595N` product is resolved to a TSL
+profile so it does not fall back to legacy `convertMqtt` writes.
 
 `POST /v1/thing/status`
 
@@ -52,8 +52,10 @@ Observed purpose: TSL-style status for newer devices. Request body was
 `powerSwitch`, `workMode`, `currentTemperature`, `targetTemperature`, `ECO`,
 `sleep`, `screen`, `beepSwitch`, and outdoor-unit telemetry.
 
-Integration status: not connected yet. The existing cloud fallback currently
-parses the older `/device/getdevicestatus?tid=...&category=AC` response shape.
+Integration status: partially connected. The cloud fallback parses TSL status
+fields when they appear in the status payload, including `powerSwitch`,
+`workMode`, temperatures, fan-speed telemetry, swing telemetry, and common
+feature switches.
 
 `POST /v1/control/convertMqtt/{tid}`
 
@@ -62,6 +64,31 @@ requests targeted the legacy `2743138` device.
 
 Integration status: connected as the optional legacy cloud-control path. Local
 UDP remains the primary command path.
+
+## TSL property control
+
+Static analysis of TCL+ 6.0.4 shows property writes are wrapped as:
+
+```json
+{
+  "msgId": "android_<random>_<timestamp>",
+  "version": "1.0",
+  "params": [{"targetTemperature": 25.5}],
+  "source": "APP"
+}
+```
+
+The integration mirrors that shape for the `1112013595N` profile:
+
+- target temperature: `POST /v1/tclplus/property/{deviceId}`;
+- mode writes: `POST /v1/control/property/{deviceId}` with header
+  `sourceType: 2`, carrying `powerSwitch`, `workMode`, and optionally
+  `targetTemperature`;
+- power writes: property body with `powerSwitch` and `moduleId: "-100"`.
+
+This path is static-analysis-supported, not live-capture-confirmed. Fan speed,
+swing, and feature-switch writes remain disabled for this profile until their
+write payloads are captured or verified.
 
 ## Electricity and runtime statistics
 
