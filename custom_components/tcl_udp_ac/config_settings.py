@@ -36,6 +36,7 @@ from .const import (
     CONF_CLOUD_TOKEN,
     CONF_CLOUD_USER_AGENT,
     CONF_CLOUD_X_REQUESTED_WITH,
+    CONF_DEVICE_MAC,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ACCOUNT,
@@ -68,10 +69,9 @@ from .const import (
     DEFAULT_ENABLE_AUTO_MODE,
     DEFAULT_ENABLE_FAN_ONLY_MODE,
 )
+from .protocol_driver import ProtocolDriver, resolve_protocol_driver
 from .protocol_profiles import (
     DeviceCapabilities,
-    ProtocolProfile,
-    resolve_protocol_profile,
 )
 
 if TYPE_CHECKING:
@@ -146,11 +146,11 @@ def entry_values(entry: TclUdpConfigEntry) -> dict[str, Any]:
     return values
 
 
-def profile_for_entry(entry: TclUdpConfigEntry) -> ProtocolProfile:
+def profile_for_entry(entry: TclUdpConfigEntry) -> ProtocolDriver:
     """Resolve the protocol profile for a config entry."""
     device_id = entry_value(entry, CONF_CLOUD_TID, DEFAULT_CLOUD_TID)
     product_key = entry_value(entry, CONF_CLOUD_PRODUCT_KEY, "")
-    return resolve_protocol_profile(device_id, product_key=product_key)
+    return resolve_protocol_driver(device_id, product_key=product_key)
 
 
 def capabilities_for_entry(entry: TclUdpConfigEntry) -> DeviceCapabilities:
@@ -190,6 +190,7 @@ class ConfigEntrySettings:
     cloud_accept: str
     cloud_accept_encoding: str
     cloud_accept_language: str
+    device_mac: str
 
     @classmethod
     def from_entry(cls, entry: TclUdpConfigEntry) -> ConfigEntrySettings:
@@ -251,12 +252,13 @@ class ConfigEntrySettings:
             cloud_accept_language=entry_value(
                 entry, CONF_CLOUD_ACCEPT_LANGUAGE, DEFAULT_CLOUD_ACCEPT_LANGUAGE
             ),
+            device_mac=entry_value(entry, CONF_DEVICE_MAC, ""),
         )
 
     @property
-    def profile(self) -> ProtocolProfile:
+    def profile(self) -> ProtocolDriver:
         """Return the protocol profile for these settings."""
-        return resolve_protocol_profile(
+        return resolve_protocol_driver(
             self.cloud_tid,
             product_key=self.cloud_product_key,
         )
@@ -298,4 +300,5 @@ class ConfigEntrySettings:
             "cloud_accept": self.cloud_accept,
             "cloud_accept_encoding": self.cloud_accept_encoding,
             "cloud_accept_language": self.cloud_accept_language,
+            "device_mac": self.device_mac,
         }

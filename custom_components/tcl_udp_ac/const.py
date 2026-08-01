@@ -92,6 +92,7 @@ CONF_ENABLE_AUTO_MODE = "enable_auto_mode"
 CONF_CLOUD_REFRESH_TOKEN = "cloud_refresh_token"  # noqa: S105
 CONF_CLOUD_ACCOUNT_ID = "cloud_account_id"
 CONF_CLOUD_PRODUCT_KEY = "cloud_product_key"
+CONF_DEVICE_MAC = "device_mac"
 CONF_ACCOUNT_BASE_URL = "account_base_url"
 CONF_ACCOUNT_APP_ID = "account_app_id"
 CONF_ACCOUNT_APP_SECRET = "account_app_secret"  # noqa: S105

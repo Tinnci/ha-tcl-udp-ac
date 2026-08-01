@@ -8,7 +8,7 @@ import secrets
 import socket
 import time
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .const import (
     FAN_AUTO,
@@ -25,8 +25,11 @@ from .const import (
     UDP_COMMAND_PORT,
 )
 from .log_utils import log_info, log_warning
-from .protocol_profiles import ProtocolProfile, resolve_protocol_profile
+from .protocol_driver import ProtocolDriver, resolve_protocol_driver
 from .temperature_validity import is_valid_outdoor_temperature
+
+if TYPE_CHECKING:
+    from .udp_hub import UdpHub, UdpSubscription
 
 SYNC_THROTTLE_SECONDS = 2.0
 
@@ -42,7 +45,9 @@ class UdpClient:
         action_source: str,
         account: str,
         *,
-        protocol_profile: ProtocolProfile | None = None,
+        protocol_profile: ProtocolDriver | None = None,
+        device_mac: str | None = None,
+        udp_hub: UdpHub | None = None,
     ) -> None:
         """Initialize UDP client with protocol metadata."""
         self._listener_sock: socket.socket | None = None
@@ -53,18 +58,34 @@ class UdpClient:
         self._tasks: set[asyncio.Task] = set()
         self._sequence = 0
         self._last_received_seq: str | None = None
-        self._device_mac = "00:00:00:00:00:00"
+        self._device_mac = device_mac or "00:00:00:00:00:00"
         self._device_ip: str | None = None
         self._device_port: int = UDP_COMMAND_PORT
 
         self._action_jid = action_jid
         self._action_source = action_source
         self._account = account
-        self._protocol_profile = protocol_profile or resolve_protocol_profile(None)
+        self._protocol_profile = protocol_profile or resolve_protocol_driver(None)
+        self._udp_hub = udp_hub
+        self._hub_subscription: UdpSubscription | None = None
+        self._hub_acquired = False
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
         self._status_callback = status_callback
+        if self._udp_hub is not None:
+            self._hub_subscription = self._udp_hub.subscribe(
+                self._handle_status_update,
+                expected_mac=(
+                    self._device_mac
+                    if self._device_mac != "00:00:00:00:00:00"
+                    else None
+                ),
+            )
+            await self._udp_hub.async_acquire()
+            self._hub_acquired = True
+            LOGGER.info("UDP client subscribed to shared integration hub")
+            return
         loop = asyncio.get_running_loop()
 
         # Create raw socket manually - more reliable than create_datagram_endpoint
@@ -124,6 +145,13 @@ class UdpClient:
 
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
+        if self._udp_hub is not None:
+            self._udp_hub.unsubscribe(self._hub_subscription)
+            self._hub_subscription = None
+            if self._hub_acquired:
+                self._hub_acquired = False
+                await self._udp_hub.async_release()
+            return
         if self._send_sock:
             loop = asyncio.get_running_loop()
             loop.remove_reader(self._send_sock.fileno())
@@ -233,9 +261,7 @@ class UdpClient:
                     LOGGER.debug("Full Current Status: %s", self._last_status)
 
                     if self._status_callback:
-                        task = asyncio.create_task(
-                            self._status_callback(dict(self._last_status))
-                        )
+                        task = asyncio.create_task(self._status_callback(dict(status)))
                         self._tasks.add(task)
                         task.add_done_callback(self._tasks.discard)
                 else:
@@ -456,7 +482,7 @@ class UdpClient:
 
         LOGGER.debug("Sending SetMessage: %s", xml_command)
 
-        if self._device_ip and self._device_port and self._send_sock:
+        if self._device_ip and self._device_port and self._send_available:
             target_addr = (self._device_ip, self._device_port)
             desc = ", ".join(f"{t}={v}" for t, v in items)
             log_info(
@@ -468,7 +494,7 @@ class UdpClient:
                 ip=target_addr[0],
                 port=target_addr[1],
             )
-            self._send_sock.sendto(xml_command.encode("utf-8"), target_addr)
+            self._sendto(xml_command.encode("utf-8"), target_addr)
         else:
             desc = ", ".join(f"{t}={v}" for t, v in items)
             log_warning(
@@ -481,7 +507,7 @@ class UdpClient:
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
-        if not self._send_sock:
+        if not self._send_available:
             return
         try:
             self._sequence += 1
@@ -489,7 +515,7 @@ class UdpClient:
 
             LOGGER.debug("Sending Discovery: %s", xml_command)
 
-            self._send_sock.sendto(
+            self._sendto(
                 xml_command.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
@@ -504,7 +530,7 @@ class UdpClient:
                     f'type="Notify" seq="{self._sequence}">'
                     f"<SyncStatusReq></SyncStatusReq></msg>"
                 )
-                self._send_sock.sendto(
+                self._sendto(
                     sync_xml.encode("utf-8"),
                     (self._device_ip, self._device_port),
                 )
@@ -516,7 +542,7 @@ class UdpClient:
                     "method": "searchReq",
                 }
             )
-            self._send_sock.sendto(
+            self._sendto(
                 json_search.encode("utf-8"),
                 ("<broadcast>", UDP_COMMAND_PORT),
             )
@@ -527,7 +553,7 @@ class UdpClient:
 
     async def async_request_status(self) -> None:
         """Explicitly request a full status update from the device (SyncStatusReq)."""
-        if not self._send_sock:
+        if not self._send_available:
             return
         if not self._device_ip:
             await self.async_send_discovery()
@@ -559,7 +585,7 @@ class UdpClient:
                     self._device_ip,
                     self._device_mac,
                 )
-                self._send_sock.sendto(
+                self._sendto(
                     xml.encode("utf-8"),
                     (self._device_ip, self._device_port),
                 )
@@ -577,3 +603,16 @@ class UdpClient:
         self._tasks.clear()
 
         await self.async_stop_listener()
+
+    @property
+    def _send_available(self) -> bool:
+        return self._udp_hub is not None or self._send_sock is not None
+
+    def _sendto(self, data: bytes, addr: tuple[str, int]) -> None:
+        if self._udp_hub is not None:
+            self._udp_hub.sendto(data, addr)
+            return
+        if self._send_sock is None:
+            msg = "TCL UDP send socket is not ready"
+            raise OSError(msg)
+        self._send_sock.sendto(data, addr)

@@ -84,6 +84,19 @@ class ConfigFlowTest(unittest.TestCase):
 
         self.assertFalse(self.config_flow._default_device_cloud_control(devices))
 
+    def test_discovered_device_mac_is_persisted_for_udp_routing(self) -> None:
+        device = self.account_client.TclCloudDevice(
+            device_id="device-1",
+            category="AC",
+            product_key="product-1",
+            master_id="account-1",
+            mac="AA:BB:CC:DD:EE:FF",
+        )
+
+        data = self.config_flow._data_with_device({}, device, {})
+
+        self.assertEqual(data["device_mac"], "AA:BB:CC:DD:EE:FF")
+
 
 if __name__ == "__main__":
     unittest.main()

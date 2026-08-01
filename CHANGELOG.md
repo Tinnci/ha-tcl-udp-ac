@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.0
+
+- Add a per-device `DeviceSession` boundary with source-aware state
+  reconciliation and independent command IDs.
+- Add a protocol driver contract and ordered registry while preserving the
+  existing profile resolver as a compatibility alias.
+- Share one UDP hub across config entries and route packets by discovered MAC
+  or an unambiguous learned IP instead of creating one listener per entry.
+- Persist TCL+ discovered device MAC metadata for deterministic local routing.
+- Preserve existing config keys, entity IDs, command event name, cloud fallback,
+  and guarded unsupported-device behavior.
+
 ## 0.5.0
 
 - Add a TSL property-control profile for product `1112013595N` / device `45816970`, covering power, mode, and target-temperature writes.

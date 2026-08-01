@@ -49,6 +49,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
     def _fire_command_event(
         self,
         *,
+        command_id: str | None,
         outcome: str,
         intent: str,
         expected_status: dict[str, Any],
@@ -62,6 +63,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             COMMAND_EVENT,
             {
                 "entry_id": self.config_entry.entry_id,
+                "command_id": command_id,
                 "intent": intent,
                 "outcome": outcome,
                 "expected_status": expected_status,
@@ -93,7 +95,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         # For UDP push-based updates, we return the last known status
         # But we also trigger a SyncStatusReq as a manual poll fallback
         runtime = self.config_entry.runtime_data
-        client = runtime.client
+        client = getattr(runtime, "session", None) or runtime.client
         token_manager = getattr(runtime, "token_manager", None)
         if client.cloud_enabled and token_manager is not None:
             # Refresh the cloud token if near expiry; raises ConfigEntryAuthFailed
@@ -115,13 +117,18 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         if client.cloud_statistics_enabled:
             stats = await client.async_fetch_cloud_energy_statistics()
             if stats:
-                status = dict(status)
-                status["energy_statistics"] = stats
+                merge_derived = getattr(client, "merge_derived", None)
+                if merge_derived is not None:
+                    status = merge_derived({"energy_statistics": stats})
+                else:
+                    status = dict(status)
+                    status["energy_statistics"] = stats
         return status
 
     async def async_confirm_pending_command(
         self,
         *,
+        command_id: str | None = None,
         timeout: float = COMMAND_CONFIRMATION_TIMEOUT,
         interval: float = COMMAND_CONFIRMATION_INTERVAL,
     ) -> bool:
@@ -132,8 +139,12 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         The result is logged and emitted on Home Assistant's event bus so users
         can build automations without being spammed by notifications.
         """
-        client = self.config_entry.runtime_data.client
-        pending = client.pending_command_confirmation()
+        runtime = self.config_entry.runtime_data
+        client = getattr(runtime, "session", None) or runtime.client
+        try:
+            pending = client.pending_command_confirmation(command_id)
+        except TypeError:
+            pending = client.pending_command_confirmation()
         if not pending:
             await self.async_request_refresh()
             return True
@@ -141,7 +152,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         intent = str(pending.get("intent") or "unknown")
         expected_status = pending.get("expected_status") or {}
         if not isinstance(expected_status, dict) or not expected_status:
-            client.clear_pending_command_confirmation()
+            self._clear_pending_command(client, command_id)
             await self.async_request_refresh()
             return True
 
@@ -151,9 +162,10 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             await self.async_request_refresh()
             status = dict(self.data or client.get_last_status() or {})
             if self._command_matches(expected_status, status):
-                client.clear_pending_command_confirmation()
+                self._clear_pending_command(client, command_id)
                 self._delete_command_issue()
                 self._fire_command_event(
+                    command_id=command_id,
                     outcome="applied",
                     intent=intent,
                     expected_status=expected_status,
@@ -173,15 +185,24 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             expected_status,
             status,
         )
-        client.clear_pending_command_confirmation()
+        self._clear_pending_command(client, command_id)
         self._create_command_issue()
         self._fire_command_event(
+            command_id=command_id,
             outcome="not_confirmed",
             intent=intent,
             expected_status=expected_status,
             status=status,
         )
         return False
+
+    @staticmethod
+    def _clear_pending_command(client: Any, command_id: str | None) -> None:
+        """Clear one command while supporting the pre-session client contract."""
+        try:
+            client.clear_pending_command_confirmation(command_id)
+        except TypeError:
+            client.clear_pending_command_confirmation()
 
     async def async_handle_status_update(self, status: dict[str, Any]) -> None:
         """Handle status update from UDP broadcast."""

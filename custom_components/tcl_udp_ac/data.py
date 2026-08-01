@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
     from .api import TclUdpApiClient
     from .coordinator import TclUdpDataUpdateCoordinator
+    from .device_session import DeviceSession
     from .token_manager import TokenManager
 
 
@@ -24,4 +25,5 @@ class TclUdpData:
     client: TclUdpApiClient
     coordinator: TclUdpDataUpdateCoordinator
     integration: Integration
+    session: DeviceSession
     token_manager: TokenManager | None = None

@@ -124,6 +124,7 @@ class ProtocolProfile:
     name: str = "default"
     capabilities: DeviceCapabilities = DEFAULT_CAPABILITIES
     legacy_transport_enabled: bool = True
+    cloud_status_family: str = "hybrid"
 
     def build_mode_command(
         self,
@@ -237,6 +238,7 @@ class Legacy2743138Profile(ProtocolProfile):
             device_id=device_id,
             name="legacy_2743138",
             capabilities=LEGACY_2743138_CAPABILITIES,
+            cloud_status_family="legacy",
         )
 
     def _evidence(self, mode: str) -> CaptureEvidence:
@@ -405,6 +407,7 @@ class Tsl1112013595NProfile(ProtocolProfile):
             name="tsl_1112013595N",
             capabilities=TSL_1112013595N_CAPABILITIES,
             legacy_transport_enabled=False,
+            cloud_status_family="tsl",
         )
 
     def _evidence(self, action: str) -> CaptureEvidence:
@@ -518,9 +521,7 @@ def resolve_protocol_profile(
     *,
     product_key: str | None = None,
 ) -> ProtocolProfile:
-    """Resolve a TCL protocol profile for a configured device id."""
-    if str(device_id or "") == "2743138":
-        return Legacy2743138Profile(device_id="2743138")
-    if str(product_key or "") == "1112013595N" or str(device_id or "") == "45816970":
-        return Tsl1112013595NProfile(device_id=device_id or "45816970")
-    return ProtocolProfile(device_id=device_id)
+    """Compatibility alias for the protocol driver registry."""
+    from .protocol_driver import resolve_protocol_driver  # noqa: PLC0415
+
+    return resolve_protocol_driver(device_id, product_key=product_key)  # type: ignore[return-value]

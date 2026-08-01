@@ -38,13 +38,29 @@ async def async_setup_entry(
     )
 
 
-async def _async_after_command(coordinator: TclUdpDataUpdateCoordinator) -> None:
+async def _async_after_command(
+    coordinator: TclUdpDataUpdateCoordinator,
+    command_id: str | None = None,
+) -> None:
     """Confirm command application when the coordinator supports it."""
     confirm = getattr(coordinator, "async_confirm_pending_command", None)
     if confirm is not None:
-        await confirm()
+        if command_id is not None:
+            await confirm(command_id=command_id)
+        elif (
+            getattr(coordinator.config_entry.runtime_data, "session", None) is not None
+        ):
+            await coordinator.async_request_refresh()
+        else:
+            await confirm()
         return
     await coordinator.async_request_refresh()
+
+
+def _device_api(coordinator: TclUdpDataUpdateCoordinator) -> Any:
+    """Return the migrated device session or the compatibility client."""
+    runtime = coordinator.config_entry.runtime_data
+    return getattr(runtime, "session", None) or runtime.client
 
 
 class TclUdpSwitch(TclUdpEntity, SwitchEntity):
@@ -148,8 +164,8 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
 
     async def _async_set_enabled(self, *, enabled: bool) -> None:
         """Route switch actions to the matching client setter."""
-        client = self.coordinator.config_entry.runtime_data.client
+        client = _device_api(self.coordinator)
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
-            await getattr(client, method_name)(enabled=enabled)
-            await _async_after_command(self.coordinator)
+            command_id = await getattr(client, method_name)(enabled=enabled)
+            await _async_after_command(self.coordinator, command_id)

@@ -39,7 +39,7 @@ from .const import (
     DEFAULT_CLOUD_USER_AGENT,
     LOGGER,
 )
-from .protocol_profiles import resolve_protocol_profile
+from .protocol_driver import resolve_protocol_driver
 from .tcl_crypto import (
     TclCryptoError,
     encrypt_param,
@@ -99,7 +99,7 @@ class TclCloudDevice:
         """Return True when this integration has a mapped cloud-control path."""
         if self.supports_legacy_cloud_control:
             return True
-        profile = resolve_protocol_profile(
+        profile = resolve_protocol_driver(
             self.device_id,
             product_key=self.product_key,
         )

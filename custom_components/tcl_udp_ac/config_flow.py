@@ -33,6 +33,7 @@ from .const import (
     CONF_CLOUD_TID,
     CONF_CLOUD_TO,
     CONF_CLOUD_TOKEN,
+    CONF_DEVICE_MAC,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ACCOUNT_APP_ID,
@@ -173,6 +174,8 @@ def _data_with_device(
     data[CONF_CLOUD_TO] = device.cloud_to_jid
     if device.product_key:
         data[CONF_CLOUD_PRODUCT_KEY] = device.product_key
+    if device.mac:
+        data[CONF_DEVICE_MAC] = device.mac
     if device.master_id:
         data[CONF_ACCOUNT] = device.master_id
     return data

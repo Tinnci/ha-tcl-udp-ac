@@ -124,6 +124,48 @@ class CommandConfirmationTest(unittest.TestCase):
         self.assertEqual(pending["intent"], "power:on")
         self.assertEqual(pending["expected_status"], {"power": True})
 
+    def test_explicit_command_id_clears_only_that_session_command(self) -> None:
+        tracker_mod = load_integration_module("command_tracker")
+
+        class FakeSession:
+            def __init__(self) -> None:
+                self.tracker = tracker_mod.CommandTracker()
+
+            def pending_command_confirmation(self, command_id=None):
+                pending = self.tracker.pending(command_id)
+                return pending.as_dict() if pending else None
+
+            def clear_pending_command_confirmation(self, command_id=None):
+                pending = self.tracker.pending(command_id)
+                if pending:
+                    self.tracker.complete(pending.command_id)
+
+            def get_last_status(self):
+                return {}
+
+        session = FakeSession()
+        power_id = session.tracker.record("power:on", {"power": True})
+        mode_id = session.tracker.record("mode:cool", {"mode": "cool"})
+        coordinator = self.make_coordinator(
+            FakeClient({}),
+            [{"power": True, "mode": "cool"}],
+        )
+        coordinator.config_entry.runtime_data.session = session
+
+        result = asyncio.run(
+            coordinator.async_confirm_pending_command(
+                command_id=power_id,
+                timeout=0,
+                interval=0,
+            )
+        )
+
+        self.assertTrue(result)
+        self.assertIsNone(session.tracker.pending(power_id))
+        self.assertIsNotNone(session.tracker.pending(mode_id))
+        _event_type, event = coordinator.hass.bus.events[-1]
+        self.assertEqual(event["command_id"], power_id)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,6 +20,8 @@ from .config_settings import ConfigEntrySettings
 from .const import DOMAIN, LOGGER
 from .coordinator import TclUdpDataUpdateCoordinator
 from .data import TclUdpData
+from .device_session import DeviceSession
+from .integration_runtime import get_integration_runtime
 from .token_manager import TokenManager
 
 if TYPE_CHECKING:
@@ -54,16 +56,20 @@ async def async_setup_entry(
     coordinator.config_entry = entry
 
     settings = ConfigEntrySettings.from_entry(entry)
-    session = async_get_clientsession(hass)
+    integration_runtime = get_integration_runtime(hass)
+    http_session = async_get_clientsession(hass)
     client = TclUdpApiClient(
-        session=session,
+        session=http_session,
+        udp_hub=integration_runtime.udp_hub,
         **settings.api_client_kwargs(),
     )
+    device_session = DeviceSession(client)
 
     entry.runtime_data = TclUdpData(
         client=client,
         integration=async_get_loaded_integration(hass, entry.domain),
         coordinator=coordinator,
+        session=device_session,
     )
 
     # Token manager handles cloud token auto-refresh when a refresh token is
@@ -72,22 +78,24 @@ async def async_setup_entry(
         hass=hass,
         entry=entry,
         client=client,
-        session=session,
+        session=http_session,
     )
 
     try:
         # Start UDP listener with callback to coordinator
-        await client.async_start_listener(coordinator.async_handle_status_update)
+        await device_session.async_start_listener(
+            coordinator.async_handle_status_update
+        )
 
         # Trigger active discovery
         # This sends a broadcast query so we don't have to wait for the next
         # spontaneous heartbeat.
-        await client.async_send_discovery()
+        await device_session.async_send_discovery()
 
         # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
         await coordinator.async_config_entry_first_refresh()
     except TclUdpApiClientCommunicationError as exception:
-        await client.async_close()
+        await device_session.async_close()
         msg = "TCL UDP listener is not ready"
         raise ConfigEntryNotReady(msg) from exception
 
@@ -104,7 +112,8 @@ async def async_unload_entry(
     """Handle removal of an entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        await entry.runtime_data.client.async_close()
+        device = getattr(entry.runtime_data, "session", entry.runtime_data.client)
+        await device.async_close()
     return unload_ok
 
 

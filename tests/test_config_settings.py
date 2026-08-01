@@ -52,7 +52,11 @@ class ConfigSettingsTest(unittest.TestCase):
 
     def test_api_client_kwargs_keep_account_as_cloud_user_id(self) -> None:
         entry = SimpleNamespace(
-            data={"account": "account-id", "cloud_tid": "45816970"},
+            data={
+                "account": "account-id",
+                "cloud_tid": "45816970",
+                "device_mac": "AA:BB:CC:DD:EE:FF",
+            },
             options={"cloud_access_token": "stale-token"},
         )
 
@@ -62,6 +66,7 @@ class ConfigSettingsTest(unittest.TestCase):
         self.assertEqual(kwargs["account"], "account-id")
         self.assertEqual(kwargs["cloud_user_id"], "account-id")
         self.assertEqual(kwargs["cloud_token"], "stale-token")
+        self.assertEqual(kwargs["device_mac"], "AA:BB:CC:DD:EE:FF")
 
 
 if __name__ == "__main__":

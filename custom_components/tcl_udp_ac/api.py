@@ -44,7 +44,8 @@ from .const import (
     MODE_HEAT,
 )
 from .log_utils import log_debug, log_info, log_warning
-from .protocol_profiles import UnsupportedModeError, resolve_protocol_profile
+from .protocol_driver import ProtocolDriver, resolve_protocol_driver
+from .protocol_profiles import UnsupportedModeError
 from .temperature_validity import is_valid_outdoor_temperature
 from .udp_client import UdpClient
 
@@ -52,6 +53,7 @@ if TYPE_CHECKING:
     import xml.etree.ElementTree as ET
 
     from .command_bundles import TclCommandBundle
+    from .udp_hub import UdpHub
 
 
 class TclUdpApiClientError(Exception):
@@ -161,7 +163,9 @@ class CloudClient:
         self._user_id = user_id
         self._control_enabled = control_enabled
         self._headers = headers
-        self._profile = resolve_protocol_profile(tid, product_key=product_key)
+        self._profile: ProtocolDriver = resolve_protocol_driver(
+            tid, product_key=product_key
+        )
 
     @property
     def status_enabled(self) -> bool:
@@ -500,6 +504,11 @@ class CloudClient:
         return status
 
     def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        family = self._profile.cloud_status_family
+        if family == "legacy":
+            return self._parse_legacy_cloud_status(cur_status)
+        if family == "tsl":
+            return self._parse_tsl_cloud_status(cur_status)
         status = self._parse_legacy_cloud_status(cur_status)
         status.update(self._parse_tsl_cloud_status(cur_status))
         return status
@@ -975,9 +984,11 @@ class TclUdpApiClient:
         cloud_accept: str = DEFAULT_CLOUD_ACCEPT,
         cloud_accept_encoding: str = DEFAULT_CLOUD_ACCEPT_ENCODING,
         cloud_accept_language: str = DEFAULT_CLOUD_ACCEPT_LANGUAGE,
+        device_mac: str | None = None,
+        udp_hub: UdpHub | None = None,
     ) -> None:
         """Initialize the API client."""
-        self._protocol_profile = resolve_protocol_profile(
+        self._protocol_profile = resolve_protocol_driver(
             cloud_tid,
             product_key=cloud_product_key,
         )
@@ -986,6 +997,8 @@ class TclUdpApiClient:
             action_source,
             account,
             protocol_profile=self._protocol_profile,
+            device_mac=device_mac,
+            udp_hub=udp_hub,
         )
         self._session = session
         header_profile = CloudHeaderProfile(
@@ -1176,7 +1189,7 @@ class TclUdpApiClient:
             profile = getattr(
                 self,
                 "_protocol_profile",
-                resolve_protocol_profile(None),
+                resolve_protocol_driver(None),
             )
             if not getattr(profile, "legacy_transport_enabled", True):
                 log_warning(
@@ -1208,7 +1221,7 @@ class TclUdpApiClient:
 
     async def async_set_power(self, *, power: bool) -> None:
         """Set power on/off."""
-        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         bundle = (
             profile.build_power_on_command()
             if power
@@ -1316,7 +1329,7 @@ class TclUdpApiClient:
 
     async def async_set_fan_speed(self, speed_str: str) -> None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
-        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         if not profile.capabilities.supports_fan_speed:
             log_warning(
                 LOGGER,
@@ -1336,7 +1349,7 @@ class TclUdpApiClient:
 
     async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
         """Set swing mode (both directions in one message)."""
-        profile = getattr(self, "_protocol_profile", resolve_protocol_profile(None))
+        profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         if not profile.capabilities.supports_swing:
             log_warning(
                 LOGGER,

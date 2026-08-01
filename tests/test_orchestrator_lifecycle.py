@@ -182,6 +182,43 @@ class UdpStatusSnapshotTest(unittest.TestCase):
 
         asyncio.run(run_case())
 
+    def test_callback_contains_only_fields_from_current_udp_packet(self) -> None:
+        udp_mod = load_integration_module("udp_client")
+        received: list[dict] = []
+
+        async def callback(status: dict) -> None:
+            received.append(status)
+
+        async def run_case() -> None:
+            client = udp_mod.UdpClient("jid", "1", "account")
+
+            async def no_request_status():
+                pass
+
+            client.async_request_status = no_request_status
+            client._status_callback = callback
+            client._handle_status_update(
+                (
+                    b'<msg cmd="status" type="notify" seq="1" tclid="AA">'
+                    b"<statusUpdateMsg><turnOn>1</turnOn></statusUpdateMsg></msg>"
+                ),
+                ("192.0.2.10", 10075),
+            )
+            await asyncio.sleep(0)
+            client._handle_status_update(
+                (
+                    b'<msg cmd="status" type="notify" seq="2" tclid="AA">'
+                    b"<statusUpdateMsg><WindSpeed>high</WindSpeed>"
+                    b"</statusUpdateMsg></msg>"
+                ),
+                ("192.0.2.10", 10075),
+            )
+            await asyncio.sleep(0)
+
+        asyncio.run(run_case())
+
+        self.assertEqual(received, [{"power": True}, {"fan_speed": "high"}])
+
 
 class SensorUnitTest(unittest.TestCase):
     """Outdoor sensor should expose the same units the parser stores."""

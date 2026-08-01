@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.5.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.6.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -112,6 +112,14 @@ This integration communicates via **UDP Multicast/Broadcast**.
 - **Firewall/VLANs**: Ensure UDP traffic on ports **10074** (Receive) and **10075** (Send) is allowed between Home Assistant and the AC units.
 
 ## 🔧 Troubleshooting
+
+### Runtime Architecture
+
+The integration uses one shared UDP hub with a per-device session, source-aware
+state reconciliation, independently tracked command confirmations, and an
+ordered protocol-driver registry. See
+[`docs/architecture.md`](docs/architecture.md) for the compatibility invariants,
+multi-device routing rules, and supported extension path.
 
 ### Local Verification Tools
 
