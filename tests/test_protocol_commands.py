@@ -313,7 +313,6 @@ class EntityCommandTest(unittest.TestCase):
     def test_tsl_bundle_routes_to_property_cloud_without_legacy_commands(self) -> None:
         profiles = load_integration_module("protocol_profiles")
         client = object.__new__(self.api.TclUdpApiClient)
-        client._pending_command_confirmation = None
         legacy_calls = []
         property_calls = []
 
@@ -332,21 +331,21 @@ class EntityCommandTest(unittest.TestCase):
             product_key="1112013595N",
         ).build_temperature_command(25.5)
 
-        asyncio.run(client.async_send_command_bundle(bundle))
+        receipt = asyncio.run(client.async_send_command_bundle(bundle))
 
         self.assertEqual(property_calls, [bundle])
         self.assertEqual(legacy_calls, [])
         self.assertEqual(
-            client.pending_command_confirmation()["expected_status"],
+            receipt.expected_status,
             {"target_temp": 25.5},
         )
+        self.assertEqual(receipt.delivery.outcome, "accepted_by_cloud")
 
     def test_tsl_bundle_send_failure_does_not_record_pending_confirmation(
         self,
     ) -> None:
         profiles = load_integration_module("protocol_profiles")
         client = object.__new__(self.api.TclUdpApiClient)
-        client._pending_command_confirmation = None
 
         class FakeCloud:
             async def async_send_tsl_property_bundle(self, bundle):
@@ -358,14 +357,13 @@ class EntityCommandTest(unittest.TestCase):
             product_key="1112013595N",
         ).build_temperature_command(25.5)
 
-        asyncio.run(client.async_send_command_bundle(bundle))
+        receipt = asyncio.run(client.async_send_command_bundle(bundle))
 
-        self.assertIsNone(client.pending_command_confirmation())
+        self.assertFalse(receipt.delivery.accepted)
 
     def test_tsl_profile_blocks_unmapped_fan_and_swing_commands(self) -> None:
         profiles = load_integration_module("protocol_profiles")
         client = object.__new__(self.api.TclUdpApiClient)
-        client._pending_command_confirmation = None
         client._protocol_profile = profiles.resolve_protocol_profile(
             "45816970",
             product_key="1112013595N",
@@ -377,11 +375,14 @@ class EntityCommandTest(unittest.TestCase):
 
         client.async_send_commands = MethodType(fake_send_commands, client)
 
-        asyncio.run(client.async_set_fan_speed("high"))
-        asyncio.run(client.async_set_swing(vertical=True, horizontal=True))
+        fan_receipt = asyncio.run(client.async_set_fan_speed("high"))
+        swing_receipt = asyncio.run(
+            client.async_set_swing(vertical=True, horizontal=True)
+        )
 
         self.assertEqual(calls, [])
-        self.assertIsNone(client.pending_command_confirmation())
+        self.assertIsNone(fan_receipt)
+        self.assertIsNone(swing_receipt)
 
 
 class ToolProtocolMappingTest(unittest.TestCase):

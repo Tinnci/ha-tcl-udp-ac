@@ -54,6 +54,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         intent: str,
         expected_status: dict[str, Any],
         status: dict[str, Any],
+        transport_outcome: str = "unknown",
+        transport_attempts: dict[str, str] | None = None,
     ) -> None:
         hass = getattr(self, "hass", None)
         bus = getattr(hass, "bus", None)
@@ -68,6 +70,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                 "outcome": outcome,
                 "expected_status": expected_status,
                 "status": status,
+                "transport_outcome": transport_outcome,
+                "transport_attempts": dict(transport_attempts or {}),
             },
         )
 
@@ -75,7 +79,12 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         hass = getattr(self, "hass", None)
         if hass is None:
             return
-        ir.async_delete_issue(hass, DOMAIN, COMMAND_REPAIR_ISSUE_ID)
+        ir.async_delete_issue(hass, DOMAIN, self._command_issue_id)
+
+    @property
+    def _command_issue_id(self) -> str:
+        """Return the per-entry Repairs issue identifier."""
+        return f"{COMMAND_REPAIR_ISSUE_ID}_{self.config_entry.entry_id}"
 
     def _create_command_issue(self) -> None:
         hass = getattr(self, "hass", None)
@@ -84,7 +93,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         ir.async_create_issue(
             hass,
             DOMAIN,
-            COMMAND_REPAIR_ISSUE_ID,
+            self._command_issue_id,
             is_fixable=False,
             severity=ir.IssueSeverity.WARNING,
             translation_key=COMMAND_REPAIR_ISSUE_ID,
@@ -151,6 +160,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
 
         intent = str(pending.get("intent") or "unknown")
         expected_status = pending.get("expected_status") or {}
+        transport_outcome = str(pending.get("transport_outcome") or "unknown")
+        transport_attempts = pending.get("transport_attempts") or {}
         if not isinstance(expected_status, dict) or not expected_status:
             self._clear_pending_command(client, command_id)
             await self.async_request_refresh()
@@ -170,6 +181,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                     intent=intent,
                     expected_status=expected_status,
                     status=status,
+                    transport_outcome=transport_outcome,
+                    transport_attempts=transport_attempts,
                 )
                 return True
 
@@ -193,6 +206,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             intent=intent,
             expected_status=expected_status,
             status=status,
+            transport_outcome=transport_outcome,
+            transport_attempts=transport_attempts,
         )
         return False
 

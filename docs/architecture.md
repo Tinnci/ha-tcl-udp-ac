@@ -2,7 +2,7 @@
 
 This integration uses a modular, in-repository runtime. Home Assistant remains
 the lifecycle owner, while device state, command confirmation, protocol
-selection, and UDP socket ownership have explicit boundaries.
+selection, and UDP socket ownership live behind explicit seams.
 
 ## Compatibility invariants
 
@@ -22,7 +22,7 @@ guessing. Existing single-device entries without a MAC continue to bind the
 first unambiguous local device. Multiple unknown entries deliberately reject an
 ambiguous packet instead of allowing state from one AC to appear on another.
 
-## Runtime boundaries
+## Runtime modules and seams
 
 ```text
 Home Assistant entities
@@ -42,11 +42,16 @@ DeviceSession (one per config entry/device)
 
 ### DeviceSession
 
-`DeviceSession` is the Home Assistant-facing device boundary. Entities and the
-coordinator prefer it over the compatibility client. The session reconciles
-observations, owns independently identified pending commands, and delegates
-transport operations while the older client API remains available to tooling
-and existing tests.
+`DeviceSession` is the Home Assistant-facing device module. Its interface keeps
+state reconciliation, command registration, and confirmation identity local to
+one config entry. Transport adapters return an immutable `CommandReceipt`
+directly; the session records it only when at least one transport accepted the
+command. There is no shared pending slot between concurrent commands.
+
+Cloud and UDP delivery are not presented as an atomic operation. A receipt
+records each attempt as accepted, rejected, skipped, or failed. For example, a
+cloud-accepted command remains eligible for status confirmation if its UDP
+attempt subsequently fails.
 
 ### StateReducer
 
@@ -60,12 +65,19 @@ UDP callbacks contain only fields parsed from the current packet. This prevents
 previous cloud values held in the compatibility client's cache from being
 misclassified as fresh local observations.
 
+Integration-derived observations are accepted only for `energy_statistics`.
+They cannot overwrite device control fields such as power, mode, or target
+temperature.
+
 ### CommandTracker
 
-Every session command receives a stable per-session `command_id`. The
-coordinator confirms and clears that exact command, so concurrent requests do
-not overwrite each other's expected status. Callers that do not pass an ID can
-still use the latest-pending compatibility behavior.
+Every accepted session command receives a stable per-session `command_id`.
+`CommandTracker` stores the receipt and its transport outcome with the expected
+status. The coordinator confirms and clears that exact command, so concurrent
+requests do not overwrite each other. Status matching establishes the observed
+final state, not causality, because the device protocols do not return a command
+transaction identifier. Repairs issue identifiers include the config-entry ID,
+so one device cannot clear another device's warning.
 
 ### ProtocolDriver
 

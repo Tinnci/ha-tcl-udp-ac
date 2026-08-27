@@ -450,17 +450,17 @@ class UdpClient:
         command: str,
         value: str,
         degree_half: int | None = None,
-    ) -> None:
+    ) -> bool:
         """Send a single command using SetMessage XML format (UDP only)."""
         items: list[tuple[str, str]] = [(command, value)]
         if command == "SetTemp" and degree_half is not None:
             items.append(("DegreeH", str(degree_half)))
-        await self.async_send_commands(items)
+        return await self.async_send_commands(items)
 
     async def async_send_commands(
         self,
         items: list[tuple[str, str]],
-    ) -> None:
+    ) -> bool:
         """
         Send multiple tags in a single SetMessage XML (UDP only).
 
@@ -495,15 +495,16 @@ class UdpClient:
                 port=target_addr[1],
             )
             self._sendto(xml_command.encode("utf-8"), target_addr)
-        else:
-            desc = ", ".join(f"{t}={v}" for t, v in items)
-            log_warning(
-                LOGGER,
-                "udp_control_skipped",
-                command=desc,
-                value="batch",
-                reason="device_not_discovered",
-            )
+            return True
+        desc = ", ".join(f"{t}={v}" for t, v in items)
+        log_warning(
+            LOGGER,
+            "udp_control_skipped",
+            command=desc,
+            value="batch",
+            reason="device_not_discovered",
+        )
+        return False
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""

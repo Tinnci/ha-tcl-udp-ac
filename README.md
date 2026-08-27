@@ -81,9 +81,23 @@ Manual token entry remains available for captured-token setups, but manual token
 
 ### Command Confirmation and Notifications
 
-For supported commands, the integration now separates "command sent" from "device applied it." After a climate or switch command, Home Assistant refreshes state for up to 30 seconds and checks whether the expected status is reported back.
+For supported commands, the integration separates transport acceptance from
+the later status match. Each command records whether cloud, UDP, both, or no
+transport accepted it. Only accepted commands enter the confirmation loop.
+Home Assistant then refreshes state for up to 30 seconds and checks whether the
+expected status is reported back. A match confirms the observed final state;
+the device protocols do not provide a transaction ID that could prove the
+command caused that state.
 
-If the status matches, the pending command is cleared. If it does not match in time, the integration logs a warning, fires a `tcl_udp_ac_command_result` event with `outcome: not_confirmed`, and creates a Home Assistant Repairs issue. It does not create repeated persistent notifications by default; users can build their own automations from the event if they want mobile/persistent alerts.
+If the status matches, the pending command is cleared. If it does not match in
+time, the integration logs a warning, fires a `tcl_udp_ac_command_result` event
+with `outcome: not_confirmed`, and creates a device-entry-specific Home
+Assistant Repairs issue. The event also includes `transport_outcome`, such as
+`accepted_by_udp`, `accepted_by_cloud`, or `accepted_by_both`. It does not create
+repeated persistent notifications by default. The `transport_attempts` mapping
+retains each cloud and UDP result (`accepted`, `rejected`, `skipped`, or
+`failed`); users can build their own automations from these fields if they want
+mobile/persistent alerts.
 
 ### Cloud Energy and Runtime Statistics
 

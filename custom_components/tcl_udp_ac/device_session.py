@@ -6,6 +6,7 @@ import time
 from inspect import isawaitable
 from typing import Any
 
+from .command_bundles import CommandReceipt
 from .command_tracker import CommandTracker
 from .device_state import Observation, StateReducer, StateSource
 
@@ -66,6 +67,10 @@ class DeviceSession:
 
     def merge_derived(self, values: dict[str, Any]) -> dict[str, Any]:
         """Merge integration-derived fields such as report statistics."""
+        unsupported = set(values) - {"energy_statistics"}
+        if unsupported:
+            msg = f"Unsupported derived state fields: {', '.join(sorted(unsupported))}"
+            raise ValueError(msg)
         return self.observe(StateSource.DERIVED, values)
 
     async def async_request_status(self) -> None:
@@ -113,21 +118,18 @@ class DeviceSession:
         if pending is not None:
             self._commands.complete(pending.command_id)
 
-    def _capture_command(self) -> str | None:
-        pending = self._client.pending_command_confirmation()
-        if not pending:
+    def _track_command(self, receipt: CommandReceipt) -> str | None:
+        if not receipt.delivery.accepted:
             return None
-        self._client.clear_pending_command_confirmation()
-        return self._commands.record(
-            str(pending.get("intent") or "unknown"),
-            dict(pending.get("expected_status") or {}),
-        )
+        return self._commands.record(receipt)
 
     async def _run_command(
         self, method_name: str, *args: Any, **kwargs: Any
     ) -> str | None:
-        await getattr(self._client, method_name)(*args, **kwargs)
-        return self._capture_command()
+        receipt = await getattr(self._client, method_name)(*args, **kwargs)
+        if not isinstance(receipt, CommandReceipt):
+            return None
+        return self._track_command(receipt)
 
     async def async_set_power(self, *, power: bool) -> str | None:
         """Set device power and return its confirmation identifier."""

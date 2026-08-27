@@ -14,7 +14,6 @@ class FakeTransportClient:
 
     def __init__(self) -> None:
         self.callback = None
-        self.pending = None
         self.status: dict = {}
 
     async def async_start_listener(self, callback) -> None:
@@ -32,17 +31,13 @@ class FakeTransportClient:
     def get_last_status(self):
         return self.status
 
-    async def async_set_power(self, *, power: bool) -> None:
-        self.pending = {
-            "intent": f"power:{'on' if power else 'off'}",
-            "expected_status": {"power": power},
-        }
-
-    def pending_command_confirmation(self):
-        return self.pending
-
-    def clear_pending_command_confirmation(self) -> None:
-        self.pending = None
+    async def async_set_power(self, *, power: bool):
+        bundles = load_integration_module("command_bundles")
+        return bundles.CommandReceipt(
+            intent=f"power:{'on' if power else 'off'}",
+            expected_status={"power": power},
+            delivery=bundles.TransportDelivery(udp=bundles.TransportAttempt.ACCEPTED),
+        )
 
 
 class DeviceSessionTest(unittest.TestCase):
@@ -94,7 +89,64 @@ class DeviceSessionTest(unittest.TestCase):
             session.pending_command_confirmation(command_id)["expected_status"],
             {"power": True},
         )
-        self.assertIsNone(client.pending)
+
+    def test_concurrent_commands_keep_their_own_receipts(self) -> None:
+        bundles = load_integration_module("command_bundles")
+
+        class ConcurrentClient(FakeTransportClient):
+            async def async_set_power(self, *, power: bool):
+                await asyncio.sleep(0 if power else 0.01)
+                return bundles.CommandReceipt(
+                    intent=f"power:{'on' if power else 'off'}",
+                    expected_status={"power": power},
+                    delivery=bundles.TransportDelivery(
+                        udp=bundles.TransportAttempt.ACCEPTED
+                    ),
+                )
+
+        session = self.session_mod.DeviceSession(ConcurrentClient())
+
+        async def run_case():
+            return await asyncio.gather(
+                session.async_set_power(power=False),
+                session.async_set_power(power=True),
+            )
+
+        off_id, on_id = asyncio.run(run_case())
+
+        self.assertNotEqual(off_id, on_id)
+        self.assertEqual(
+            session.pending_command_confirmation(off_id)["expected_status"],
+            {"power": False},
+        )
+        self.assertEqual(
+            session.pending_command_confirmation(on_id)["expected_status"],
+            {"power": True},
+        )
+
+    def test_unaccepted_receipt_is_not_tracked(self) -> None:
+        bundles = load_integration_module("command_bundles")
+
+        class SkippedClient(FakeTransportClient):
+            async def async_set_power(self, *, power: bool):
+                return bundles.CommandReceipt(
+                    intent="power:on",
+                    expected_status={"power": True},
+                    delivery=bundles.TransportDelivery(),
+                )
+
+        session = self.session_mod.DeviceSession(SkippedClient())
+
+        command_id = asyncio.run(session.async_set_power(power=True))
+
+        self.assertIsNone(command_id)
+        self.assertIsNone(session.pending_command_confirmation())
+
+    def test_derived_state_rejects_device_control_fields(self) -> None:
+        session = self.session_mod.DeviceSession(FakeTransportClient())
+
+        with self.assertRaises(ValueError):
+            session.merge_derived({"power": True})
 
 
 if __name__ == "__main__":

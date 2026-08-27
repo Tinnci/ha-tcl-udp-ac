@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
 
 
@@ -27,6 +30,57 @@ class CommandTransport(StrEnum):
 
     LEGACY_XML = "legacy_xml"
     TSL_PROPERTY = "tsl_property"
+
+
+class TransportAttempt(StrEnum):
+    """Result of attempting one concrete command transport."""
+
+    SKIPPED = "skipped"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class TransportDelivery:
+    """Per-transport delivery result for one command intent."""
+
+    cloud: TransportAttempt = TransportAttempt.SKIPPED
+    udp: TransportAttempt = TransportAttempt.SKIPPED
+
+    @property
+    def accepted(self) -> bool:
+        """Return whether at least one transport accepted the command."""
+        return TransportAttempt.ACCEPTED in (self.cloud, self.udp)
+
+    @property
+    def outcome(self) -> str:
+        """Return a stable summary for events and diagnostics."""
+        if self.cloud == self.udp == TransportAttempt.ACCEPTED:
+            return "accepted_by_both"
+        if self.cloud == TransportAttempt.ACCEPTED:
+            return "accepted_by_cloud"
+        if self.udp == TransportAttempt.ACCEPTED:
+            return "accepted_by_udp"
+        return "not_sent"
+
+    def as_dict(self) -> dict[str, str]:
+        """Return each concrete transport attempt."""
+        return {"cloud": self.cloud.value, "udp": self.udp.value}
+
+
+@dataclass(frozen=True)
+class CommandReceipt:
+    """Transport result and state projection for one command intent."""
+
+    intent: str
+    expected_status: Mapping[str, Any]
+    delivery: TransportDelivery
+
+    def __post_init__(self) -> None:
+        """Isolate and freeze the expected status projection."""
+        values = deepcopy(dict(self.expected_status))
+        object.__setattr__(self, "expected_status", MappingProxyType(values))
 
 
 @dataclass(frozen=True)

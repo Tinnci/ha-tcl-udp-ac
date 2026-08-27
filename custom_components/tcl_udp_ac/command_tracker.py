@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from .command_bundles import CommandReceipt
+
 
 @dataclass(frozen=True)
 class PendingCommand:
@@ -14,6 +16,8 @@ class PendingCommand:
     command_id: str
     intent: str
     expected_status: dict[str, Any]
+    transport_outcome: str
+    transport_attempts: dict[str, str]
     created_at: float
 
     def as_dict(self) -> dict[str, Any]:
@@ -22,6 +26,8 @@ class PendingCommand:
             "command_id": self.command_id,
             "intent": self.intent,
             "expected_status": dict(self.expected_status),
+            "transport_outcome": self.transport_outcome,
+            "transport_attempts": dict(self.transport_attempts),
             "created_at": self.created_at,
         }
 
@@ -34,14 +40,16 @@ class CommandTracker:
         self._sequence = 0
         self._pending: dict[str, PendingCommand] = {}
 
-    def record(self, intent: str, expected_status: dict[str, Any]) -> str:
+    def record(self, receipt: CommandReceipt) -> str:
         """Record one command expectation and return its stable identifier."""
         self._sequence += 1
         command_id = f"cmd-{self._sequence}"
         self._pending[command_id] = PendingCommand(
             command_id=command_id,
-            intent=intent,
-            expected_status=dict(expected_status),
+            intent=receipt.intent,
+            expected_status=dict(receipt.expected_status),
+            transport_outcome=receipt.delivery.outcome,
+            transport_attempts=receipt.delivery.as_dict(),
             created_at=time.time(),
         )
         return command_id

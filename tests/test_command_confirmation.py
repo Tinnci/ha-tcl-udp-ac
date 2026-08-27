@@ -87,10 +87,13 @@ class CommandConfirmationTest(unittest.TestCase):
 
         self.assertTrue(result)
         self.assertTrue(client.cleared)
-        self.assertEqual(deleted[0][1:], ("tcl_udp_ac", "command_not_confirmed"))
+        self.assertEqual(
+            deleted[0][1:], ("tcl_udp_ac", "command_not_confirmed_entry-1")
+        )
         event_type, event = coordinator.hass.bus.events[-1]
         self.assertEqual(event_type, "tcl_udp_ac_command_result")
         self.assertEqual(event["outcome"], "applied")
+        self.assertEqual(event["transport_outcome"], "unknown")
 
     def test_confirm_pending_command_timeout_creates_issue(self) -> None:
         client = FakeClient({"power": True})
@@ -109,23 +112,26 @@ class CommandConfirmationTest(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertTrue(client.cleared)
-        self.assertEqual(created[0][0][1:], ("tcl_udp_ac", "command_not_confirmed"))
+        self.assertEqual(
+            created[0][0][1:], ("tcl_udp_ac", "command_not_confirmed_entry-1")
+        )
         self.assertEqual(created[0][1]["translation_key"], "command_not_confirmed")
         event_type, event = coordinator.hass.bus.events[-1]
         self.assertEqual(event_type, "tcl_udp_ac_command_result")
         self.assertEqual(event["outcome"], "not_confirmed")
 
-    def test_api_client_records_pending_power_command(self) -> None:
+    def test_api_client_returns_power_command_receipt(self) -> None:
         client = self.api_mod.TclUdpApiClient(cloud_enabled=False)
 
-        asyncio.run(client.async_set_power(power=True))
+        receipt = asyncio.run(client.async_set_power(power=True))
 
-        pending = client.pending_command_confirmation()
-        self.assertEqual(pending["intent"], "power:on")
-        self.assertEqual(pending["expected_status"], {"power": True})
+        self.assertEqual(receipt.intent, "power:on")
+        self.assertEqual(receipt.expected_status, {"power": True})
+        self.assertFalse(receipt.delivery.accepted)
 
     def test_explicit_command_id_clears_only_that_session_command(self) -> None:
         tracker_mod = load_integration_module("command_tracker")
+        bundles = load_integration_module("command_bundles")
 
         class FakeSession:
             def __init__(self) -> None:
@@ -144,8 +150,13 @@ class CommandConfirmationTest(unittest.TestCase):
                 return {}
 
         session = FakeSession()
-        power_id = session.tracker.record("power:on", {"power": True})
-        mode_id = session.tracker.record("mode:cool", {"mode": "cool"})
+        delivery = bundles.TransportDelivery(udp=bundles.TransportAttempt.ACCEPTED)
+        power_id = session.tracker.record(
+            bundles.CommandReceipt("power:on", {"power": True}, delivery)
+        )
+        mode_id = session.tracker.record(
+            bundles.CommandReceipt("mode:cool", {"mode": "cool"}, delivery)
+        )
         coordinator = self.make_coordinator(
             FakeClient({}),
             [{"power": True, "mode": "cool"}],
@@ -165,6 +176,10 @@ class CommandConfirmationTest(unittest.TestCase):
         self.assertIsNotNone(session.tracker.pending(mode_id))
         _event_type, event = coordinator.hass.bus.events[-1]
         self.assertEqual(event["command_id"], power_id)
+        self.assertEqual(event["transport_outcome"], "accepted_by_udp")
+        self.assertEqual(
+            event["transport_attempts"], {"cloud": "skipped", "udp": "accepted"}
+        )
 
 
 if __name__ == "__main__":

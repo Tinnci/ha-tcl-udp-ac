@@ -13,7 +13,12 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
-from .command_bundles import CommandTransport
+from .command_bundles import (
+    CommandReceipt,
+    CommandTransport,
+    TransportAttempt,
+    TransportDelivery,
+)
 from .const import (
     DEFAULT_CLOUD_ACCEPT,
     DEFAULT_CLOUD_ACCEPT_ENCODING,
@@ -1034,7 +1039,6 @@ class TclUdpApiClient:
             headers=header_profile,
         )
         self._cloud_sequence = 0
-        self._pending_command_confirmation: dict[str, Any] | None = None
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -1073,26 +1077,6 @@ class TclUdpApiClient:
     def merge_status(self, status: dict[str, Any]) -> None:
         """Merge status into the last known status."""
         self._udp.merge_status(status)
-
-    def _record_command_expectation(
-        self, intent: str, expected_status: dict[str, Any]
-    ) -> None:
-        """Remember the most recent command status projection for HA confirmation."""
-        self._pending_command_confirmation = {
-            "intent": intent,
-            "expected_status": dict(expected_status),
-            "created_at": time.time(),
-        }
-
-    def pending_command_confirmation(self) -> dict[str, Any] | None:
-        """Return the pending command confirmation request, if any."""
-        if self._pending_command_confirmation is None:
-            return None
-        return dict(self._pending_command_confirmation)
-
-    def clear_pending_command_confirmation(self) -> None:
-        """Clear the pending command confirmation request."""
-        self._pending_command_confirmation = None
 
     async def async_fetch_cloud_status(
         self,
@@ -1158,7 +1142,7 @@ class TclUdpApiClient:
         command: str,
         value: str,
         degree_half: int | None = None,
-    ) -> None:
+    ) -> TransportDelivery:
         """
         Send a single command via both cloud and UDP.
 
@@ -1174,12 +1158,12 @@ class TclUdpApiClient:
             # The real TCL app always disables Super/Turbo mode when
             # setting temperature, otherwise the device ignores setTemp.
             items.append(("Opt_super", "off"))
-        await self.async_send_commands(items)
+        return await self.async_send_commands(items)
 
     async def async_send_commands(
         self,
         items: list[tuple[str, str]],
-    ) -> None:
+    ) -> TransportDelivery:
         """
         Send multiple tags in ONE message via both cloud and UDP.
 
@@ -1198,28 +1182,53 @@ class TclUdpApiClient:
                     profile=getattr(profile, "name", "unknown"),
                     command=", ".join(f"{key}={value}" for key, value in items),
                 )
-                return
+                return TransportDelivery()
             self._cloud_sequence += 1
             next_seq = str(self._cloud_sequence)
+            cloud_attempt = TransportAttempt.SKIPPED
             if self._cloud.control_enabled:
-                await self._cloud.async_send_commands(items, next_seq)
-            await self._udp.async_send_commands(items)
+                cloud_accepted = await self._cloud.async_send_commands(items, next_seq)
+                cloud_attempt = (
+                    TransportAttempt.ACCEPTED
+                    if cloud_accepted
+                    else TransportAttempt.REJECTED
+                )
+            udp_accepted = await self._udp.async_send_commands(items)
+            udp_attempt = (
+                TransportAttempt.ACCEPTED if udp_accepted else TransportAttempt.SKIPPED
+            )
+            return TransportDelivery(cloud=cloud_attempt, udp=udp_attempt)
         except OSError as exception:
             LOGGER.error("Failed to send command: %s", exception)
+            if (
+                "cloud_attempt" in locals()
+                and cloud_attempt == TransportAttempt.ACCEPTED
+            ):
+                return TransportDelivery(
+                    cloud=cloud_attempt,
+                    udp=TransportAttempt.FAILED,
+                )
             raise TclUdpApiClientCommunicationError from exception
 
-    async def async_send_command_bundle(self, bundle: TclCommandBundle) -> None:
+    async def async_send_command_bundle(
+        self, bundle: TclCommandBundle
+    ) -> CommandReceipt:
         """Send a profile-built grouped command bundle."""
         if bundle.transport == CommandTransport.TSL_PROPERTY:
             sent = await self._cloud.async_send_tsl_property_bundle(bundle)
-            if sent:
-                self._record_command_expectation(bundle.intent, bundle.expected_status)
-            return
+            delivery = TransportDelivery(
+                cloud=(TransportAttempt.ACCEPTED if sent else TransportAttempt.REJECTED)
+            )
+        else:
+            delivery = await self.async_send_commands(bundle.to_command_items())
 
-        await self.async_send_commands(bundle.to_command_items())
-        self._record_command_expectation(bundle.intent, bundle.expected_status)
+        return CommandReceipt(
+            intent=bundle.intent,
+            expected_status=dict(bundle.expected_status),
+            delivery=delivery,
+        )
 
-    async def async_set_power(self, *, power: bool) -> None:
+    async def async_set_power(self, *, power: bool) -> CommandReceipt:
         """Set power on/off."""
         profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         bundle = (
@@ -1227,11 +1236,11 @@ class TclUdpApiClient:
             if power
             else profile.build_power_off_command()
         )
-        await self.async_send_command_bundle(bundle)
+        return await self.async_send_command_bundle(bundle)
 
     async def async_set_power_mode(
         self, *, power: bool, mode_str: str | None = None
-    ) -> None:
+    ) -> CommandReceipt:
         """
         Set power and mode in a single combined message.
 
@@ -1243,26 +1252,26 @@ class TclUdpApiClient:
         ]
         if power and mode_str:
             items.append(("BaseMode", mode_str))
-        await self.async_send_commands(items)
+        delivery = await self.async_send_commands(items)
         expected_status: dict[str, Any] = {"power": power}
         if power and mode_str:
             expected_status["mode"] = mode_str
-        self._record_command_expectation("power_mode:set", expected_status)
+        return CommandReceipt("power_mode:set", expected_status, delivery)
 
     async def async_set_mode_profile(
         self,
         mode_str: str,
         *,
         target_temperature: float | None = None,
-    ) -> None:
+    ) -> CommandReceipt:
         """Set HVAC mode through the configured protocol profile."""
         bundle = self._protocol_profile.build_mode_command(
             mode_str,
             target_temperature=target_temperature,
         )
-        await self.async_send_command_bundle(bundle)
+        return await self.async_send_command_bundle(bundle)
 
-    async def async_set_temperature(self, temperature: float) -> None:
+    async def async_set_temperature(self, temperature: float) -> CommandReceipt:
         """Set target temperature."""
         profile = getattr(self, "_protocol_profile", None)
         if profile is not None:
@@ -1281,20 +1290,19 @@ class TclUdpApiClient:
                     temperature=temperature,
                 )
                 raise
-            await self.async_send_command_bundle(bundle)
-            return
+            return await self.async_send_command_bundle(bundle)
 
         # Test/fallback path for object instances that were constructed before
         # protocol profiles existed.
         temp_value = float(temperature)
         temp_int, degree_half = self._map_set_temp(temp_value)
-        await self.async_send_command(
+        delivery = await self.async_send_command(
             "SetTemp",
             str(temp_int),
             degree_half=degree_half,
         )
-        self._record_command_expectation(
-            "temperature:set", {"target_temp": float(temperature)}
+        return CommandReceipt(
+            "temperature:set", {"target_temp": float(temperature)}, delivery
         )
 
     @staticmethod
@@ -1327,7 +1335,7 @@ class TclUdpApiClient:
             return round(cls._celsius_to_fahrenheit(temp_c)), 0
         return best[3], best[4]
 
-    async def async_set_fan_speed(self, speed_str: str) -> None:
+    async def async_set_fan_speed(self, speed_str: str) -> CommandReceipt | None:
         """Set fan speed (expects 'high', 'middle', 'low', or 'auto')."""
         profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         if not profile.capabilities.supports_fan_speed:
@@ -1337,17 +1345,19 @@ class TclUdpApiClient:
                 profile=getattr(profile, "name", "unknown"),
                 fan_speed=speed_str,
             )
-            return
-        await self.async_send_commands(
+            return None
+        delivery = await self.async_send_commands(
             [
                 ("WindSpeed", speed_str),
                 ("Opt_sleepMode", "0"),
                 ("Opt_super", "off"),
             ]
         )
-        self._record_command_expectation("fan_speed:set", {"fan_speed": speed_str})
+        return CommandReceipt("fan_speed:set", {"fan_speed": speed_str}, delivery)
 
-    async def async_set_swing(self, *, vertical: bool, horizontal: bool) -> None:
+    async def async_set_swing(
+        self, *, vertical: bool, horizontal: bool
+    ) -> CommandReceipt | None:
         """Set swing mode (both directions in one message)."""
         profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         if not profile.capabilities.supports_swing:
@@ -1358,60 +1368,72 @@ class TclUdpApiClient:
                 vertical=vertical,
                 horizontal=horizontal,
             )
-            return
-        await self.async_send_commands(
+            return None
+        delivery = await self.async_send_commands(
             [
                 ("WindDirection_V", "on" if vertical else "off"),
                 ("WindDirection_H", "on" if horizontal else "off"),
                 ("OptSolidWd", "off"),
             ]
         )
-        self._record_command_expectation(
-            "swing:set", {"swing_v": vertical, "swing_h": horizontal}
+        return CommandReceipt(
+            "swing:set",
+            {"swing_v": vertical, "swing_h": horizontal},
+            delivery,
         )
 
-    async def async_set_mode(self, mode_str: str) -> None:
+    async def async_set_mode(self, mode_str: str) -> CommandReceipt:
         """Set operation mode (expects 'cool', 'heat', 'fan', 'dehumi', 'selffeel')."""
         # Java: <BaseMode>cool</BaseMode>
-        await self.async_send_command("BaseMode", mode_str)
-        self._record_command_expectation("mode:set", {"mode": mode_str})
+        delivery = await self.async_send_command("BaseMode", mode_str)
+        return CommandReceipt("mode:set", {"mode": mode_str}, delivery)
 
-    async def async_set_eco_mode(self, *, enabled: bool) -> None:
+    async def async_set_eco_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set ECO mode."""
         # Java: <Opt_ECO>on</Opt_ECO>
-        await self.async_send_command("Opt_ECO", "on" if enabled else "off")
-        self._record_command_expectation("switch:eco_mode", {"eco_mode": enabled})
+        delivery = await self.async_send_command("Opt_ECO", "on" if enabled else "off")
+        return CommandReceipt("switch:eco_mode", {"eco_mode": enabled}, delivery)
 
-    async def async_set_display(self, *, enabled: bool) -> None:
+    async def async_set_display(self, *, enabled: bool) -> CommandReceipt:
         """Set display on/off."""
-        await self.async_send_command("OptDisplay", "on" if enabled else "off")
-        self._record_command_expectation("switch:display", {"display": enabled})
+        delivery = await self.async_send_command(
+            "OptDisplay", "on" if enabled else "off"
+        )
+        return CommandReceipt("switch:display", {"display": enabled}, delivery)
 
-    async def async_set_health_mode(self, *, enabled: bool) -> None:
+    async def async_set_health_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set health mode."""
-        await self.async_send_command("OptHealthy", "on" if enabled else "off")
-        self._record_command_expectation("switch:health_mode", {"health_mode": enabled})
+        delivery = await self.async_send_command(
+            "OptHealthy", "on" if enabled else "off"
+        )
+        return CommandReceipt("switch:health_mode", {"health_mode": enabled}, delivery)
 
-    async def async_set_sleep_mode(self, *, enabled: bool) -> None:
+    async def async_set_sleep_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set sleep mode."""
-        await self.async_send_command("Opt_sleepMode", "1" if enabled else "0")
-        self._record_command_expectation("switch:sleep_mode", {"sleep_mode": enabled})
+        delivery = await self.async_send_command(
+            "Opt_sleepMode", "1" if enabled else "0"
+        )
+        return CommandReceipt("switch:sleep_mode", {"sleep_mode": enabled}, delivery)
 
-    async def async_set_turbo_mode(self, *, enabled: bool) -> None:
+    async def async_set_turbo_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set turbo (super) mode."""
-        await self.async_send_command("Opt_super", "on" if enabled else "off")
-        self._record_command_expectation("switch:turbo_mode", {"turbo_mode": enabled})
+        delivery = await self.async_send_command(
+            "Opt_super", "on" if enabled else "off"
+        )
+        return CommandReceipt("switch:turbo_mode", {"turbo_mode": enabled}, delivery)
 
-    async def async_set_aux_heat(self, *, enabled: bool) -> None:
+    async def async_set_aux_heat(self, *, enabled: bool) -> CommandReceipt:
         """Set auxiliary (electric) heat on/off."""
-        await self.async_send_command("OptHeat", "on" if enabled else "off")
-        self._record_command_expectation("switch:aux_heat", {"aux_heat": enabled})
+        delivery = await self.async_send_command("OptHeat", "on" if enabled else "off")
+        return CommandReceipt("switch:aux_heat", {"aux_heat": enabled}, delivery)
 
-    async def async_set_beep(self, *, enabled: bool) -> None:
+    async def async_set_beep(self, *, enabled: bool) -> CommandReceipt:
         """Set beep on/off."""
         # Java: <BeepEnable>on</BeepEnable>
-        await self.async_send_command("BeepEnable", "on" if enabled else "off")
-        self._record_command_expectation("switch:beep", {"beep": enabled})
+        delivery = await self.async_send_command(
+            "BeepEnable", "on" if enabled else "off"
+        )
+        return CommandReceipt("switch:beep", {"beep": enabled}, delivery)
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""

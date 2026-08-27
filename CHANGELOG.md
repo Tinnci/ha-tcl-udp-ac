@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Return immutable command receipts from transport operations and atomically
+  register accepted commands in each device session, eliminating the shared
+  pending slot that could mix concurrent commands.
+- Report cloud and UDP delivery outcomes separately from final status matching,
+  and skip confirmation for commands no transport accepted.
+- Scope command-confirmation Repairs issues to each config entry and prevent
+  integration-derived statistics from overwriting device control state.
+
 ## 0.6.0
 
 - Add a per-device `DeviceSession` boundary with source-aware state
