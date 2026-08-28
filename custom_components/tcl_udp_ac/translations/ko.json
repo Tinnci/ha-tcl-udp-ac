@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "TCL+ 재인증", "description": "만료된 TCL+ 세션을 복원할 방법을 선택하세요.", "menu_options": {"reauth_confirm": "계정과 비밀번호로 로그인", "reauth_sms": "SMS 인증 코드로 로그인"}},
+      "reauth_sms": {"title": "SMS로 재인증", "description": "인증 코드를 받을 휴대폰 번호를 입력하세요.", "data": {"mobile": "휴대폰 번호"}},
+      "reauth_sms_code": {"title": "인증 코드 입력", "description": "받은 SMS 코드를 입력하여 액세스를 복원하세요.", "data": {"code": "인증 코드"}},
       "manual": {
         "description": "로컬 UDP 제어와 선택적 TCL+ 클라우드 대체 상태 조회를 사용해 TCL 에어컨을 설정합니다. 클라우드 액세스 토큰은 만료됩니다. 클라우드 요청이 실패하기 시작하면 새 TCL+ 캡처에서 토큰을 갱신하세요.",
         "data": {

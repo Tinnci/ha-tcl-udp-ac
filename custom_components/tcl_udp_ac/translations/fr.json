@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "Réauthentifier TCL+", "description": "Choisissez comment restaurer votre session TCL+ expirée.", "menu_options": {"reauth_confirm": "Se connecter avec le compte et le mot de passe", "reauth_sms": "Se connecter avec un code SMS"}},
+      "reauth_sms": {"title": "Réauthentification par SMS", "description": "Saisissez votre numéro de mobile pour recevoir un code de vérification.", "data": {"mobile": "Numéro de mobile"}},
+      "reauth_sms_code": {"title": "Saisir le code de vérification", "description": "Saisissez le code SMS reçu pour restaurer l’accès.", "data": {"code": "Code de vérification"}},
       "manual": {
         "description": "Configurez un climatiseur TCL avec le contrôle UDP local et un repli cloud TCL+ facultatif. Les jetons d'accès cloud expirent ; actualisez-les depuis une nouvelle capture TCL+ lorsque les requêtes cloud commencent à échouer.",
         "data": {

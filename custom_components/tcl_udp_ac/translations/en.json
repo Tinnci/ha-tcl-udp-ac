@@ -51,6 +51,28 @@
           "password": "Password"
         }
       },
+      "reauth": {
+        "title": "Re-authenticate TCL+",
+        "description": "Choose how to restore your expired TCL+ session.",
+        "menu_options": {
+          "reauth_confirm": "Log in with account and password",
+          "reauth_sms": "Log in with SMS verification code"
+        }
+      },
+      "reauth_sms": {
+        "title": "Re-authenticate by SMS",
+        "description": "Enter your mobile number to receive a verification code.",
+        "data": {
+          "mobile": "Mobile number"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "Enter verification code",
+        "description": "Enter the SMS code you received to restore access.",
+        "data": {
+          "code": "Verification code"
+        }
+      },
       "manual": {
         "description": "Set up a TCL air conditioner using local UDP control and optional TCL+ cloud fallback. Cloud access tokens expire; refresh them from a new TCL+ capture when cloud requests start failing.",
         "data": {

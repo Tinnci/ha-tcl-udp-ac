@@ -10,7 +10,7 @@
   account without reloading otherwise unchanged runtimes.
 - Apply the same token-freshness boundary to status, statistics, and control
   requests, preserve updated account IDs, and use effective advanced account
-  settings during reauthentication.
+  settings during password or SMS reauthentication.
 - Return immutable command receipts from transport operations and atomically
   register accepted commands in each device session, eliminating the shared
   pending slot that could mix concurrent commands.

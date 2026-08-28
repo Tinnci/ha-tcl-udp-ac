@@ -51,6 +51,28 @@
           "password": "密码"
         }
       },
+      "reauth": {
+        "title": "重新认证 TCL+",
+        "description": "选择恢复已过期 TCL+ 会话的方式。",
+        "menu_options": {
+          "reauth_confirm": "使用账号和密码登录",
+          "reauth_sms": "使用短信验证码登录"
+        }
+      },
+      "reauth_sms": {
+        "title": "通过短信重新认证",
+        "description": "输入手机号以接收验证码。",
+        "data": {
+          "mobile": "手机号"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "输入验证码",
+        "description": "输入收到的短信验证码以恢复访问。",
+        "data": {
+          "code": "验证码"
+        }
+      },
       "manual": {
         "description": "使用本地 UDP 控制和可选的 TCL+ 云端回退来设置 TCL 空调。云端访问令牌会过期；当云端请求开始失败时，请从新的 TCL+ 抓包中刷新令牌。",
         "data": {

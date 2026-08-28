@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "TCL+ erneut authentifizieren", "description": "Wählen Sie, wie die abgelaufene TCL+ Sitzung wiederhergestellt werden soll.", "menu_options": {"reauth_confirm": "Mit Konto und Passwort anmelden", "reauth_sms": "Mit SMS-Bestätigungscode anmelden"}},
+      "reauth_sms": {"title": "Erneut per SMS authentifizieren", "description": "Geben Sie Ihre Mobilnummer ein, um einen Bestätigungscode zu erhalten.", "data": {"mobile": "Mobilnummer"}},
+      "reauth_sms_code": {"title": "Bestätigungscode eingeben", "description": "Geben Sie den erhaltenen SMS-Code ein, um den Zugriff wiederherzustellen.", "data": {"code": "Bestätigungscode"}},
       "manual": {
         "description": "Richte eine TCL-Klimaanlage mit lokaler UDP-Steuerung und optionalem TCL+-Cloud-Fallback ein. Cloud-Zugriffstoken laufen ab; aktualisiere sie aus einem neuen TCL+-Mitschnitt, wenn Cloud-Anfragen fehlschlagen.",
         "data": {

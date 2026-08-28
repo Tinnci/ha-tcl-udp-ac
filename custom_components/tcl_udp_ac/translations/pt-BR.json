@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "Reautenticar TCL+", "description": "Escolha como restaurar sua sessão TCL+ expirada.", "menu_options": {"reauth_confirm": "Entrar com conta e senha", "reauth_sms": "Entrar com código de verificação por SMS"}},
+      "reauth_sms": {"title": "Reautenticar por SMS", "description": "Digite seu número de celular para receber um código de verificação.", "data": {"mobile": "Número de celular"}},
+      "reauth_sms_code": {"title": "Digite o código de verificação", "description": "Digite o código SMS recebido para restaurar o acesso.", "data": {"code": "Código de verificação"}},
       "manual": {
         "description": "Configure um ar-condicionado TCL usando controle UDP local e fallback opcional da nuvem TCL+. Os tokens de acesso da nuvem expiram; atualize-os a partir de uma nova captura do TCL+ quando as solicitações à nuvem começarem a falhar.",
         "data": {

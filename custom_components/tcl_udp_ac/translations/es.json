@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "Volver a autenticar TCL+", "description": "Elige cómo restaurar tu sesión TCL+ caducada.", "menu_options": {"reauth_confirm": "Iniciar sesión con cuenta y contraseña", "reauth_sms": "Iniciar sesión con código SMS"}},
+      "reauth_sms": {"title": "Volver a autenticar por SMS", "description": "Introduce tu número de móvil para recibir un código de verificación.", "data": {"mobile": "Número de móvil"}},
+      "reauth_sms_code": {"title": "Introducir código de verificación", "description": "Introduce el código SMS recibido para restaurar el acceso.", "data": {"code": "Código de verificación"}},
       "manual": {
         "description": "Configura un aire acondicionado TCL con control UDP local y respaldo opcional en la nube TCL+. Los tokens de acceso a la nube caducan; actualízalos desde una nueva captura de TCL+ cuando las solicitudes a la nube empiecen a fallar.",
         "data": {

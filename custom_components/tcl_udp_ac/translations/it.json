@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "Autentica nuovamente TCL+", "description": "Scegli come ripristinare la sessione TCL+ scaduta.", "menu_options": {"reauth_confirm": "Accedi con account e password", "reauth_sms": "Accedi con codice di verifica SMS"}},
+      "reauth_sms": {"title": "Autentica nuovamente via SMS", "description": "Inserisci il numero di cellulare per ricevere un codice di verifica.", "data": {"mobile": "Numero di cellulare"}},
+      "reauth_sms_code": {"title": "Inserisci il codice di verifica", "description": "Inserisci il codice SMS ricevuto per ripristinare l’accesso.", "data": {"code": "Codice di verifica"}},
       "manual": {
         "description": "Configura un climatizzatore TCL usando il controllo UDP locale e un fallback cloud TCL+ opzionale. I token di accesso cloud scadono; aggiornali da una nuova cattura TCL+ quando le richieste cloud iniziano a fallire.",
         "data": {

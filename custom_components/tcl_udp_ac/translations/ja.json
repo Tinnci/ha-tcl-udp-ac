@@ -51,6 +51,9 @@
           "password": "Password"
         }
       },
+      "reauth": {"title": "TCL+ を再認証", "description": "期限切れの TCL+ セッションを復元する方法を選択します。", "menu_options": {"reauth_confirm": "アカウントとパスワードでログイン", "reauth_sms": "SMS 認証コードでログイン"}},
+      "reauth_sms": {"title": "SMS で再認証", "description": "認証コードを受け取る携帯電話番号を入力してください。", "data": {"mobile": "携帯電話番号"}},
+      "reauth_sms_code": {"title": "認証コードを入力", "description": "受信した SMS コードを入力してアクセスを復元します。", "data": {"code": "認証コード"}},
       "manual": {
         "description": "ローカル UDP 制御と任意の TCL+ クラウドフォールバックを使って TCL エアコンを設定します。クラウドアクセストークンには有効期限があります。クラウド要求が失敗し始めたら、新しい TCL+ キャプチャから更新してください。",
         "data": {

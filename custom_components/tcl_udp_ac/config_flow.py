@@ -186,6 +186,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     _login_devices: list[TclCloudDevice]
     _login_tokens: TclTokens
     _sms_mobile: str
+    _reauth_sms_mobile: str
 
     @staticmethod
     @callback
@@ -393,7 +394,24 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         _entry_data: dict[str, Any],
     ) -> config_entries.ConfigFlowResult:
         """Handle reauthentication when the cloud token can no longer refresh."""
-        return await self.async_step_reauth_confirm()
+        return self.async_show_menu(
+            step_id="reauth",
+            menu_options=["reauth_confirm", "reauth_sms"],
+        )
+
+    async def _async_finish_reauth(
+        self,
+        entry: config_entries.ConfigEntry,
+        tokens: TclTokens,
+    ) -> config_entries.ConfigFlowResult:
+        """Synchronize reauthenticated credentials and finish the flow."""
+        runtime = get_integration_runtime(self.hass)
+        manager = runtime.credential_manager
+        if manager is None:
+            manager = CredentialManager(self.hass, async_get_clientsession(self.hass))
+            runtime.credential_manager = manager
+        await manager.async_apply_tokens(entry, tokens)
+        return self.async_abort(reason="reauth_successful")
 
     async def async_step_reauth_confirm(
         self,
@@ -413,15 +431,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except TclAccountError:
                 errors["base"] = "cannot_connect"
             else:
-                runtime = get_integration_runtime(self.hass)
-                manager = runtime.credential_manager
-                if manager is None:
-                    manager = CredentialManager(
-                        self.hass, async_get_clientsession(self.hass)
-                    )
-                    runtime.credential_manager = manager
-                await manager.async_apply_tokens(entry, tokens)
-                return self.async_abort(reason="reauth_successful")
+                return await self._async_finish_reauth(entry, tokens)
 
         schema = vol.Schema(
             {
@@ -431,6 +441,53 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
         return self.async_show_form(
             step_id="reauth_confirm", data_schema=schema, errors=errors
+        )
+
+    async def async_step_reauth_sms(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Request an SMS code using the entry's effective account settings."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+        if user_input is not None:
+            self._reauth_sms_mobile = user_input["mobile"]
+            account = _account_client(self.hass, entry)
+            try:
+                await account.async_request_sms_code(self._reauth_sms_mobile)
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self.async_step_reauth_sms_code()
+
+        schema = vol.Schema({vol.Required("mobile"): str})
+        return self.async_show_form(
+            step_id="reauth_sms", data_schema=schema, errors=errors
+        )
+
+    async def async_step_reauth_sms_code(
+        self,
+        user_input: dict[str, Any] | None = None,
+    ) -> config_entries.ConfigFlowResult:
+        """Complete reauthentication with an SMS verification code."""
+        errors: dict[str, str] = {}
+        entry = self._get_reauth_entry()
+        if user_input is not None:
+            account = _account_client(self.hass, entry)
+            try:
+                tokens = await account.async_login_sms(
+                    self._reauth_sms_mobile, user_input["code"]
+                )
+            except TclAccountAuthError:
+                errors["base"] = "invalid_auth"
+            except TclAccountError:
+                errors["base"] = "cannot_connect"
+            else:
+                return await self._async_finish_reauth(entry, tokens)
+
+        schema = vol.Schema({vol.Required("code"): str})
+        return self.async_show_form(
+            step_id="reauth_sms_code", data_schema=schema, errors=errors
         )
 
 

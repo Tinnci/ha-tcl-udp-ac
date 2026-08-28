@@ -127,6 +127,8 @@ class ConfigMetadataTest(unittest.TestCase):
             "async_step_sms_code",
             "async_step_reauth",
             "async_step_reauth_confirm",
+            "async_step_reauth_sms",
+            "async_step_reauth_sms_code",
         ):
             self.assertIn(step, config_flow)
 
