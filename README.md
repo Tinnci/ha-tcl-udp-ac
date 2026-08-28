@@ -77,6 +77,8 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 
 When you configure the integration with TCL+ login, Home Assistant stores the access and refresh tokens in the config entry and refreshes them before authorized cloud requests. Devices logged in with the same TCL+ account share one refresh operation and receive rotated credentials together, without reloading otherwise unchanged runtimes. Tokens are not shown again in the options flow. If the refresh token expires or TCL+ explicitly rejects it, Home Assistant raises a re-authentication flow so you can log in again. Transient network, server, and rate-limit failures keep the existing session and do not incorrectly request reauthentication.
 
+The integration does not save your TCL+ username, password, SMS code, or password hash. Password login hashes the password for TCL's protocol, wraps the login payload with TCL's public-key encryption, and keeps it only for the active config-flow request. Home Assistant persists the returned access token, refresh token, and account ID in its config-entry storage so automatic renewal can continue. These are bearer credentials protected by access to the Home Assistant configuration directory and backups; the integration does not add a separate at-rest encryption layer.
+
 Manual token entry remains available for captured-token setups, but manual tokens cannot be refreshed automatically.
 
 ### Command Confirmation and Notifications

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve transient refresh failures after an explicit cloud authentication
+  rejection instead of retrying the already-rejected access token and
+  incorrectly prompting for reauthentication.
 - Classify TCL account authentication, rate-limit, protocol, and transient
   failures before interpreting token payloads, and retry cloud requests once
   only when the server explicitly rejects authentication.

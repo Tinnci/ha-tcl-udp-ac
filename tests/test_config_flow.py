@@ -69,6 +69,8 @@ class ConfigFlowTest(unittest.TestCase):
             data[self.config_flow.CONF_CLOUD_REFRESH_TOKEN], "refresh.jwt.sig"
         )
         self.assertEqual(data[self.config_flow.CONF_CLOUD_ACCOUNT_ID], "121517358")
+        self.assertNotIn("username", data)
+        self.assertNotIn("password", data)
 
     def test_unknown_protocol_one_product_does_not_default_cloud_control(
         self,

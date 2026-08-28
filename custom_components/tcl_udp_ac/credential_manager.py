@@ -130,6 +130,11 @@ class CredentialManager:
                 raise ConfigEntryAuthFailed(str(exc)) from exc
             except TclAccountError as exc:
                 LOGGER.warning("TCL token refresh failed: %s", exc)
+                if force:
+                    # The cloud already rejected this access token. Retrying it
+                    # after a temporary refresh outage would turn a network,
+                    # rate-limit, or server failure into a false HA reauth.
+                    raise
                 return access_token or None
 
             await self.async_apply_tokens(

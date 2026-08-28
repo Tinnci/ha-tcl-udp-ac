@@ -188,6 +188,29 @@ class TokenManagerTest(unittest.TestCase):
         finally:
             tm_mod.time.time = original
 
+    def test_refresh_service_auth_rejection_raises_auth_failed(self) -> None:
+        from homeassistant.exceptions import ConfigEntryAuthFailed
+
+        iat = self.now - 29 * 86400
+        account = FakeAccountClient(
+            error=self.account_mod.TclAccountAuthError("refresh rejected")
+        )
+        tm_mod, tm, _hass, _entry, _client = _build_manager(
+            {
+                "cloud_access_token": _jwt(self.now + 86400, iat),
+                "cloud_refresh_token": _jwt(self.now + 60 * 86400, iat),
+                "cloud_account_id": "1",
+            },
+            account,
+        )
+        original = tm_mod.time.time
+        tm_mod.time.time = lambda: self.now
+        try:
+            with self.assertRaisesRegex(ConfigEntryAuthFailed, "refresh rejected"):
+                asyncio.run(tm.async_ensure_fresh_token())
+        finally:
+            tm_mod.time.time = original
+
     def test_transient_refresh_error_is_swallowed(self) -> None:
         iat = self.now - 29 * 86400
         exp = self.now + 86400
@@ -256,6 +279,72 @@ class TokenManagerTest(unittest.TestCase):
         with self.assertRaises(OSError):
             asyncio.run(tm.async_authenticated_request(operation))
         self.assertEqual(refreshes, 1)
+
+    def test_second_auth_rejection_after_refresh_requires_reauth(self) -> None:
+        from homeassistant.exceptions import ConfigEntryAuthFailed
+
+        tm_mod = load_integration_module("token_manager")
+        credential_mod = load_integration_module("credential_manager")
+        tm = object.__new__(tm_mod.TokenManager)
+        tm._entry = FakeEntry({"cloud_access_token": "rejected"})
+        refreshes = 0
+        attempts = 0
+
+        async def ensure(**_kwargs):
+            nonlocal refreshes
+            refreshes += 1
+
+        async def operation():
+            nonlocal attempts
+            attempts += 1
+            raise credential_mod.CloudAuthRejectedError
+
+        tm.async_ensure_fresh_token = ensure
+        with self.assertRaises(ConfigEntryAuthFailed):
+            asyncio.run(tm.async_authenticated_request(operation))
+
+        self.assertEqual(refreshes, 2)
+        self.assertEqual(attempts, 2)
+
+    def test_auth_rejection_with_transient_refresh_failure_does_not_reauth(
+        self,
+    ) -> None:
+        """A temporary refresh outage must not become an HA reauth prompt."""
+        credential_mod = load_integration_module("credential_manager")
+        iat = self.now - 100
+        access = _jwt(self.now + 30 * 86400, iat)
+        refresh = _jwt(self.now + 60 * 86400, iat)
+        account = FakeAccountClient(
+            error=self.account_mod.TclAccountError("temporary refresh outage")
+        )
+        tm_mod, tm, _hass, _entry, client = _build_manager(
+            {
+                "cloud_access_token": access,
+                "cloud_refresh_token": refresh,
+                "cloud_account_id": "1",
+            },
+            account,
+        )
+        attempts = 0
+
+        async def operation():
+            nonlocal attempts
+            attempts += 1
+            raise credential_mod.CloudAuthRejectedError
+
+        original = tm_mod.time.time
+        tm_mod.time.time = lambda: self.now
+        try:
+            with self.assertRaisesRegex(
+                self.account_mod.TclAccountError, "temporary refresh outage"
+            ):
+                asyncio.run(tm.async_authenticated_request(operation))
+        finally:
+            tm_mod.time.time = original
+
+        self.assertTrue(account.called)
+        self.assertEqual(attempts, 1)
+        self.assertIsNone(client.token_updated)
 
 
 if __name__ == "__main__":
