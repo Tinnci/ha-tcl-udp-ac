@@ -49,6 +49,20 @@ class CommandTrackerTest(unittest.TestCase):
 
         self.assertEqual(tracker.pending().command_id, latest)
 
+    def test_command_can_be_correlated_after_entity_dispatch(self) -> None:
+        tracker = self.commands.CommandTracker()
+        command_id = tracker.record(self.receipt("power:on", {"power": True}))
+
+        tracker.annotate(
+            command_id,
+            entity_id="climate.bedroom_ac",
+            context_id="roommind-cycle-1",
+        )
+
+        pending = tracker.pending(command_id).as_dict()
+        self.assertEqual(pending["entity_id"], "climate.bedroom_ac")
+        self.assertEqual(pending["context_id"], "roommind-cycle-1")
+
 
 if __name__ == "__main__":
     unittest.main()

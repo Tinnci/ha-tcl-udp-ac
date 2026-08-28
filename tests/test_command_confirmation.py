@@ -95,6 +95,25 @@ class CommandConfirmationTest(unittest.TestCase):
         self.assertEqual(event["outcome"], "applied")
         self.assertEqual(event["transport_outcome"], "unknown")
 
+    def test_command_result_event_preserves_entity_and_context_correlation(self) -> None:
+        client = FakeClient({"power": True})
+        client._pending.update(
+            {
+                "entity_id": "climate.bedroom_ac",
+                "context_id": "roommind-cycle-1",
+            }
+        )
+        coordinator = self.make_coordinator(client, [{"power": True}])
+
+        result = asyncio.run(
+            coordinator.async_confirm_pending_command(timeout=0, interval=0)
+        )
+
+        self.assertTrue(result)
+        _event_type, event = coordinator.hass.bus.events[-1]
+        self.assertEqual(event["entity_id"], "climate.bedroom_ac")
+        self.assertEqual(event["context_id"], "roommind-cycle-1")
+
     def test_confirm_pending_command_timeout_creates_issue(self) -> None:
         client = FakeClient({"power": True})
         coordinator = self.make_coordinator(client, [{"power": False}])

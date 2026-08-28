@@ -118,6 +118,21 @@ class DeviceSession:
         if pending is not None:
             self._commands.complete(pending.command_id)
 
+    def annotate_pending_command(
+        self,
+        command_id: str | None,
+        *,
+        entity_id: str | None,
+        context_id: str | None,
+    ) -> None:
+        """Associate a tracked command with its HA entity dispatch context."""
+        if command_id is not None:
+            self._commands.annotate(
+                command_id,
+                entity_id=entity_id,
+                context_id=context_id,
+            )
+
     def _track_command(self, receipt: CommandReceipt) -> str | None:
         if not receipt.delivery.accepted:
             return None

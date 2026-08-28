@@ -105,8 +105,19 @@ def _device_api(coordinator: TclUdpDataUpdateCoordinator) -> Any:
 async def _async_after_command(
     coordinator: TclUdpDataUpdateCoordinator,
     command_id: str | None = None,
+    *,
+    entity_id: str | None = None,
+    context_id: str | None = None,
 ) -> None:
     """Confirm command application when the coordinator supports it."""
+    client = _device_api(coordinator)
+    annotate = getattr(client, "annotate_pending_command", None)
+    if annotate is not None:
+        annotate(
+            command_id,
+            entity_id=entity_id,
+            context_id=context_id,
+        )
     confirm = getattr(coordinator, "async_confirm_pending_command", None)
     if confirm is not None:
         if command_id is not None:
@@ -174,6 +185,16 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     def _capabilities(self) -> DeviceCapabilities:
         """Return profile capabilities for this config entry."""
         return capabilities_for_entry(self.coordinator.config_entry)
+
+    async def _async_after_device_command(self, command_id: str | None) -> None:
+        """Confirm a command with its HA entity and service-call context."""
+        context = getattr(self, "_context", None)
+        await _async_after_command(
+            self.coordinator,
+            command_id,
+            entity_id=self.entity_id,
+            context_id=getattr(context, "id", None),
+        )
 
     def _entry_option(self, key: str, *, default: bool) -> bool:
         """Return boolean option from config entry options or data."""
@@ -310,7 +331,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
 
             if ha_mode == HVACMode.OFF:
                 command_id = await client.async_set_power(power=False)
-                await _async_after_command(self.coordinator, command_id)
+                await self._async_after_device_command(command_id)
                 return
 
             udp_mode = HVAC_MODE_MAP.get(ha_mode)
@@ -326,7 +347,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                 udp_mode,
                 target_temperature=target_temperature,
             )
-            await _async_after_command(self.coordinator, command_id)
+            await self._async_after_device_command(command_id)
             return
 
         if temperature is not None:
@@ -342,11 +363,11 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
                     udp_mode,
                     target_temperature=float(temperature),
                 )
-                await _async_after_command(self.coordinator, command_id)
+                await self._async_after_device_command(command_id)
                 return
 
             command_id = await client.async_set_temperature(float(temperature))
-            await _async_after_command(self.coordinator, command_id)
+            await self._async_after_device_command(command_id)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new HVAC mode."""
@@ -372,7 +393,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             else:
                 command_id = None
 
-        await _async_after_command(self.coordinator, command_id)
+        await self._async_after_device_command(command_id)
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set new fan mode."""
@@ -387,7 +408,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         speed_val = FAN_MODE_MAP.get(fan_mode)
         if speed_val is not None:
             command_id = await client.async_set_fan_speed(speed_val)
-            await _async_after_command(self.coordinator, command_id)
+            await self._async_after_device_command(command_id)
 
     async def async_set_swing_mode(self, swing_mode: str) -> None:
         """Set new swing mode."""
@@ -405,7 +426,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         command_id = await client.async_set_swing(
             vertical=vertical, horizontal=horizontal
         )
-        await _async_after_command(self.coordinator, command_id)
+        await self._async_after_device_command(command_id)
 
     async def async_turn_on(self) -> None:
         """Turn on the AC."""

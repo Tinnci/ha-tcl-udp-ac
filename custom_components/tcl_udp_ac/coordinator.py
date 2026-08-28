@@ -56,6 +56,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         status: dict[str, Any],
         transport_outcome: str = "unknown",
         transport_attempts: dict[str, str] | None = None,
+        entity_id: str | None = None,
+        context_id: str | None = None,
     ) -> None:
         hass = getattr(self, "hass", None)
         bus = getattr(hass, "bus", None)
@@ -72,6 +74,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                 "status": status,
                 "transport_outcome": transport_outcome,
                 "transport_attempts": dict(transport_attempts or {}),
+                "entity_id": entity_id,
+                "context_id": context_id,
             },
         )
 
@@ -157,6 +161,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         expected_status = pending.get("expected_status") or {}
         transport_outcome = str(pending.get("transport_outcome") or "unknown")
         transport_attempts = pending.get("transport_attempts") or {}
+        entity_id = pending.get("entity_id")
+        context_id = pending.get("context_id")
         if not isinstance(expected_status, dict) or not expected_status:
             self._clear_pending_command(client, command_id)
             await self.async_request_refresh()
@@ -178,6 +184,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                     status=status,
                     transport_outcome=transport_outcome,
                     transport_attempts=transport_attempts,
+                    entity_id=entity_id,
+                    context_id=context_id,
                 )
                 return True
 
@@ -204,6 +212,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             status=status,
             transport_outcome=transport_outcome,
             transport_attempts=transport_attempts,
+            entity_id=entity_id,
+            context_id=context_id,
         )
         return False
 

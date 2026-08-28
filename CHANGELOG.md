@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1 - 2026-08-28
+
+- Correlate command lifecycle events with the originating Home Assistant entity
+  and context ID so orchestration consumers can distinguish dispatch from
+  device confirmation.
+- Preserve correlation metadata from command registration through applied and
+  not-confirmed outcomes without coupling consumers to transport internals.
+
 ## 0.7.0 - 2026-08-28
 
 - Treat TCL token payload `InternalError` as a transient service failure so a

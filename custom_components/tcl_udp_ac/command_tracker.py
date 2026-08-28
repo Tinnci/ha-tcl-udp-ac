@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from .command_bundles import CommandReceipt
@@ -19,6 +19,8 @@ class PendingCommand:
     transport_outcome: str
     transport_attempts: dict[str, str]
     created_at: float
+    entity_id: str | None = None
+    context_id: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         """Return the compatibility dictionary used by existing callers."""
@@ -29,6 +31,8 @@ class PendingCommand:
             "transport_outcome": self.transport_outcome,
             "transport_attempts": dict(self.transport_attempts),
             "created_at": self.created_at,
+            "entity_id": self.entity_id,
+            "context_id": self.context_id,
         }
 
 
@@ -61,6 +65,25 @@ class CommandTracker:
         if not self._pending:
             return None
         return next(reversed(self._pending.values()))
+
+    def annotate(
+        self,
+        command_id: str,
+        *,
+        entity_id: str | None,
+        context_id: str | None,
+    ) -> PendingCommand | None:
+        """Attach Home Assistant correlation after entity dispatch."""
+        pending = self._pending.get(command_id)
+        if pending is None:
+            return None
+        annotated = replace(
+            pending,
+            entity_id=entity_id,
+            context_id=context_id,
+        )
+        self._pending[command_id] = annotated
+        return annotated
 
     def complete(self, command_id: str) -> PendingCommand | None:
         """Remove and return a completed command."""
