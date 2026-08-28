@@ -16,15 +16,10 @@ from .account_client import (
     TclCloudDevice,
     TclTokens,
 )
-from .config_settings import DEFAULT_CONFIG_VALUES, entry_values
+from .config_settings import DEFAULT_CONFIG_VALUES, AuthSettings, entry_values
 from .const import (
     CONF_ACCOUNT,
-    CONF_ACCOUNT_APP_ID,
-    CONF_ACCOUNT_APP_SECRET,
-    CONF_ACCOUNT_BASE_URL,
-    CONF_ACCOUNT_TENANT_ID,
     CONF_CLOUD_ACCOUNT_ID,
-    CONF_CLOUD_BASE_URL,
     CONF_CLOUD_CONTROL,
     CONF_CLOUD_ENABLED,
     CONF_CLOUD_FROM,
@@ -36,17 +31,14 @@ from .const import (
     CONF_DEVICE_MAC,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
-    DEFAULT_ACCOUNT_APP_ID,
-    DEFAULT_ACCOUNT_APP_SECRET,
-    DEFAULT_ACCOUNT_BASE_URL,
-    DEFAULT_ACCOUNT_TENANT_ID,
-    DEFAULT_CLOUD_BASE_URL,
     DEFAULT_CLOUD_CONTROL,
     DEFAULT_CLOUD_FROM,
     DEFAULT_ENABLE_AUTO_MODE,
     DEFAULT_ENABLE_FAN_ONLY_MODE,
     DOMAIN,
 )
+from .credential_manager import CredentialManager
+from .integration_runtime import get_integration_runtime
 
 BASIC_CONFIG_KEYS = (
     CONF_CLOUD_ENABLED,
@@ -95,16 +87,21 @@ def _entry_values(entry: config_entries.ConfigEntry) -> dict[str, Any]:
     return entry_values(entry)
 
 
-def _account_client(hass: Any, data: dict[str, Any]) -> AccountClient:
+def _account_client(hass: Any, source: Any) -> AccountClient:
     """Build an AccountClient from config values (or defaults)."""
     session = async_get_clientsession(hass)
+    settings = (
+        AuthSettings.from_entry(source)
+        if hasattr(source, "data")
+        else AuthSettings.from_mapping(source)
+    )
     return AccountClient(
         session,
-        base_url=data.get(CONF_ACCOUNT_BASE_URL, DEFAULT_ACCOUNT_BASE_URL),
-        app_id=data.get(CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
-        app_secret=data.get(CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET),
-        tenant_id=data.get(CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID),
-        cloud_base_url=data.get(CONF_CLOUD_BASE_URL, DEFAULT_CLOUD_BASE_URL),
+        base_url=settings.base_url,
+        app_id=settings.app_id,
+        app_secret=settings.app_secret,
+        tenant_id=settings.tenant_id,
+        cloud_base_url=settings.cloud_base_url,
     )
 
 
@@ -406,7 +403,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         entry = self._get_reauth_entry()
         if user_input is not None:
-            account = _account_client(self.hass, dict(entry.data))
+            account = _account_client(self.hass, entry)
             try:
                 tokens = await account.async_login_password(
                     user_input["username"], user_input["password"]
@@ -416,8 +413,15 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except TclAccountError:
                 errors["base"] = "cannot_connect"
             else:
-                new_data = _data_with_tokens(dict(entry.data), tokens)
-                return self.async_update_reload_and_abort(entry, data=new_data)
+                runtime = get_integration_runtime(self.hass)
+                manager = runtime.credential_manager
+                if manager is None:
+                    manager = CredentialManager(
+                        self.hass, async_get_clientsession(self.hass)
+                    )
+                    runtime.credential_manager = manager
+                await manager.async_apply_tokens(entry, tokens)
+                return self.async_abort(reason="reauth_successful")
 
         schema = vol.Schema(
             {

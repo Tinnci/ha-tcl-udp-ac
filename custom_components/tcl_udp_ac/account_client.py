@@ -64,6 +64,14 @@ class TclAccountAuthError(TclAccountError):
     """Authentication failed (bad credentials, expired refresh token, etc.)."""
 
 
+class TclAccountRateLimitError(TclAccountError):
+    """The account endpoint rejected a request due to rate limiting."""
+
+
+class TclAccountProtocolError(TclAccountError):
+    """The account endpoint returned an unusable success response."""
+
+
 @dataclass(frozen=True)
 class TclTokens:
     """Result of a successful login or refresh."""
@@ -195,9 +203,11 @@ class AccountClient:
                 url, data=data, headers=headers, timeout=_REQUEST_TIMEOUT
             ) as resp:
                 text = await resp.text()
+                status = resp.status
         except (TimeoutError, aiohttp.ClientError) as exc:
             msg = "Account request failed"
             raise TclAccountError(msg) from exc
+        self._raise_for_status(status)
         return self._parse_token_payload(text)
 
     async def _get_response(self, url_str: str, headers: Mapping[str, str]) -> str:
@@ -207,13 +217,25 @@ class AccountClient:
                 url, headers=headers, timeout=_REQUEST_TIMEOUT
             ) as resp:
                 text = await resp.text()
-                if resp.status != HTTPStatus.OK:
-                    msg = f"Account request HTTP {resp.status}"
-                    raise TclAccountError(msg)
-                return text
+                status = resp.status
         except (TimeoutError, aiohttp.ClientError) as exc:
             msg = "Account request failed"
             raise TclAccountError(msg) from exc
+        self._raise_for_status(status)
+        return text
+
+    @staticmethod
+    def _raise_for_status(status: int) -> None:
+        """Classify HTTP failures before interpreting response payloads."""
+        if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
+            msg = f"Account authentication rejected with HTTP {status}"
+            raise TclAccountAuthError(msg)
+        if status == HTTPStatus.TOO_MANY_REQUESTS:
+            msg = "Account request rate limited"
+            raise TclAccountRateLimitError(msg)
+        if status >= HTTPStatus.BAD_REQUEST:
+            msg = f"Account request HTTP {status}"
+            raise TclAccountError(msg)
 
     async def _get_json_response(
         self, url_str: str, headers: Mapping[str, str]
@@ -236,8 +258,11 @@ class AccountClient:
         access = payload.get("accessToken")
         if not access:
             # The account API returns errorCode/msg on failure.
-            err = payload.get("msg") or payload.get("errorCode") or "login failed"
-            raise TclAccountAuthError(str(err))
+            err = payload.get("msg") or payload.get("errorCode")
+            if err:
+                raise TclAccountAuthError(str(err))
+            msg = "Account success response did not contain an access token"
+            raise TclAccountProtocolError(msg)
         return payload
 
     @staticmethod

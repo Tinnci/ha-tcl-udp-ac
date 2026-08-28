@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Classify TCL account authentication, rate-limit, protocol, and transient
+  failures before interpreting token payloads, and retry cloud requests once
+  only when the server explicitly rejects authentication.
+- Serialize refreshes per TCL account, reuse account clients and public keys,
+  and synchronize rotated credentials across every device entry for that
+  account without reloading otherwise unchanged runtimes.
+- Apply the same token-freshness boundary to status, statistics, and control
+  requests, preserve updated account IDs, and use effective advanced account
+  settings during reauthentication.
 - Return immutable command receipts from transport operations and atomically
   register accepted commands in each device session, eliminating the shared
   pending slot that could mix concurrent commands.

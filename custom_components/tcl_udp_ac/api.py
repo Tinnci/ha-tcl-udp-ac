@@ -48,6 +48,7 @@ from .const import (
     MODE_FAN,
     MODE_HEAT,
 )
+from .credential_manager import CloudAuthRejectedError
 from .log_utils import log_debug, log_info, log_warning
 from .protocol_driver import ProtocolDriver, resolve_protocol_driver
 from .protocol_profiles import UnsupportedModeError
@@ -191,6 +192,11 @@ class CloudClient:
     def update_token(self, token: str | None) -> None:
         """Update the access token used for cloud requests."""
         self._token = token
+
+    @staticmethod
+    def _raise_for_auth_status(status: int) -> None:
+        if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
+            raise CloudAuthRejectedError
 
     @property
     def control_enabled(self) -> bool:
@@ -609,6 +615,7 @@ class CloudClient:
                 url, headers=self._build_statistics_headers(), timeout=10
             ) as resp:
                 text = await resp.text()
+                self._raise_for_auth_status(resp.status)
                 if resp.status != HTTPStatus.OK:
                     log_warning(
                         LOGGER,
@@ -725,6 +732,7 @@ class CloudClient:
                 timeout=10,
             ) as resp:
                 text = await resp.text()
+                self._raise_for_auth_status(resp.status)
                 if resp.status != HTTPStatus.OK:
                     log_warning(
                         LOGGER,
@@ -777,6 +785,7 @@ class CloudClient:
         try:
             async with self._session.get(url, headers=headers, timeout=10) as resp:
                 text = await resp.text()
+                self._raise_for_auth_status(resp.status)
                 if resp.status != HTTPStatus.OK:
                     log_warning(
                         LOGGER,
@@ -922,6 +931,7 @@ class CloudClient:
                 url, headers=headers, json=payload, timeout=10
             ) as resp:
                 if resp.status != HTTPStatus.OK:
+                    self._raise_for_auth_status(resp.status)
                     log_warning(
                         LOGGER,
                         "cloud_control_http_error",
@@ -1039,6 +1049,18 @@ class TclUdpApiClient:
             headers=header_profile,
         )
         self._cloud_sequence = 0
+        self._token_manager: Any = None
+
+    def set_token_manager(self, token_manager: Any) -> None:
+        """Attach the credential facade after runtime construction."""
+        self._token_manager = token_manager
+
+    async def _async_cloud_request(self, operation: Any) -> Any:
+        """Run one authorized cloud request through credential maintenance."""
+        token_manager = getattr(self, "_token_manager", None)
+        if token_manager is None:
+            return await operation()
+        return await token_manager.async_authenticated_request(operation)
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -1086,7 +1108,7 @@ class TclUdpApiClient:
         """Fetch device status from cloud API when enabled (with retry)."""
         attempt = 0
         while True:
-            status = await self._cloud.async_fetch_status()
+            status = await self._async_cloud_request(self._cloud.async_fetch_status)
             if status:
                 self.merge_status(status)
                 return status
@@ -1110,12 +1132,16 @@ class TclUdpApiClient:
 
     async def async_fetch_cloud_energy_statistics(self) -> dict[str, Any] | None:
         """Fetch TCL+ electricity/runtime statistics."""
-        return await self._cloud.async_fetch_energy_statistics()
+        return await self._async_cloud_request(
+            self._cloud.async_fetch_energy_statistics
+        )
 
     async def async_send_cloud_command(self, command: str, value: str) -> bool:
         """Send a control command via cloud convertMqtt API."""
         seq = str(self._cloud_sequence + 1)
-        return await self._cloud.async_send_command(command, value, seq)
+        return await self._async_cloud_request(
+            lambda: self._cloud.async_send_command(command, value, seq)
+        )
 
     def _handle_status_update(self, data: bytes, addr: tuple[str, int]) -> None:
         """Handle incoming status update from device."""
@@ -1187,7 +1213,9 @@ class TclUdpApiClient:
             next_seq = str(self._cloud_sequence)
             cloud_attempt = TransportAttempt.SKIPPED
             if self._cloud.control_enabled:
-                cloud_accepted = await self._cloud.async_send_commands(items, next_seq)
+                cloud_accepted = await self._async_cloud_request(
+                    lambda: self._cloud.async_send_commands(items, next_seq)
+                )
                 cloud_attempt = (
                     TransportAttempt.ACCEPTED
                     if cloud_accepted
@@ -1215,7 +1243,9 @@ class TclUdpApiClient:
     ) -> CommandReceipt:
         """Send a profile-built grouped command bundle."""
         if bundle.transport == CommandTransport.TSL_PROPERTY:
-            sent = await self._cloud.async_send_tsl_property_bundle(bundle)
+            sent = await self._async_cloud_request(
+                lambda: self._cloud.async_send_tsl_property_bundle(bundle)
+            )
             delivery = TransportDelivery(
                 cloud=(TransportAttempt.ACCEPTED if sent else TransportAttempt.REJECTED)
             )

@@ -125,6 +125,19 @@ class CloudStatisticsTest(unittest.TestCase):
 
         self.assertFalse(client.statistics_enabled)
 
+    def test_only_unauthorized_statuses_raise_cloud_auth_rejection(self) -> None:
+        credential_mod = load_integration_module("credential_manager")
+
+        for status in (401, 403):
+            with self.subTest(status=status), self.assertRaises(
+                credential_mod.CloudAuthRejectedError
+            ):
+                self.api_mod.CloudClient._raise_for_auth_status(status)
+
+        for status in (429, 500):
+            with self.subTest(status=status):
+                self.api_mod.CloudClient._raise_for_auth_status(status)
+
     def test_statistics_sensors_expose_values_and_report_period(self) -> None:
         coordinator = SimpleNamespace(
             data={

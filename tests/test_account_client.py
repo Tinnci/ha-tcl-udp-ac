@@ -36,6 +36,7 @@ class FakeSession:
         self.post_calls: list[dict] = []
         self._public_key_text = PUBLIC_KEY_B64
         self.token_response: str | None = None
+        self.token_status = 200
         self.sms_response = '{"status":"SUCCESS","data":{"key":"x"}}'
         self.device_response = '{"success":true,"code":"200","data":[]}'
 
@@ -49,13 +50,13 @@ class FakeSession:
         if "user/user_devices" in url_str:
             return FakeResponse(self.device_response)
         # refershToken
-        return FakeResponse(self.token_response or "{}")
+        return FakeResponse(self.token_response or "{}", self.token_status)
 
     def post(self, url, data=None, headers=None, timeout=None):
         self.post_calls.append(
             {"url": str(url), "data": data, "headers": headers or {}}
         )
-        return FakeResponse(self.token_response or "{}")
+        return FakeResponse(self.token_response or "{}", self.token_status)
 
 
 # A login/refresh success payload (tokens truncated but valid JWT shape isn't
@@ -133,6 +134,47 @@ class AccountClientTest(unittest.TestCase):
 
         with self.assertRaises(mod.TclAccountAuthError):
             asyncio.run(client.async_login_password("user", "wrong"))
+
+    def test_http_auth_rejection_is_not_transient(self) -> None:
+        for status in (401, 403):
+            with self.subTest(status=status):
+                session = FakeSession()
+                session.token_status = status
+                session.token_response = '{"msg":"expired"}'
+                mod, client = _client(session)
+
+                with self.assertRaises(mod.TclAccountAuthError):
+                    asyncio.run(
+                        client.async_refresh("refresh.jwt.sig", "121517358")
+                    )
+
+    def test_rate_limit_has_distinct_error(self) -> None:
+        session = FakeSession()
+        session.token_status = 429
+        session.token_response = '{"msg":"slow down"}'
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountRateLimitError):
+            asyncio.run(client.async_login_password("user", "password"))
+
+    def test_server_error_is_transient_not_auth(self) -> None:
+        session = FakeSession()
+        session.token_status = 500
+        session.token_response = '{"msg":"server unavailable"}'
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountError) as raised:
+            asyncio.run(client.async_login_password("user", "password"))
+
+        self.assertNotIsInstance(raised.exception, mod.TclAccountAuthError)
+
+    def test_success_without_token_is_protocol_error(self) -> None:
+        session = FakeSession()
+        session.token_response = '{"status":"SUCCESS"}'
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountProtocolError):
+            asyncio.run(client.async_login_password("user", "password"))
 
     def test_sms_request_then_login(self) -> None:
         session = FakeSession()

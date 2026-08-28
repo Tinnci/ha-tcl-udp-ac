@@ -68,7 +68,7 @@ def _build_manager(entry_data, account_client):
     client = FakeClient()
     tm = mod.TokenManager(hass=hass, entry=entry, client=client, session=object())
     # Inject the fake account client.
-    tm._account_client = lambda: account_client
+    tm._account_client = lambda _settings: account_client
     return mod, tm, hass, entry, client
 
 
@@ -208,6 +208,54 @@ class TokenManagerTest(unittest.TestCase):
         finally:
             tm_mod.time.time = original
         self.assertIsNone(client.token_updated)
+
+    def test_authenticated_request_refreshes_and_retries_once_on_auth_rejection(
+        self,
+    ) -> None:
+        tm_mod = load_integration_module("token_manager")
+        credential_mod = load_integration_module("credential_manager")
+        tm = object.__new__(tm_mod.TokenManager)
+        tm._entry = FakeEntry({"cloud_access_token": "rejected"})
+        refreshes: list[tuple[bool, str | None]] = []
+
+        async def ensure(*, force=False, rejected_token=None):
+            refreshes.append((force, rejected_token))
+            if force:
+                tm._entry.data["cloud_access_token"] = "fresh"
+
+        attempts = 0
+
+        async def operation():
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise credential_mod.CloudAuthRejectedError
+            return "ok"
+
+        tm.async_ensure_fresh_token = ensure
+        result = asyncio.run(tm.async_authenticated_request(operation))
+
+        self.assertEqual(result, "ok")
+        self.assertEqual(attempts, 2)
+        self.assertEqual(refreshes, [(False, None), (True, "rejected")])
+
+    def test_authenticated_request_does_not_retry_non_auth_failure(self) -> None:
+        tm_mod = load_integration_module("token_manager")
+        tm = object.__new__(tm_mod.TokenManager)
+        tm._entry = FakeEntry({"cloud_access_token": "token"})
+        refreshes = 0
+
+        async def ensure(**_kwargs):
+            nonlocal refreshes
+            refreshes += 1
+
+        async def operation():
+            raise OSError("network")
+
+        tm.async_ensure_fresh_token = ensure
+        with self.assertRaises(OSError):
+            asyncio.run(tm.async_authenticated_request(operation))
+        self.assertEqual(refreshes, 1)
 
 
 if __name__ == "__main__":

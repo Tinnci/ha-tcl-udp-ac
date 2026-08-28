@@ -7,6 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from .const import (
     CONF_ACCOUNT,
+    CONF_ACCOUNT_APP_ID,
+    CONF_ACCOUNT_APP_SECRET,
+    CONF_ACCOUNT_BASE_URL,
+    CONF_ACCOUNT_TENANT_ID,
     CONF_ACTION_JID,
     CONF_ACTION_SOURCE,
     CONF_CLOUD_ACCEPT,
@@ -40,6 +44,10 @@ from .const import (
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ACCOUNT,
+    DEFAULT_ACCOUNT_APP_ID,
+    DEFAULT_ACCOUNT_APP_SECRET,
+    DEFAULT_ACCOUNT_BASE_URL,
+    DEFAULT_ACCOUNT_TENANT_ID,
     DEFAULT_ACTION_JID,
     DEFAULT_ACTION_SOURCE,
     DEFAULT_CLOUD_ACCEPT,
@@ -117,6 +125,47 @@ TOKEN_DATA_KEYS = {
 }
 
 
+@dataclass(frozen=True)
+class AuthSettings:
+    """Effective TCL account request settings."""
+
+    base_url: str
+    app_id: str
+    app_secret: str
+    tenant_id: str
+    cloud_base_url: str
+
+    @classmethod
+    def from_entry(cls, entry: TclUdpConfigEntry) -> AuthSettings:
+        """Resolve settings using the same data/options precedence as runtime."""
+        return cls(
+            base_url=entry_value(
+                entry, CONF_ACCOUNT_BASE_URL, DEFAULT_ACCOUNT_BASE_URL
+            ),
+            app_id=entry_value(entry, CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
+            app_secret=entry_value(
+                entry, CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET
+            ),
+            tenant_id=entry_value(
+                entry, CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID
+            ),
+            cloud_base_url=entry_value(
+                entry, CONF_CLOUD_BASE_URL, DEFAULT_CLOUD_BASE_URL
+            ),
+        )
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> AuthSettings:
+        """Resolve settings for config flows before a config entry exists."""
+        return cls(
+            base_url=data.get(CONF_ACCOUNT_BASE_URL, DEFAULT_ACCOUNT_BASE_URL),
+            app_id=data.get(CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
+            app_secret=data.get(CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET),
+            tenant_id=data.get(CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID),
+            cloud_base_url=data.get(CONF_CLOUD_BASE_URL, DEFAULT_CLOUD_BASE_URL),
+        )
+
+
 def entry_value(
     entry: TclUdpConfigEntry,
     key: str,
@@ -144,6 +193,18 @@ def entry_values(entry: TclUdpConfigEntry) -> dict[str, Any]:
         if key in data:
             values[key] = data[key]
     return values
+
+
+def reload_signature(entry: TclUdpConfigEntry) -> tuple[tuple[str, str], ...]:
+    """Return effective non-credential settings that require runtime reload."""
+    values = entry_values(entry)
+    return tuple(
+        sorted(
+            (key, repr(value))
+            for key, value in values.items()
+            if key not in TOKEN_DATA_KEYS
+        )
+    )
 
 
 def profile_for_entry(entry: TclUdpConfigEntry) -> ProtocolDriver:

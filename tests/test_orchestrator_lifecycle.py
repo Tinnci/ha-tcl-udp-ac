@@ -46,6 +46,9 @@ class OrchestratorLifecycleTest(unittest.TestCase):
         exceptions = sys.modules["homeassistant.exceptions"]
 
         class FailingClient:
+            def set_token_manager(self, _token_manager):
+                pass
+
             async def async_start_listener(self, _callback):
                 raise load_integration_module("api").TclUdpApiClientCommunicationError(
                     "port in use"
@@ -104,6 +107,56 @@ class OrchestratorLifecycleTest(unittest.TestCase):
 
         self.assertFalse(result)
         self.assertEqual(events, ["unload"])
+
+    def test_credential_only_update_does_not_reload_runtime(self) -> None:
+        init_mod = load_integration_init()
+        settings = load_integration_module("config_settings")
+        reloads = []
+
+        async def reload_entry(entry_id):
+            reloads.append(entry_id)
+
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            data={"cloud_access_token": "old", "cloud_tid": "device-1"},
+            options={},
+        )
+        entry.runtime_data = SimpleNamespace(
+            reload_signature=settings.reload_signature(entry)
+        )
+        entry.data = {"cloud_access_token": "new", "cloud_tid": "device-1"}
+        hass = SimpleNamespace(
+            config_entries=SimpleNamespace(async_reload=reload_entry)
+        )
+
+        asyncio.run(init_mod.async_reload_entry(hass, entry))
+
+        self.assertEqual(reloads, [])
+
+    def test_non_credential_update_reloads_runtime(self) -> None:
+        init_mod = load_integration_init()
+        settings = load_integration_module("config_settings")
+        reloads = []
+
+        async def reload_entry(entry_id):
+            reloads.append(entry_id)
+
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            data={"cloud_tid": "device-1", "cloud_control": False},
+            options={},
+        )
+        entry.runtime_data = SimpleNamespace(
+            reload_signature=settings.reload_signature(entry)
+        )
+        entry.options = {"cloud_control": True}
+        hass = SimpleNamespace(
+            config_entries=SimpleNamespace(async_reload=reload_entry)
+        )
+
+        asyncio.run(init_mod.async_reload_entry(hass, entry))
+
+        self.assertEqual(reloads, ["entry-1"])
 
 
 class CoordinatorRefreshFailureTest(unittest.TestCase):

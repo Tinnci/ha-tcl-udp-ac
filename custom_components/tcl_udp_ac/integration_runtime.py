@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .const import DOMAIN
+from .credential_manager import CredentialManager
 from .udp_hub import UdpHub
 
 _RUNTIME_KEY = "runtime"
@@ -16,6 +17,7 @@ class IntegrationRuntime:
     """Resources shared by every configured TCL device."""
 
     udp_hub: UdpHub = field(default_factory=UdpHub)
+    credential_manager: CredentialManager | None = None
 
 
 def get_integration_runtime(hass: Any) -> IntegrationRuntime:

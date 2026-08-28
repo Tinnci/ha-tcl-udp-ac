@@ -16,9 +16,10 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.loader import async_get_loaded_integration
 
 from .api import TclUdpApiClient, TclUdpApiClientCommunicationError
-from .config_settings import ConfigEntrySettings
+from .config_settings import ConfigEntrySettings, reload_signature
 from .const import DOMAIN, LOGGER
 from .coordinator import TclUdpDataUpdateCoordinator
+from .credential_manager import CredentialManager
 from .data import TclUdpData
 from .device_session import DeviceSession
 from .integration_runtime import get_integration_runtime
@@ -58,6 +59,8 @@ async def async_setup_entry(
     settings = ConfigEntrySettings.from_entry(entry)
     integration_runtime = get_integration_runtime(hass)
     http_session = async_get_clientsession(hass)
+    if integration_runtime.credential_manager is None:
+        integration_runtime.credential_manager = CredentialManager(hass, http_session)
     client = TclUdpApiClient(
         session=http_session,
         udp_hub=integration_runtime.udp_hub,
@@ -70,6 +73,7 @@ async def async_setup_entry(
         integration=async_get_loaded_integration(hass, entry.domain),
         coordinator=coordinator,
         session=device_session,
+        reload_signature=reload_signature(entry),
     )
 
     # Token manager handles cloud token auto-refresh when a refresh token is
@@ -79,7 +83,9 @@ async def async_setup_entry(
         entry=entry,
         client=client,
         session=http_session,
+        credential_manager=integration_runtime.credential_manager,
     )
+    client.set_token_manager(entry.runtime_data.token_manager)
 
     try:
         # Start UDP listener with callback to coordinator
@@ -122,4 +128,7 @@ async def async_reload_entry(
     entry: TclUdpConfigEntry,
 ) -> None:
     """Reload config entry."""
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None and runtime.reload_signature == reload_signature(entry):
+        return
     await hass.config_entries.async_reload(entry.entry_id)

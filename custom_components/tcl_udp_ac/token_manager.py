@@ -1,37 +1,19 @@
-"""
-Token lifecycle manager.
-
-Decides when the cloud access token needs refreshing (70%-of-lifetime rule),
-performs the refresh against the TCL+ account API, persists the new tokens back
-to the config entry, and updates the live API client. When refresh is not
-possible (no/expired refresh token, or the refresh call is rejected), it raises
-``ConfigEntryAuthFailed`` so Home Assistant surfaces a reauth prompt.
-"""
+"""Per-entry facade for account-scoped credential maintenance."""
 
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, TypeVar
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
-from .account_client import AccountClient, TclAccountAuthError, TclAccountError
-from .config_settings import entry_value
-from .const import (
-    CONF_ACCOUNT_APP_ID,
-    CONF_ACCOUNT_APP_SECRET,
-    CONF_ACCOUNT_BASE_URL,
-    CONF_ACCOUNT_TENANT_ID,
-    CONF_CLOUD_ACCOUNT_ID,
-    CONF_CLOUD_REFRESH_TOKEN,
-    CONF_CLOUD_TOKEN,
-    DEFAULT_ACCOUNT_APP_ID,
-    DEFAULT_ACCOUNT_APP_SECRET,
-    DEFAULT_ACCOUNT_BASE_URL,
-    DEFAULT_ACCOUNT_TENANT_ID,
-    LOGGER,
-)
-from .token_state import access_token_needs_refresh, refresh_token_expired
+from .account_client import AccountClient
+from .config_settings import AuthSettings, entry_value
+from .const import CONF_CLOUD_TOKEN
+from .credential_manager import CloudAuthRejectedError, CredentialManager
+
+_T = TypeVar("_T")
 
 if TYPE_CHECKING:
     import aiohttp
@@ -42,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class TokenManager:
-    """Manages cloud token refresh and persistence for a config entry."""
+    """Expose credential maintenance for one config entry."""
 
     def __init__(
         self,
@@ -50,73 +32,62 @@ class TokenManager:
         entry: TclUdpConfigEntry,
         client: TclUdpApiClient,
         session: aiohttp.ClientSession,
+        *,
+        credential_manager: CredentialManager | None = None,
     ) -> None:
-        """Initialize the token manager."""
-        self._hass = hass
+        """Initialize the facade for one config entry and device client."""
         self._entry = entry
         self._client = client
         self._session = session
-
-    def _value(self, key: str, default: str) -> str:
-        return entry_value(self._entry, key, default)
-
-    def _account_client(self) -> AccountClient:
-        return AccountClient(
-            self._session,
-            base_url=self._value(CONF_ACCOUNT_BASE_URL, DEFAULT_ACCOUNT_BASE_URL),
-            app_id=self._value(CONF_ACCOUNT_APP_ID, DEFAULT_ACCOUNT_APP_ID),
-            app_secret=self._value(CONF_ACCOUNT_APP_SECRET, DEFAULT_ACCOUNT_APP_SECRET),
-            tenant_id=self._value(CONF_ACCOUNT_TENANT_ID, DEFAULT_ACCOUNT_TENANT_ID),
+        self._credential_manager = credential_manager or CredentialManager(
+            hass,
+            session,
+            account_client_factory=lambda settings: self._account_client(settings),
         )
 
-    async def async_ensure_fresh_token(self) -> None:
-        """
-        Refresh the cloud token if it is near expiry.
+    def _account_client(self, settings: AuthSettings) -> AccountClient:
+        return AccountClient(
+            self._session,
+            base_url=settings.base_url,
+            app_id=settings.app_id,
+            app_secret=settings.app_secret,
+            tenant_id=settings.tenant_id,
+            cloud_base_url=settings.cloud_base_url,
+        )
 
-        No-op when no refresh token is configured (manual-token mode), so users
-        who paste a token by hand keep working exactly as before.
-        """
-        access_token = self._value(CONF_CLOUD_TOKEN, "")
-        refresh_token = self._value(CONF_CLOUD_REFRESH_TOKEN, "")
-        account_id = self._value(CONF_CLOUD_ACCOUNT_ID, "")
+    async def async_ensure_fresh_token(
+        self,
+        *,
+        force: bool = False,
+        rejected_token: str | None = None,
+    ) -> str | None:
+        """Ensure this entry has a fresh token and hot-update its client."""
+        previous = str(entry_value(self._entry, CONF_CLOUD_TOKEN, "") or "")
+        token = await self._credential_manager.async_ensure_fresh(
+            self._entry,
+            force=force,
+            rejected_token=rejected_token,
+            now=time.time(),
+        )
+        if token and token != previous:
+            self._client.update_cloud_token(token)
+        return token
 
-        if not refresh_token:
-            # Manual-token mode: nothing to refresh with.
-            return
-
-        now = time.time()
-        if access_token and not access_token_needs_refresh(access_token, now):
-            return
-
-        if refresh_token_expired(refresh_token, now):
-            msg = "TCL refresh token expired; please log in again"
-            raise ConfigEntryAuthFailed(msg)
-
-        if not account_id:
-            msg = "Missing TCL account id for token refresh"
-            raise ConfigEntryAuthFailed(msg)
-
-        account = self._account_client()
+    async def async_authenticated_request(
+        self, operation: Callable[[], Awaitable[_T]]
+    ) -> _T:
+        """Run one cloud request with freshness and one auth-only retry."""
+        await self.async_ensure_fresh_token()
+        rejected_token = str(entry_value(self._entry, CONF_CLOUD_TOKEN, "") or "")
         try:
-            tokens = await account.async_refresh(refresh_token, account_id)
-        except TclAccountAuthError as exc:
-            raise ConfigEntryAuthFailed(str(exc)) from exc
-        except TclAccountError as exc:
-            # Transient/network error: don't force reauth, just log and keep the
-            # current token (the cloud call will fall back to UDP on failure).
-            LOGGER.warning("TCL token refresh failed: %s", exc)
-            return
-
-        self._persist_tokens(tokens.access_token, tokens.refresh_token, account_id)
-
-    def _persist_tokens(
-        self, access_token: str, refresh_token: str, account_id: str
-    ) -> None:
-        new_data = dict(self._entry.data)
-        new_data[CONF_CLOUD_TOKEN] = access_token
-        if refresh_token:
-            new_data[CONF_CLOUD_REFRESH_TOKEN] = refresh_token
-        new_data[CONF_CLOUD_ACCOUNT_ID] = account_id
-        self._hass.config_entries.async_update_entry(self._entry, data=new_data)
-        self._client.update_cloud_token(access_token)
-        LOGGER.debug("Persisted refreshed TCL cloud token")
+            return await operation()
+        except CloudAuthRejectedError:
+            await self.async_ensure_fresh_token(
+                force=True,
+                rejected_token=rejected_token,
+            )
+        try:
+            return await operation()
+        except CloudAuthRejectedError as exc:
+            msg = "TCL cloud authentication was rejected after token refresh"
+            raise ConfigEntryAuthFailed(msg) from exc

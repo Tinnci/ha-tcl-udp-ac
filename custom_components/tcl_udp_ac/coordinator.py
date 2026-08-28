@@ -105,11 +105,6 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         # But we also trigger a SyncStatusReq as a manual poll fallback
         runtime = self.config_entry.runtime_data
         client = getattr(runtime, "session", None) or runtime.client
-        token_manager = getattr(runtime, "token_manager", None)
-        if client.cloud_enabled and token_manager is not None:
-            # Refresh the cloud token if near expiry; raises ConfigEntryAuthFailed
-            # when reauth is required (HA then prompts the user to log in again).
-            await token_manager.async_ensure_fresh_token()
         try:
             await client.async_request_status()
             if client.cloud_enabled:
@@ -192,7 +187,8 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             await asyncio.sleep(interval)
 
         LOGGER.warning(
-            "TCL AC command was not confirmed within %.0fs: intent=%s expected=%s status=%s",
+            "TCL AC command was not confirmed within %.0fs: "
+            "intent=%s expected=%s status=%s",
             timeout,
             intent,
             expected_status,

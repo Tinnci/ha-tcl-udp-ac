@@ -36,6 +36,20 @@ class ConfigSettingsTest(unittest.TestCase):
             "option-device",
         )
 
+    def test_auth_settings_use_effective_options_during_reauth(self) -> None:
+        entry = SimpleNamespace(
+            data={"account_base_url": "https://old.example"},
+            options={
+                "account_base_url": "https://new.example",
+                "account_app_id": "option-app",
+            },
+        )
+
+        settings = self.settings_mod.AuthSettings.from_entry(entry)
+
+        self.assertEqual(settings.base_url, "https://new.example")
+        self.assertEqual(settings.app_id, "option-app")
+
     def test_product_key_resolves_tsl_profile_without_known_device_id(self) -> None:
         entry = SimpleNamespace(
             data={

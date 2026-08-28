@@ -27,3 +27,4 @@ class TclUdpData:
     integration: Integration
     session: DeviceSession
     token_manager: TokenManager | None = None
+    reload_signature: tuple[tuple[str, str], ...] = ()
