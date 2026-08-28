@@ -176,6 +176,16 @@ class AccountClientTest(unittest.TestCase):
         with self.assertRaises(mod.TclAccountProtocolError):
             asyncio.run(client.async_login_password("user", "password"))
 
+    def test_refresh_internal_error_payload_is_transient_not_auth(self) -> None:
+        session = FakeSession()
+        session.token_response = '{"msg":"InternalError"}'
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountError) as raised:
+            asyncio.run(client.async_refresh("refresh.jwt.sig", "121517358"))
+
+        self.assertNotIsInstance(raised.exception, mod.TclAccountAuthError)
+
     def test_sms_request_then_login(self) -> None:
         session = FakeSession()
         mod, client = _client(session)

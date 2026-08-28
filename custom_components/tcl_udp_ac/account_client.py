@@ -54,6 +54,7 @@ if TYPE_CHECKING:
 _ENCRYPT_HEADERS = {"Encrypt": "true", "EncryptVersion": "2.0"}
 _JSON_CONTENT_TYPE = "application/json;charset=utf-8"
 _REQUEST_TIMEOUT = 15
+_TRANSIENT_TOKEN_PAYLOAD_ERRORS = {"internalerror"}
 
 
 class TclAccountError(Exception):
@@ -260,6 +261,13 @@ class AccountClient:
             # The account API returns errorCode/msg on failure.
             err = payload.get("msg") or payload.get("errorCode")
             if err:
+                normalized = "".join(
+                    character
+                    for character in str(err).casefold()
+                    if character.isalnum()
+                )
+                if normalized in _TRANSIENT_TOKEN_PAYLOAD_ERRORS:
+                    raise TclAccountError(str(err))
                 raise TclAccountAuthError(str(err))
             msg = "Account success response did not contain an access token"
             raise TclAccountProtocolError(msg)

@@ -15,6 +15,7 @@
   - A successful response without the required token fields is a protocol failure.
   - Timeouts, DNS failures, connection failures, and 5xx responses are transient service failures.
 - Never convert transient or rate-limit failures into Home Assistant reauthentication. They must preserve the existing session and allow the normal UDP/cloud fallback behavior.
+- TCL has returned HTTP 200 token payloads containing `InternalError` during temporary service failures. Classify that payload as transient, not as credential rejection; add a regression test before expanding payload-based authentication classifications.
 - Every authorized cloud status, statistics, and control request must pass through `TokenManager.async_authenticated_request`. Do not add coordinator-only refresh calls or bypass this seam for a new endpoint.
 - A cloud request may be retried once only after an explicit 401/403-style `CloudAuthRejectedError`. Refresh with the rejected token as the compare value so concurrent callers can observe and reuse a token already rotated by another caller. A second rejection becomes `ConfigEntryAuthFailed`.
 - If that forced refresh encounters a transient, rate-limit, or server failure, preserve and propagate that failure. Do not retry the already-rejected access token and do not convert the failure to `ConfigEntryAuthFailed`. Proactive refresh may still retain a not-yet-rejected access token after a transient refresh failure.

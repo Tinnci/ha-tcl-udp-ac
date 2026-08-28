@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-08-28
 
+- Treat TCL token payload `InternalError` as a transient service failure so a
+  temporary server-side fault does not trigger Home Assistant reauthentication.
 - Preserve transient refresh failures after an explicit cloud authentication
   rejection instead of retrying the already-rejected access token and
   incorrectly prompting for reauthentication.
