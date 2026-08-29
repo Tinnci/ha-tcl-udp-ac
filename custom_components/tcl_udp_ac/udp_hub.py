@@ -6,7 +6,7 @@ import asyncio
 import json
 import socket
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from .const import LOGGER, UDP_BROADCAST_PORT
@@ -57,6 +57,8 @@ class UdpSubscription:
     subscription_id: int
     callback: Any
     expected_mac: str | None = None
+    expected_device_id: str | None = None
+    expected_identities: frozenset[str] = field(default_factory=frozenset)
     bound_mac: str | None = None
     bound_ip: str | None = None
 
@@ -77,13 +79,22 @@ class UdpHub:
         callback: Any,
         *,
         expected_mac: str | None = None,
+        expected_device_id: str | None = None,
     ) -> UdpSubscription:
         """Register a device callback without starting sockets."""
         self._next_subscription_id += 1
+        normalized_mac = normalize_device_identity(expected_mac)
+        normalized_device_id = normalize_device_identity(expected_device_id)
         subscription = UdpSubscription(
             subscription_id=self._next_subscription_id,
             callback=callback,
-            expected_mac=normalize_device_identity(expected_mac),
+            expected_mac=normalized_mac,
+            expected_device_id=normalized_device_id,
+            expected_identities=frozenset(
+                identity
+                for identity in (normalized_mac, normalized_device_id)
+                if identity is not None
+            ),
         )
         self._subscriptions[subscription.subscription_id] = subscription
         return subscription
@@ -99,28 +110,38 @@ class UdpHub:
         sender_ip = addr[0]
         exact: list[UdpSubscription] = []
         for subscription in self._subscriptions.values():
-            known_mac = subscription.bound_mac or subscription.expected_mac
-            identity_matches = identity is not None and known_mac == identity
+            known_identities = subscription.expected_identities
+            if subscription.bound_mac:
+                known_identities = known_identities | {subscription.bound_mac}
+            identity_matches = identity is not None and identity in known_identities
             ip_matches = identity is None and subscription.bound_ip == sender_ip
             if identity_matches or ip_matches:
                 exact.append(subscription)
 
-        if exact:
+        if len(exact) == 1:
             targets = exact
+        elif len(exact) > 1:
+            LOGGER.error(
+                "Conflicting TCL UDP identity %s matched %d devices",
+                identity or sender_ip,
+                len(exact),
+            )
+            return 0
         else:
             unknown = [
                 subscription
                 for subscription in self._subscriptions.values()
-                if subscription.expected_mac is None
+                if not subscription.expected_identities
                 and subscription.bound_mac is None
                 and subscription.bound_ip is None
             ]
-            if len(unknown) != 1:
+            if len(unknown) != 1 or len(self._subscriptions) != 1:
                 if unknown:
                     LOGGER.warning(
-                        "Ambiguous TCL UDP packet from %s; %d unbound devices",
+                        "Ambiguous TCL UDP packet from %s; %d unbound of %d devices",
                         sender_ip,
                         len(unknown),
+                        len(self._subscriptions),
                     )
                 return 0
             targets = unknown

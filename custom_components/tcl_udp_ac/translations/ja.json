@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "既存アカウントからデバイスを追加",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "TCL+ を再認証", "description": "期限切れの TCL+ セッションを復元する方法を選択します。", "menu_options": {"reauth_confirm": "アカウントとパスワードでログイン", "reauth_sms": "SMS 認証コードでログイン"}},
-      "reauth_sms": {"title": "SMS で再認証", "description": "認証コードを受け取る携帯電話番号を入力してください。", "data": {"mobile": "携帯電話番号"}},
-      "reauth_sms_code": {"title": "認証コードを入力", "description": "受信した SMS コードを入力してアクセスを復元します。", "data": {"code": "認証コード"}},
+      "reauth": {
+        "title": "TCL+ を再認証",
+        "description": "期限切れの TCL+ セッションを復元する方法を選択します。",
+        "menu_options": {
+          "reauth_confirm": "アカウントとパスワードでログイン",
+          "reauth_sms": "SMS 認証コードでログイン"
+        }
+      },
+      "reauth_sms": {
+        "title": "SMS で再認証",
+        "description": "認証コードを受け取る携帯電話番号を入力してください。",
+        "data": {
+          "mobile": "携帯電話番号"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "認証コードを入力",
+        "description": "受信した SMS コードを入力してアクセスを復元します。",
+        "data": {
+          "code": "認証コード"
+        }
+      },
       "manual": {
         "description": "ローカル UDP 制御と任意の TCL+ クラウドフォールバックを使って TCL エアコンを設定します。クラウドアクセストークンには有効期限があります。クラウド要求が失敗し始めたら、新しい TCL+ キャプチャから更新してください。",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "クラウド Accept-Encoding ヘッダー",
           "cloud_accept_language": "クラウド Accept-Language ヘッダー"
         }
+      },
+      "existing_account": {
+        "title": "既存の TCL+ アカウント",
+        "description": "読み込み済みのアカウントを選択します。保存された更新トークンを使用し、パスワードは保存しません。",
+        "data": {
+          "account_entry_id": "アカウント"
+        }
+      },
+      "existing_device": {
+        "title": "アカウントのデバイスを追加",
+        "description": "未設定のエアコンを選択します。デバイス識別情報とアカウントのメタデータは個別のエントリに保存されます。",
+        "data": {
+          "cloud_tid": "クラウドデバイス TID",
+          "cloud_control": "クラウド制御を有効にする",
+          "enable_fan_only_mode": "実験的な送風のみ HVAC モードを有効にする",
+          "enable_auto_mode": "実験的な自動/AI HVAC モードを有効にする"
+        }
       }
     },
     "error": {
       "connection": "UDP リスナーを開始できません。",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "不明なエラーが発生しました。"
+      "unknown": "不明なエラーが発生しました。",
+      "account_not_loaded": "デバイス一覧を取得するには、選択したアカウントが読み込み済みである必要があります。"
     },
     "abort": {
       "already_configured": "このエントリはすでに設定されています。",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "このアカウントのエアコンはすべて設定済みです。"
     }
   },
   "issues": {

@@ -37,6 +37,41 @@ class UdpHubRoutingTest(unittest.TestCase):
         self.assertEqual(first, [])
         self.assertEqual(second, [payload])
 
+    def test_routes_by_configured_cloud_device_id(self) -> None:
+        hub = self.udp_hub.UdpHub()
+        first: list[bytes] = []
+        second: list[bytes] = []
+        hub.subscribe(
+            lambda data, _addr: first.append(data), expected_device_id="2743138"
+        )
+        hub.subscribe(
+            lambda data, _addr: second.append(data), expected_device_id="45816970"
+        )
+        payload = b'<msg cmd="status" type="notify" tclid="45816970" />'
+
+        delivered = hub.route_datagram(payload, ("192.0.2.2", 10075))
+
+        self.assertEqual(delivered, 1)
+        self.assertEqual(first, [])
+        self.assertEqual(second, [payload])
+
+    def test_conflicting_identity_is_refused_instead_of_fanned_out(self) -> None:
+        hub = self.udp_hub.UdpHub()
+        received: list[bytes] = []
+        for _ in range(2):
+            hub.subscribe(
+                lambda data, _addr: received.append(data),
+                expected_device_id="45816970",
+            )
+
+        delivered = hub.route_datagram(
+            b'<msg cmd="status" type="notify" tclid="45816970" />',
+            ("192.0.2.2", 10075),
+        )
+
+        self.assertEqual(delivered, 0)
+        self.assertEqual(received, [])
+
     def test_single_unknown_subscription_can_bind_first_device(self) -> None:
         hub = self.udp_hub.UdpHub()
         received: list[bytes] = []
@@ -68,6 +103,22 @@ class UdpHubRoutingTest(unittest.TestCase):
         self.assertEqual(delivered, 0)
         self.assertEqual(first, [])
         self.assertEqual(second, [])
+
+    def test_unknown_subscription_cannot_claim_known_devices_unmatched_mac(self) -> None:
+        hub = self.udp_hub.UdpHub()
+        known: list[bytes] = []
+        unknown: list[bytes] = []
+        hub.subscribe(
+            lambda data, _addr: known.append(data), expected_device_id="2743138"
+        )
+        hub.subscribe(lambda data, _addr: unknown.append(data))
+        payload = b"<deviceInfo><DevMAC>38:76:CA:43:69:B9</DevMAC></deviceInfo>"
+
+        delivered = hub.route_datagram(payload, ("192.0.2.10", 10075))
+
+        self.assertEqual(delivered, 0)
+        self.assertEqual(known, [])
+        self.assertEqual(unknown, [])
 
     def test_bound_ip_routes_identity_free_reply(self) -> None:
         hub = self.udp_hub.UdpHub()
@@ -117,10 +168,15 @@ class UdpHubRoutingTest(unittest.TestCase):
                 self.sent = []
                 self.unsubscribed = []
 
-            def subscribe(self, callback, *, expected_mac=None):
+            def subscribe(
+                self, callback, *, expected_mac=None, expected_device_id=None
+            ):
                 self.callback = callback
                 return self.udp_hub.UdpSubscription(
-                    1, callback, expected_mac=expected_mac
+                    1,
+                    callback,
+                    expected_mac=expected_mac,
+                    expected_device_id=expected_device_id,
                 )
 
             async def async_acquire(self):

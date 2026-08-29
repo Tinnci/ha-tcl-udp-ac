@@ -39,7 +39,7 @@ from .const import (
     DEFAULT_CLOUD_USER_AGENT,
     LOGGER,
 )
-from .protocol_driver import resolve_protocol_driver
+from .device_descriptor import DeviceDescriptor, TclCloudDevice
 from .tcl_crypto import (
     TclCryptoError,
     encrypt_param,
@@ -55,6 +55,15 @@ _ENCRYPT_HEADERS = {"Encrypt": "true", "EncryptVersion": "2.0"}
 _JSON_CONTENT_TYPE = "application/json;charset=utf-8"
 _REQUEST_TIMEOUT = 15
 _TRANSIENT_TOKEN_PAYLOAD_ERRORS = {"internalerror"}
+_AUTH_FAILURE_VALUES = {
+    "401",
+    "403",
+    "accesstokenexpired",
+    "invalidaccesstoken",
+    "invalidtoken",
+    "tokenexpired",
+    "unauthorized",
+}
 
 
 class TclAccountError(Exception):
@@ -80,59 +89,6 @@ class TclTokens:
     access_token: str
     refresh_token: str
     account_id: str | None = None
-
-
-@dataclass(frozen=True)
-class TclCloudDevice:
-    """TCL+ cloud device metadata discovered from the account."""
-
-    device_id: str
-    category: str
-    product_key: str | None = None
-    master_id: str | None = None
-    name: str | None = None
-    room: str | None = None
-    mac: str | None = None
-    model: str | None = None
-    protocol: str | None = None
-    is_online: bool | None = None
-    energy: bool = False
-
-    @property
-    def supports_legacy_cloud_control(self) -> bool:
-        """Return True when the device matches the captured XMPP cloud path."""
-        return self.protocol in {None, "", "0"}
-
-    @property
-    def supports_cloud_control(self) -> bool:
-        """Return True when this integration has a mapped cloud-control path."""
-        if self.supports_legacy_cloud_control:
-            return True
-        profile = resolve_protocol_driver(
-            self.device_id,
-            product_key=self.product_key,
-        )
-        return not profile.legacy_transport_enabled
-
-    @property
-    def cloud_from_jid(self) -> str | None:
-        """Return the sender JID used by the TCL+ app's legacy cloud control."""
-        if not self.master_id:
-            return None
-        return f"{self.master_id}@tcl.com/PH-android-zx01-2"
-
-    @property
-    def cloud_to_jid(self) -> str:
-        """Return the device JID used by the TCL+ app's legacy cloud control."""
-        return f"{self.device_id}@tcl.com/AC-linux-zx01-1"
-
-    @property
-    def title(self) -> str:
-        """Return a human-readable device title for config forms."""
-        parts = [self.name or self.model or self.device_id]
-        if self.room:
-            parts.append(self.room)
-        return " - ".join(parts)
 
 
 class AccountClient:
@@ -301,7 +257,7 @@ class AccountClient:
         }
 
     @staticmethod
-    def _parse_cloud_device(raw: Mapping[str, Any]) -> TclCloudDevice | None:
+    def _parse_cloud_device(raw: Mapping[str, Any]) -> DeviceDescriptor | None:
         device_id = raw.get("deviceId")
         if not device_id:
             return None
@@ -315,7 +271,7 @@ class AccountClient:
         protocol = raw.get("protocol")
         is_online = raw.get("isOnline")
 
-        return TclCloudDevice(
+        return DeviceDescriptor(
             device_id=str(device_id),
             category=str(raw.get("category") or ""),
             product_key=str(product_key) if product_key is not None else None,
@@ -339,6 +295,17 @@ class AccountClient:
         payload = await self._get_json_response(url, self._cloud_headers(access_token))
         if payload.get("success") is False:
             err = payload.get("message") or payload.get("msg") or "device list failed"
+            failure_values = {
+                "".join(
+                    character
+                    for character in str(value).casefold()
+                    if character.isalnum()
+                )
+                for value in (payload.get("code"), payload.get("errorCode"), err)
+                if value is not None
+            }
+            if failure_values & _AUTH_FAILURE_VALUES:
+                raise TclAccountAuthError(str(err))
             raise TclAccountError(str(err))
 
         devices: list[TclCloudDevice] = []

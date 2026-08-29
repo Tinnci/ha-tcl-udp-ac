@@ -256,6 +256,28 @@ class AccountClientTest(unittest.TestCase):
         devices_call = next(c for c in session.get_calls if "user_devices" in c["url"])
         self.assertEqual(devices_call["headers"]["accesstoken"], "access.jwt.sig")
 
+    def test_device_inventory_explicit_token_expiry_is_auth_failure(self) -> None:
+        session = FakeSession()
+        session.device_response = json.dumps(
+            {"success": False, "code": "401", "message": "token expired"}
+        )
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountAuthError):
+            asyncio.run(client.async_list_devices("expired.jwt.sig"))
+
+    def test_device_inventory_internal_error_remains_transient(self) -> None:
+        session = FakeSession()
+        session.device_response = json.dumps(
+            {"success": False, "code": "500", "message": "InternalError"}
+        )
+        mod, client = _client(session)
+
+        with self.assertRaises(mod.TclAccountError) as raised:
+            asyncio.run(client.async_list_devices("access.jwt.sig"))
+
+        self.assertNotIsInstance(raised.exception, mod.TclAccountAuthError)
+
 
 if __name__ == "__main__":
     unittest.main()

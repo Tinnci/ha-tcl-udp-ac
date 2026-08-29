@@ -1013,6 +1013,7 @@ class TclUdpApiClient:
             account,
             protocol_profile=self._protocol_profile,
             device_mac=device_mac,
+            device_id=cloud_tid,
             udp_hub=udp_hub,
         )
         self._session = session

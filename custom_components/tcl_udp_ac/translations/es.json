@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "Añadir dispositivo desde una cuenta existente",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "Volver a autenticar TCL+", "description": "Elige cómo restaurar tu sesión TCL+ caducada.", "menu_options": {"reauth_confirm": "Iniciar sesión con cuenta y contraseña", "reauth_sms": "Iniciar sesión con código SMS"}},
-      "reauth_sms": {"title": "Volver a autenticar por SMS", "description": "Introduce tu número de móvil para recibir un código de verificación.", "data": {"mobile": "Número de móvil"}},
-      "reauth_sms_code": {"title": "Introducir código de verificación", "description": "Introduce el código SMS recibido para restaurar el acceso.", "data": {"code": "Código de verificación"}},
+      "reauth": {
+        "title": "Volver a autenticar TCL+",
+        "description": "Elige cómo restaurar tu sesión TCL+ caducada.",
+        "menu_options": {
+          "reauth_confirm": "Iniciar sesión con cuenta y contraseña",
+          "reauth_sms": "Iniciar sesión con código SMS"
+        }
+      },
+      "reauth_sms": {
+        "title": "Volver a autenticar por SMS",
+        "description": "Introduce tu número de móvil para recibir un código de verificación.",
+        "data": {
+          "mobile": "Número de móvil"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "Introducir código de verificación",
+        "description": "Introduce el código SMS recibido para restaurar el acceso.",
+        "data": {
+          "code": "Código de verificación"
+        }
+      },
       "manual": {
         "description": "Configura un aire acondicionado TCL con control UDP local y respaldo opcional en la nube TCL+. Los tokens de acceso a la nube caducan; actualízalos desde una nueva captura de TCL+ cuando las solicitudes a la nube empiecen a fallar.",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "Encabezado Accept-Encoding de la nube",
           "cloud_accept_language": "Encabezado Accept-Language de la nube"
         }
+      },
+      "existing_account": {
+        "title": "Cuenta TCL+ existente",
+        "description": "Elige una cuenta cargada. Se usa su token de actualización guardado; no se almacena la contraseña.",
+        "data": {
+          "account_entry_id": "Cuenta"
+        }
+      },
+      "existing_device": {
+        "title": "Añadir dispositivo de la cuenta",
+        "description": "Elige un aire acondicionado aún no configurado. La identidad y los metadatos se guardan en una entrada independiente.",
+        "data": {
+          "cloud_tid": "TID del dispositivo en la nube",
+          "cloud_control": "Activar control en la nube",
+          "enable_fan_only_mode": "Activar modo HVAC experimental Solo ventilador",
+          "enable_auto_mode": "Activar modo HVAC experimental Auto/IA"
+        }
       }
     },
     "error": {
       "connection": "No se pudo iniciar el receptor UDP.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "Se produjo un error desconocido."
+      "unknown": "Se produjo un error desconocido.",
+      "account_not_loaded": "La cuenta seleccionada debe estar cargada para consultar sus dispositivos."
     },
     "abort": {
       "already_configured": "Esta entrada ya está configurada.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "Todos los aires acondicionados de esta cuenta ya están configurados."
     }
   },
   "issues": {

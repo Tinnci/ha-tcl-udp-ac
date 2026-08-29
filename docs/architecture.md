@@ -16,19 +16,19 @@ Architecture changes must preserve these user-facing contracts:
 - cloud status and control remain optional fallbacks;
 - unsupported TSL writes remain disabled rather than guessed.
 
-The stored `device_mac` key is additive and internal. TCL+ device discovery
-persists it when available so the shared UDP hub can route packets without
-guessing. Existing single-device entries without a MAC continue to bind the
-first unambiguous local device. Multiple unknown entries deliberately reject an
-ambiguous packet instead of allowing state from one AC to appear on another.
+The stored descriptor fields (`device_mac`, `device_name`, `device_room`,
+`device_model`, and `device_protocol`) are additive. Existing identifiers do not
+change: the cloud TID remains the config-entry unique ID and the prefix of every
+entity unique ID. Presentation metadata supplies suggested names, models, and
+areas; it does not overwrite names customized in Home Assistant.
 
 ## Runtime modules and seams
 
 ```text
-Home Assistant entities
-        |
-        v
-DeviceSession (one per config entry/device)
+TCL+ account API ---> AccountDeviceInventory ---> DeviceDescriptor
+                                                     |
+                                                     v
+Home Assistant entities ---> DeviceSession (one per config entry/device)
         |-- StateReducer / DeviceState
         |-- CommandTracker
         |-- ProtocolDriver
@@ -52,6 +52,27 @@ Cloud and UDP delivery are not presented as an atomic operation. A receipt
 records each attempt as accepted, rejected, skipped, or failed. For example, a
 cloud-accepted command remains eligible for status confirmation if its UDP
 attempt subsequently fails.
+
+### DeviceDescriptor and AccountDeviceInventory
+
+`DeviceDescriptor` is the semantic Module for one discovered AC. Its Interface
+separates stable identity (TID, MAC, product/protocol metadata) from suggested
+presentation (name, room, model) and derives the device-scoped config patch.
+It does not contain credentials or Home Assistant lifecycle behavior.
+
+`AccountDeviceInventory` is an account snapshot, not another config-entry
+type. Its `available_devices` Interface subtracts the stable TIDs already
+configured for that account. `AccountDeviceCatalog` is the Adapter to the TCL+
+API and always calls through the loaded source entry's `TokenManager` Seam, so
+inventory discovery follows the same proactive refresh and single auth-retry
+rules as every other authorized cloud request.
+
+Choosing “add from existing account” creates another ordinary per-device entry.
+Account credentials and effective request settings are copied, device-scoped
+fields are replaced from the selected descriptor, and `CredentialManager`
+continues to synchronize future rotations across entries sharing the account
+ID. This gives the account inventory Leverage without weakening per-device
+state and command Locality.
 
 ### StateReducer
 
@@ -90,15 +111,18 @@ compatibility alias.
 ### UdpHub
 
 One domain-wide `UdpHub` owns the listener and send sockets. Device channels
-subscribe with an expected MAC when TCL+ discovery provides it. Routing uses:
+subscribe with both their cloud TID and MAC when available. Routing uses:
 
-1. packet identity/MAC when present;
+1. packet identity matched against the descriptor's TID/MAC identity set;
 2. a previously bound source IP for identity-free replies;
-3. first-device binding only when exactly one subscription is unknown.
+3. first-device binding only when the hub has exactly one subscription and it
+   has no known identity.
 
-Packet identity always wins over a stale IP binding. If more than one unknown
-subscription could receive a packet, the hub logs and drops it rather than
-mixing device state.
+Packet identity always wins over a stale IP binding. If an identity matches
+multiple subscriptions, or an unknown subscription coexists with any other
+device, the hub logs and drops the unmatched packet rather than mixing device
+state. This Depth keeps ambiguity handling inside the transport Module rather
+than leaking it into entities or coordinators.
 
 ## Extension path
 

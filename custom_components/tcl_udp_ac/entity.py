@@ -5,7 +5,13 @@ from __future__ import annotations
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_CLOUD_TID
+from .config_settings import entry_value
+from .const import (
+    CONF_CLOUD_TID,
+    CONF_DEVICE_MODEL,
+    CONF_DEVICE_NAME,
+    CONF_DEVICE_ROOM,
+)
 from .coordinator import TclUdpDataUpdateCoordinator
 
 
@@ -16,19 +22,26 @@ class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
         """Initialize."""
         super().__init__(coordinator)
         device_id = self._device_identifier()
+        entry = coordinator.config_entry
         self._attr_has_entity_name = True
         self._attr_unique_id = device_id
-        self._attr_device_info = DeviceInfo(
+        device_info = DeviceInfo(
             identifiers={
                 (
                     coordinator.config_entry.domain,
                     device_id,
                 ),
             },
-            name="TCL Air Conditioner",
+            name=entry_value(entry, CONF_DEVICE_NAME, None)
+            or getattr(entry, "title", None)
+            or "TCL Air Conditioner",
             manufacturer="TCL",
-            model="UDP AC",
+            model=entry_value(entry, CONF_DEVICE_MODEL, None) or "UDP AC",
         )
+        room = entry_value(entry, CONF_DEVICE_ROOM, None)
+        if room:
+            device_info["suggested_area"] = room
+        self._attr_device_info = device_info
 
     def _device_identifier(self) -> str:
         """Return the most stable known device identifier for registry IDs."""

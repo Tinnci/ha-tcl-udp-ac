@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .account_client import (
@@ -16,7 +17,12 @@ from .account_client import (
     TclCloudDevice,
     TclTokens,
 )
-from .config_settings import DEFAULT_CONFIG_VALUES, AuthSettings, entry_values
+from .config_settings import (
+    DEFAULT_CONFIG_VALUES,
+    AuthSettings,
+    entry_value,
+    entry_values,
+)
 from .const import (
     CONF_ACCOUNT,
     CONF_CLOUD_ACCOUNT_ID,
@@ -29,15 +35,20 @@ from .const import (
     CONF_CLOUD_TO,
     CONF_CLOUD_TOKEN,
     CONF_DEVICE_MAC,
+    CONF_DEVICE_MODEL,
+    CONF_DEVICE_NAME,
+    CONF_DEVICE_PROTOCOL,
+    CONF_DEVICE_ROOM,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_CLOUD_CONTROL,
-    DEFAULT_CLOUD_FROM,
     DEFAULT_ENABLE_AUTO_MODE,
     DEFAULT_ENABLE_FAN_ONLY_MODE,
     DOMAIN,
 )
 from .credential_manager import CredentialManager
+from .device_descriptor import DeviceDescriptor
+from .device_inventory import AccountDeviceCatalog, AccountDeviceInventory
 from .integration_runtime import get_integration_runtime
 
 BASIC_CONFIG_KEYS = (
@@ -64,6 +75,20 @@ DEVICE_CONFIG_KEYS = (
     CONF_ENABLE_FAN_ONLY_MODE,
     CONF_ENABLE_AUTO_MODE,
 )
+
+ACCOUNT_ENTRY_ID = "account_entry_id"
+DEVICE_SCOPED_CONFIG_KEYS = {
+    CONF_ACCOUNT,
+    CONF_CLOUD_FROM,
+    CONF_CLOUD_PRODUCT_KEY,
+    CONF_CLOUD_TID,
+    CONF_CLOUD_TO,
+    CONF_DEVICE_MAC,
+    CONF_DEVICE_MODEL,
+    CONF_DEVICE_NAME,
+    CONF_DEVICE_PROTOCOL,
+    CONF_DEVICE_ROOM,
+}
 
 
 def _schema_for_keys(
@@ -166,15 +191,27 @@ def _data_with_device(
     """Merge discovered device metadata into config data."""
     data = dict(base)
     data.update(user_input)
-    data[CONF_CLOUD_TID] = device.device_id
-    data[CONF_CLOUD_FROM] = device.cloud_from_jid or DEFAULT_CLOUD_FROM
-    data[CONF_CLOUD_TO] = device.cloud_to_jid
-    if device.product_key:
-        data[CONF_CLOUD_PRODUCT_KEY] = device.product_key
-    if device.mac:
-        data[CONF_DEVICE_MAC] = device.mac
-    if device.master_id:
-        data[CONF_ACCOUNT] = device.master_id
+    data.update(device.config_patch())
+    return data
+
+
+def _data_from_existing_account(
+    source_entry: config_entries.ConfigEntry,
+    device: DeviceDescriptor,
+    user_input: dict[str, Any],
+) -> dict[str, Any]:
+    """Copy account-scoped settings while replacing all device-scoped data."""
+    data = entry_values(source_entry)
+    for key in DEVICE_SCOPED_CONFIG_KEYS:
+        data.pop(key, None)
+    data.update(user_input)
+    device_patch = device.config_patch()
+    source_values = entry_values(source_entry)
+    for key in (CONF_ACCOUNT, CONF_CLOUD_FROM):
+        if key not in device_patch and source_values.get(key):
+            data[key] = source_values[key]
+    data.update(device_patch)
+    data[CONF_CLOUD_ENABLED] = True
     return data
 
 
@@ -187,6 +224,8 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     _login_tokens: TclTokens
     _sms_mobile: str
     _reauth_sms_mobile: str
+    _account_inventory: AccountDeviceInventory
+    _source_account_entry: config_entries.ConfigEntry
 
     @staticmethod
     @callback
@@ -201,9 +240,125 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict | None = None,  # noqa: ARG002
     ) -> config_entries.ConfigFlowResult:
         """Present a menu of login methods."""
+        menu_options = ["login_password", "login_sms", "manual"]
+        if self._existing_account_entries():
+            menu_options.insert(0, "existing_account")
         return self.async_show_menu(
             step_id="user",
-            menu_options=["login_password", "login_sms", "manual"],
+            menu_options=menu_options,
+        )
+
+    def _existing_account_entries(self) -> list[config_entries.ConfigEntry]:
+        """Return entries that can authorize account inventory discovery."""
+        entries = self.hass.config_entries.async_entries(DOMAIN)
+        return [
+            entry
+            for entry in entries
+            if entry_value(entry, CONF_CLOUD_ACCOUNT_ID, "")
+            and entry_value(entry, CONF_CLOUD_REFRESH_TOKEN, "")
+        ]
+
+    async def async_step_existing_account(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Select an authenticated account and load its current inventory."""
+        candidates = self._existing_account_entries()
+        choices = {
+            entry.entry_id: (
+                f"{entry.title} ({entry_value(entry, CONF_CLOUD_ACCOUNT_ID, '')})"
+            )
+            for entry in candidates
+        }
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            source = next(
+                (
+                    entry
+                    for entry in candidates
+                    if entry.entry_id == user_input.get(ACCOUNT_ENTRY_ID)
+                ),
+                None,
+            )
+            runtime = getattr(source, "runtime_data", None) if source else None
+            token_manager = getattr(runtime, "token_manager", None)
+            if source is None or token_manager is None:
+                errors["base"] = "account_not_loaded"
+            else:
+                account_id = str(entry_value(source, CONF_CLOUD_ACCOUNT_ID, ""))
+                account_entries = [
+                    entry
+                    for entry in self.hass.config_entries.async_entries(DOMAIN)
+                    if str(entry_value(entry, CONF_CLOUD_ACCOUNT_ID, "")) == account_id
+                ]
+                configured_ids = frozenset(
+                    str(entry_value(entry, CONF_CLOUD_TID, ""))
+                    for entry in account_entries
+                    if entry_value(entry, CONF_CLOUD_TID, "")
+                )
+                catalog = AccountDeviceCatalog(
+                    _account_client(self.hass, source), token_manager, source
+                )
+                try:
+                    inventory = await catalog.async_load(
+                        account_id=account_id,
+                        configured_device_ids=configured_ids,
+                    )
+                except ConfigEntryAuthFailed:
+                    errors["base"] = "invalid_auth"
+                except TclAccountError:
+                    errors["base"] = "cannot_connect"
+                else:
+                    self._source_account_entry = source
+                    self._account_inventory = inventory
+                    await self._async_reconcile_descriptors(account_entries, inventory)
+                    return await self.async_step_existing_device()
+
+        return self.async_show_form(
+            step_id="existing_account",
+            data_schema=vol.Schema(
+                {vol.Required(ACCOUNT_ENTRY_ID): vol.In(choices)}
+            ),
+            errors=errors,
+        )
+
+    async def _async_reconcile_descriptors(
+        self,
+        entries: list[config_entries.ConfigEntry],
+        inventory: AccountDeviceInventory,
+    ) -> None:
+        """Persist fresh routing metadata without changing user-facing names."""
+        for entry in entries:
+            descriptor = inventory.find(str(entry_value(entry, CONF_CLOUD_TID, "")))
+            if descriptor is None:
+                continue
+            data = dict(entry.data)
+            updated = dict(data)
+            updated.update(descriptor.config_patch())
+            if updated != data:
+                self.hass.config_entries.async_update_entry(entry, data=updated)
+
+    async def async_step_existing_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Create a per-device entry from unconfigured account inventory."""
+        devices = list(self._account_inventory.available_devices)
+        if not devices:
+            return self.async_abort(reason="no_available_devices")
+        if user_input is not None:
+            selected = self._account_inventory.find(
+                str(user_input.get(CONF_CLOUD_TID, ""))
+            )
+            if selected is not None:
+                data = _data_from_existing_account(
+                    self._source_account_entry, selected, user_input
+                )
+                await self.async_set_unique_id(selected.device_id)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(title=selected.title, data=data)
+        return self.async_show_form(
+            step_id="existing_device",
+            data_schema=_device_select_schema(devices),
+            errors={},
         )
 
     async def async_step_login_password(

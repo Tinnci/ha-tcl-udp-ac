@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.7.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -31,6 +31,7 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
   - **Current Month Energy**: TCL+ cloud report total for the current month, exposed as a diagnostic kWh total when device metadata is available.
   - **Current Month Runtime**: TCL+ cloud report running hours for the current month, exposed as a diagnostic duration total when device metadata is available.
 - **☁️ TCL+ Login**: Log in with a TCL+ account to obtain refreshable cloud tokens and select discovered AC devices. The integration fills the cloud TID and legacy JIDs automatically when TCL+ returns device metadata.
+- **🏠 Multiple ACs per account**: Add another unconfigured AC from an existing loaded TCL+ account without entering the password again. Each AC remains an independent Home Assistant device while credentials refresh together.
 
 ## 📦 Installation
 
@@ -69,6 +70,7 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
 3. Search for **TCL UDP Air Conditioner**.
 4. Choose a setup method:
    - **TCL+ account login**: log in with password or SMS, then select a discovered AC device. The integration stores refreshable tokens and fills the cloud TID plus legacy sender/device JIDs from TCL+ account metadata.
+   - **Existing TCL+ account**: select an already loaded account, refresh its device inventory, then choose an AC that has not been configured. No password is requested or stored.
    - **Manual token entry**: paste a captured token and provide the cloud TID/JIDs yourself.
 5. Keep local UDP as the primary control path. Cloud status fallback and legacy cloud control are optional helpers for networks that miss UDP updates.
 6. For the newer TCL+ protocol 1 product `1112013595N`, the integration uses the TSL-style status fields and a static-analysis-derived property-control path for power, mode, and target temperature. Fan speed, swing, and feature-switch writes remain disabled for this profile until their write payloads are confirmed.

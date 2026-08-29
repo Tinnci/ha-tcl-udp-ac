@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "Ajouter un appareil depuis un compte existant",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "Réauthentifier TCL+", "description": "Choisissez comment restaurer votre session TCL+ expirée.", "menu_options": {"reauth_confirm": "Se connecter avec le compte et le mot de passe", "reauth_sms": "Se connecter avec un code SMS"}},
-      "reauth_sms": {"title": "Réauthentification par SMS", "description": "Saisissez votre numéro de mobile pour recevoir un code de vérification.", "data": {"mobile": "Numéro de mobile"}},
-      "reauth_sms_code": {"title": "Saisir le code de vérification", "description": "Saisissez le code SMS reçu pour restaurer l’accès.", "data": {"code": "Code de vérification"}},
+      "reauth": {
+        "title": "Réauthentifier TCL+",
+        "description": "Choisissez comment restaurer votre session TCL+ expirée.",
+        "menu_options": {
+          "reauth_confirm": "Se connecter avec le compte et le mot de passe",
+          "reauth_sms": "Se connecter avec un code SMS"
+        }
+      },
+      "reauth_sms": {
+        "title": "Réauthentification par SMS",
+        "description": "Saisissez votre numéro de mobile pour recevoir un code de vérification.",
+        "data": {
+          "mobile": "Numéro de mobile"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "Saisir le code de vérification",
+        "description": "Saisissez le code SMS reçu pour restaurer l’accès.",
+        "data": {
+          "code": "Code de vérification"
+        }
+      },
       "manual": {
         "description": "Configurez un climatiseur TCL avec le contrôle UDP local et un repli cloud TCL+ facultatif. Les jetons d'accès cloud expirent ; actualisez-les depuis une nouvelle capture TCL+ lorsque les requêtes cloud commencent à échouer.",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "En-tête Accept-Encoding cloud",
           "cloud_accept_language": "En-tête Accept-Language cloud"
         }
+      },
+      "existing_account": {
+        "title": "Compte TCL+ existant",
+        "description": "Choisissez un compte chargé. Son jeton d’actualisation enregistré est utilisé ; aucun mot de passe n’est stocké.",
+        "data": {
+          "account_entry_id": "Compte"
+        }
+      },
+      "existing_device": {
+        "title": "Ajouter un appareil du compte",
+        "description": "Choisissez un climatiseur non configuré. Son identité et les métadonnées du compte sont enregistrées dans une entrée distincte.",
+        "data": {
+          "cloud_tid": "TID de l'appareil cloud",
+          "cloud_control": "Activer le contrôle cloud",
+          "enable_fan_only_mode": "Activer le mode CVC expérimental Ventilation seule",
+          "enable_auto_mode": "Activer le mode CVC expérimental Auto/IA"
+        }
       }
     },
     "error": {
       "connection": "Impossible de démarrer l'écouteur UDP.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "Une erreur inconnue s'est produite."
+      "unknown": "Une erreur inconnue s'est produite.",
+      "account_not_loaded": "Le compte sélectionné doit être chargé avant de consulter ses appareils."
     },
     "abort": {
       "already_configured": "Cette entrée est déjà configurée.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "Tous les climatiseurs de ce compte sont déjà configurés."
     }
   },
   "issues": {

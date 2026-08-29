@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "Add a device from an existing account",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -111,17 +112,36 @@
           "cloud_accept_encoding": "Cloud accept-encoding header",
           "cloud_accept_language": "Cloud accept-language header"
         }
+      },
+      "existing_account": {
+        "title": "Existing TCL+ account",
+        "description": "Choose a loaded account. Its saved refresh token is used; no password is stored.",
+        "data": {
+          "account_entry_id": "Account"
+        }
+      },
+      "existing_device": {
+        "title": "Add account device",
+        "description": "Choose an AC that is not configured yet. Device identity and current account metadata are saved in a separate entry.",
+        "data": {
+          "cloud_tid": "Cloud device TID",
+          "cloud_control": "Enable cloud control",
+          "enable_fan_only_mode": "Enable experimental Fan Only HVAC mode",
+          "enable_auto_mode": "Enable experimental Auto/AI HVAC mode"
+        }
       }
     },
     "error": {
       "connection": "Unable to start UDP listener.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "Unknown error occurred."
+      "unknown": "Unknown error occurred.",
+      "account_not_loaded": "The selected account must be loaded before its device inventory can be queried."
     },
     "abort": {
       "already_configured": "This entry is already configured.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "All AC devices on this account are already configured."
     }
   },
   "issues": {

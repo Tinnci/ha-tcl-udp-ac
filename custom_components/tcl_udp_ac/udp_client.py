@@ -47,6 +47,7 @@ class UdpClient:
         *,
         protocol_profile: ProtocolDriver | None = None,
         device_mac: str | None = None,
+        device_id: str | None = None,
         udp_hub: UdpHub | None = None,
     ) -> None:
         """Initialize UDP client with protocol metadata."""
@@ -59,6 +60,7 @@ class UdpClient:
         self._sequence = 0
         self._last_received_seq: str | None = None
         self._device_mac = device_mac or "00:00:00:00:00:00"
+        self._device_id = device_id
         self._device_ip: str | None = None
         self._device_port: int = UDP_COMMAND_PORT
 
@@ -81,6 +83,7 @@ class UdpClient:
                     if self._device_mac != "00:00:00:00:00:00"
                     else None
                 ),
+                expected_device_id=self._device_id,
             )
             await self._udp_hub.async_acquire()
             self._hub_acquired = True

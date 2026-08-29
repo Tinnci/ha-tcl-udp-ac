@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "기존 계정에서 기기 추가",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "TCL+ 재인증", "description": "만료된 TCL+ 세션을 복원할 방법을 선택하세요.", "menu_options": {"reauth_confirm": "계정과 비밀번호로 로그인", "reauth_sms": "SMS 인증 코드로 로그인"}},
-      "reauth_sms": {"title": "SMS로 재인증", "description": "인증 코드를 받을 휴대폰 번호를 입력하세요.", "data": {"mobile": "휴대폰 번호"}},
-      "reauth_sms_code": {"title": "인증 코드 입력", "description": "받은 SMS 코드를 입력하여 액세스를 복원하세요.", "data": {"code": "인증 코드"}},
+      "reauth": {
+        "title": "TCL+ 재인증",
+        "description": "만료된 TCL+ 세션을 복원할 방법을 선택하세요.",
+        "menu_options": {
+          "reauth_confirm": "계정과 비밀번호로 로그인",
+          "reauth_sms": "SMS 인증 코드로 로그인"
+        }
+      },
+      "reauth_sms": {
+        "title": "SMS로 재인증",
+        "description": "인증 코드를 받을 휴대폰 번호를 입력하세요.",
+        "data": {
+          "mobile": "휴대폰 번호"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "인증 코드 입력",
+        "description": "받은 SMS 코드를 입력하여 액세스를 복원하세요.",
+        "data": {
+          "code": "인증 코드"
+        }
+      },
       "manual": {
         "description": "로컬 UDP 제어와 선택적 TCL+ 클라우드 대체 상태 조회를 사용해 TCL 에어컨을 설정합니다. 클라우드 액세스 토큰은 만료됩니다. 클라우드 요청이 실패하기 시작하면 새 TCL+ 캡처에서 토큰을 갱신하세요.",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "클라우드 Accept-Encoding 헤더",
           "cloud_accept_language": "클라우드 Accept-Language 헤더"
         }
+      },
+      "existing_account": {
+        "title": "기존 TCL+ 계정",
+        "description": "로드된 계정을 선택하세요. 저장된 갱신 토큰을 사용하며 비밀번호는 저장하지 않습니다.",
+        "data": {
+          "account_entry_id": "계정"
+        }
+      },
+      "existing_device": {
+        "title": "계정 기기 추가",
+        "description": "아직 구성되지 않은 에어컨을 선택하세요. 기기 ID와 계정 메타데이터는 별도 항목에 저장됩니다.",
+        "data": {
+          "cloud_tid": "클라우드 장치 TID",
+          "cloud_control": "클라우드 제어 활성화",
+          "enable_fan_only_mode": "실험적 송풍 전용 HVAC 모드 활성화",
+          "enable_auto_mode": "실험적 자동/AI HVAC 모드 활성화"
+        }
       }
     },
     "error": {
       "connection": "UDP 리스너를 시작할 수 없습니다.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "알 수 없는 오류가 발생했습니다."
+      "unknown": "알 수 없는 오류가 발생했습니다.",
+      "account_not_loaded": "기기 목록을 조회하려면 선택한 계정이 로드되어 있어야 합니다."
     },
     "abort": {
       "already_configured": "이 항목은 이미 구성되어 있습니다.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "이 계정의 모든 에어컨이 이미 구성되어 있습니다."
     }
   },
   "issues": {

@@ -191,6 +191,25 @@ class ClimateEntityTest(unittest.TestCase):
             {("tcl_udp_ac", "2743138")},
         )
 
+    def test_descriptor_presentation_does_not_change_stable_identifier(self) -> None:
+        entity = self.climate.TclUdpClimate(
+            FakeCoordinator(
+                entry_data={
+                    "cloud_tid": "45816970",
+                    "device_name": "Living room AC",
+                    "device_room": "Living room",
+                    "device_model": "KFRd-35G/D-STA22Bp(B1)",
+                }
+            )
+        )
+
+        self.assertEqual(entity._attr_unique_id, "45816970_climate")
+        self.assertEqual(entity._attr_device_info["name"], "Living room AC")
+        self.assertEqual(entity._attr_device_info["suggested_area"], "Living room")
+        self.assertEqual(
+            entity._attr_device_info["model"], "KFRd-35G/D-STA22Bp(B1)"
+        )
+
     def test_climate_does_not_fabricate_humidity_properties(self) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator())
 

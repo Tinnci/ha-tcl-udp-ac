@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.0 - 2026-08-30
+
+- Add a precise `DeviceDescriptor` semantic layer for stable TID/MAC identity,
+  protocol metadata, and suggested device presentation without changing
+  existing config-entry or entity unique IDs.
+- Add account device inventory and a config-flow path that discovers and adds
+  another unconfigured AC from an existing loaded TCL+ account without storing
+  or requesting the password again.
+- Route inventory requests through the existing token lifecycle, including one
+  refresh/retry after explicit token rejection while preserving transient
+  service errors.
+- Route shared UDP traffic deterministically against both TID and MAC, and drop
+  conflicting or otherwise ambiguous packets instead of cross-binding devices.
+- Reconcile current descriptor metadata into existing entries so legacy
+  single-device setups gain deterministic MAC routing when account discovery
+  provides it.
+
 ## 0.7.1 - 2026-08-28
 
 - Correlate command lifecycle events with the originating Home Assistant entity

@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "Gerät aus vorhandenem Konto hinzufügen",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "TCL+ erneut authentifizieren", "description": "Wählen Sie, wie die abgelaufene TCL+ Sitzung wiederhergestellt werden soll.", "menu_options": {"reauth_confirm": "Mit Konto und Passwort anmelden", "reauth_sms": "Mit SMS-Bestätigungscode anmelden"}},
-      "reauth_sms": {"title": "Erneut per SMS authentifizieren", "description": "Geben Sie Ihre Mobilnummer ein, um einen Bestätigungscode zu erhalten.", "data": {"mobile": "Mobilnummer"}},
-      "reauth_sms_code": {"title": "Bestätigungscode eingeben", "description": "Geben Sie den erhaltenen SMS-Code ein, um den Zugriff wiederherzustellen.", "data": {"code": "Bestätigungscode"}},
+      "reauth": {
+        "title": "TCL+ erneut authentifizieren",
+        "description": "Wählen Sie, wie die abgelaufene TCL+ Sitzung wiederhergestellt werden soll.",
+        "menu_options": {
+          "reauth_confirm": "Mit Konto und Passwort anmelden",
+          "reauth_sms": "Mit SMS-Bestätigungscode anmelden"
+        }
+      },
+      "reauth_sms": {
+        "title": "Erneut per SMS authentifizieren",
+        "description": "Geben Sie Ihre Mobilnummer ein, um einen Bestätigungscode zu erhalten.",
+        "data": {
+          "mobile": "Mobilnummer"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "Bestätigungscode eingeben",
+        "description": "Geben Sie den erhaltenen SMS-Code ein, um den Zugriff wiederherzustellen.",
+        "data": {
+          "code": "Bestätigungscode"
+        }
+      },
       "manual": {
         "description": "Richte eine TCL-Klimaanlage mit lokaler UDP-Steuerung und optionalem TCL+-Cloud-Fallback ein. Cloud-Zugriffstoken laufen ab; aktualisiere sie aus einem neuen TCL+-Mitschnitt, wenn Cloud-Anfragen fehlschlagen.",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "Cloud-Accept-Encoding-Header",
           "cloud_accept_language": "Cloud-Accept-Language-Header"
         }
+      },
+      "existing_account": {
+        "title": "Vorhandenes TCL+-Konto",
+        "description": "Wähle ein geladenes Konto. Das gespeicherte Aktualisierungstoken wird verwendet; kein Passwort wird gespeichert.",
+        "data": {
+          "account_entry_id": "Konto"
+        }
+      },
+      "existing_device": {
+        "title": "Kontogerät hinzufügen",
+        "description": "Wähle eine noch nicht konfigurierte Klimaanlage. Geräteidentität und Kontometadaten werden in einem separaten Eintrag gespeichert.",
+        "data": {
+          "cloud_tid": "Cloud-Geräte-TID",
+          "cloud_control": "Cloud-Steuerung aktivieren",
+          "enable_fan_only_mode": "Experimentellen Nur-Lüften-HVAC-Modus aktivieren",
+          "enable_auto_mode": "Experimentellen Auto-/KI-HVAC-Modus aktivieren"
+        }
       }
     },
     "error": {
       "connection": "UDP-Listener konnte nicht gestartet werden.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "Unbekannter Fehler aufgetreten."
+      "unknown": "Unbekannter Fehler aufgetreten.",
+      "account_not_loaded": "Das ausgewählte Konto muss geladen sein, bevor sein Gerätebestand abgefragt werden kann."
     },
     "abort": {
       "already_configured": "Dieser Eintrag ist bereits konfiguriert.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "Alle Klimaanlagen dieses Kontos sind bereits konfiguriert."
     }
   },
   "issues": {

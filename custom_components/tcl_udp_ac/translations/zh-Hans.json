@@ -5,6 +5,7 @@
         "title": "TCL 空调",
         "description": "选择连接 TCL+ 云端的方式。使用 TCL+ 账号登录可自动获取并续期令牌；也可手动粘贴从应用抓包得到的令牌。",
         "menu_options": {
+          "existing_account": "从现有账号添加设备",
           "login_password": "使用账号和密码登录",
           "login_sms": "使用短信验证码登录",
           "manual": "手动输入抓包令牌"
@@ -111,17 +112,36 @@
           "cloud_accept_encoding": "云端 Accept-Encoding 请求头",
           "cloud_accept_language": "云端 Accept-Language 请求头"
         }
+      },
+      "existing_account": {
+        "title": "现有 TCL+ 账号",
+        "description": "选择已加载的账号。系统使用已保存的刷新令牌，不会保存密码。",
+        "data": {
+          "account_entry_id": "账号"
+        }
+      },
+      "existing_device": {
+        "title": "添加账号设备",
+        "description": "选择一个尚未配置的空调。设备身份和当前账号元数据将保存到独立配置条目。",
+        "data": {
+          "cloud_tid": "云端设备 TID",
+          "cloud_control": "启用云端控制",
+          "enable_fan_only_mode": "启用实验性仅送风 HVAC 模式",
+          "enable_auto_mode": "启用实验性自动/AI HVAC 模式"
+        }
       }
     },
     "error": {
       "connection": "无法启动 UDP 监听器。",
       "invalid_auth": "登录失败：账号、密码或验证码错误。",
       "cannot_connect": "无法连接 TCL+ 服务，请重试。",
-      "unknown": "发生未知错误。"
+      "unknown": "发生未知错误。",
+      "account_not_loaded": "必须先加载所选账号，才能查询其设备清单。"
     },
     "abort": {
       "already_configured": "此条目已配置。",
-      "reauth_successful": "重新认证成功。"
+      "reauth_successful": "重新认证成功。",
+      "no_available_devices": "此账号下的所有空调均已配置。"
     }
   },
   "issues": {

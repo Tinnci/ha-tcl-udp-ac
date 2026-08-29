@@ -5,6 +5,7 @@
         "title": "TCL Air Conditioner",
         "description": "Choose how to connect to the TCL+ cloud. Log in with your TCL+ account to get tokens automatically (they refresh themselves), or paste a token captured from the app manually.",
         "menu_options": {
+          "existing_account": "Adicionar dispositivo de uma conta existente",
           "login_password": "Log in with account and password",
           "login_sms": "Log in with SMS verification code",
           "manual": "Enter a captured token manually"
@@ -51,9 +52,28 @@
           "password": "Password"
         }
       },
-      "reauth": {"title": "Reautenticar TCL+", "description": "Escolha como restaurar sua sessão TCL+ expirada.", "menu_options": {"reauth_confirm": "Entrar com conta e senha", "reauth_sms": "Entrar com código de verificação por SMS"}},
-      "reauth_sms": {"title": "Reautenticar por SMS", "description": "Digite seu número de celular para receber um código de verificação.", "data": {"mobile": "Número de celular"}},
-      "reauth_sms_code": {"title": "Digite o código de verificação", "description": "Digite o código SMS recebido para restaurar o acesso.", "data": {"code": "Código de verificação"}},
+      "reauth": {
+        "title": "Reautenticar TCL+",
+        "description": "Escolha como restaurar sua sessão TCL+ expirada.",
+        "menu_options": {
+          "reauth_confirm": "Entrar com conta e senha",
+          "reauth_sms": "Entrar com código de verificação por SMS"
+        }
+      },
+      "reauth_sms": {
+        "title": "Reautenticar por SMS",
+        "description": "Digite seu número de celular para receber um código de verificação.",
+        "data": {
+          "mobile": "Número de celular"
+        }
+      },
+      "reauth_sms_code": {
+        "title": "Digite o código de verificação",
+        "description": "Digite o código SMS recebido para restaurar o acesso.",
+        "data": {
+          "code": "Código de verificação"
+        }
+      },
       "manual": {
         "description": "Configure um ar-condicionado TCL usando controle UDP local e fallback opcional da nuvem TCL+. Os tokens de acesso da nuvem expiram; atualize-os a partir de uma nova captura do TCL+ quando as solicitações à nuvem começarem a falhar.",
         "data": {
@@ -92,17 +112,36 @@
           "cloud_accept_encoding": "Cabeçalho Accept-Encoding da nuvem",
           "cloud_accept_language": "Cabeçalho Accept-Language da nuvem"
         }
+      },
+      "existing_account": {
+        "title": "Conta TCL+ existente",
+        "description": "Escolha uma conta carregada. O token de atualização salvo será usado; nenhuma senha é armazenada.",
+        "data": {
+          "account_entry_id": "Conta"
+        }
+      },
+      "existing_device": {
+        "title": "Adicionar dispositivo da conta",
+        "description": "Escolha um ar-condicionado ainda não configurado. A identidade e os metadados são salvos em uma entrada separada.",
+        "data": {
+          "cloud_tid": "TID do dispositivo na nuvem",
+          "cloud_control": "Ativar controle pela nuvem",
+          "enable_fan_only_mode": "Ativar modo HVAC experimental Somente ventilador",
+          "enable_auto_mode": "Ativar modo HVAC experimental Auto/IA"
+        }
       }
     },
     "error": {
       "connection": "Não foi possível iniciar o listener UDP.",
       "invalid_auth": "Login failed: incorrect account, password, or code.",
       "cannot_connect": "Could not reach the TCL+ service. Try again.",
-      "unknown": "Ocorreu um erro desconhecido."
+      "unknown": "Ocorreu um erro desconhecido.",
+      "account_not_loaded": "A conta selecionada deve estar carregada para consultar seus dispositivos."
     },
     "abort": {
       "already_configured": "Esta entrada já está configurada.",
-      "reauth_successful": "Re-authentication was successful."
+      "reauth_successful": "Re-authentication was successful.",
+      "no_available_devices": "Todos os aparelhos de ar-condicionado desta conta já estão configurados."
     }
   },
   "issues": {

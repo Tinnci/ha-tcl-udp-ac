@@ -31,6 +31,15 @@
 - Credential-only entry updates must not reload the integration. `reload_signature` excludes token fields; changes to runtime-affecting noncredential settings must still reload normally.
 - Keep account-client instances cached per `AuthSettings` so the TCL public key cache survives repeated refreshes.
 
+## Multi-device inventory and routing
+
+- Keep one config entry per physical AC. The cloud TID remains the config-entry unique ID, device-registry identifier, and entity unique-ID prefix.
+- `DeviceDescriptor` owns device identity and suggested presentation metadata; it must not own credentials, HTTP behavior, coordinator state, or entity lifecycle.
+- `AccountDeviceInventory` is a discovery snapshot, not an account config entry. Adding from an existing account must create another ordinary per-device entry.
+- Authorized inventory requests must pass through the source entry's `TokenManager.async_authenticated_request`; explicit token rejection gets the same single refresh/retry policy as other cloud requests.
+- UDP subscriptions use every known stable identity (currently TID and MAC). Never fan out an explicitly identified packet; conflicting or ambiguous routes must be dropped.
+- Inventory reconciliation may refresh descriptor metadata but must not change existing config-entry unique IDs, entity unique IDs, config-entry titles, or user-customized registry names.
+
 ## Tests and translations
 
 - Run the complete suite after authentication, persistence, lifecycle, config-flow, or cloud-request changes:
