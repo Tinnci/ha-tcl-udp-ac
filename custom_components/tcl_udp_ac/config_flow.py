@@ -270,6 +270,8 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             for entry in candidates
         }
         errors: dict[str, str] = {}
+        if user_input is None and len(candidates) == 1:
+            user_input = {ACCOUNT_ENTRY_ID: candidates[0].entry_id}
         if user_input is not None:
             source = next(
                 (

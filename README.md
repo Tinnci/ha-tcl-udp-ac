@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.8.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.8.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.

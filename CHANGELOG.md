@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1 - 2026-08-30
+
+- Skip the redundant account-selection form when exactly one loaded TCL+
+  account is available, so “add from existing account” opens the unconfigured
+  device selector directly.
+- Verify that the live account inventory contains both ACs and presents the
+  unconfigured protocol 1 device as the default addable device.
+
 ## 0.8.0 - 2026-08-30
 
 - Add a precise `DeviceDescriptor` semantic layer for stable TID/MAC identity,

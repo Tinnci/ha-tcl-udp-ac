@@ -198,11 +198,7 @@ class ConfigFlowTest(unittest.TestCase):
         original_factory = self.config_flow._account_client
         self.config_flow._account_client = lambda _hass, _source: AccountClient()
         try:
-            form = asyncio.run(
-                flow.async_step_existing_account(
-                    {self.config_flow.ACCOUNT_ENTRY_ID: "entry-1"}
-                )
-            )
+            form = asyncio.run(flow.async_step_existing_account())
             validated = form["data_schema"]({})
             entry = asyncio.run(flow.async_step_existing_device(validated))
         finally:
