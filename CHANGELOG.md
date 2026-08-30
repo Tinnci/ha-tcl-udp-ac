@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.3 - 2026-08-30
+
+- Replace the generic air-conditioner artwork with the established TCL icon
+  and logo already shared by the Home Assistant Brands entries for
+  `tcl_home_unofficial` and `tcl_tv_remote`.
+- Package the four standard local brand assets under the Home Assistant 2026.3+
+  `brand/` path, fix the README image, and enable HACS brand validation.
+
 ## 0.9.2 - 2026-08-30
 
 - Interpret the protocol 1 F-series healthy `errorCode` byte marker `[48]` as

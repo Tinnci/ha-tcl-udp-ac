@@ -1,13 +1,13 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.9.2-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.9.3-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
 
 <p align="center">
-  <img src="icon.png" alt="Icon" width="128" height="128">
+  <img src="custom_components/tcl_udp_ac/brand/logo.png" alt="TCL UDP Air Conditioner" height="96">
 </p>
 
 ## ✨ Features
@@ -216,3 +216,12 @@ Contributions are welcome!
 ## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for more information.
+
+## Trademark
+
+TCL and the TCL logo are trademarks of their respective owner. They are used
+only to identify the products supported by this unofficial community
+integration; their use does not imply endorsement or affiliation. The bundled
+brand images are the same Home Assistant Brands assets used by the existing
+`tcl_home_unofficial` and `tcl_tv_remote` community integrations. See
+[branding provenance](docs/branding.md).

@@ -6,6 +6,7 @@
 - Preserve unrelated user changes. Keep authentication, transport, protocol-profile, and entity concerns in their existing modules instead of growing a new catch-all abstraction.
 - Do not commit credentials, access tokens, refresh tokens, Home Assistant secrets, host passwords, packet captures containing secrets, or sanitized values that can be reversed.
 - This repository belongs to the GitHub account `Tinnci`. Before committing or pushing, make sure `gh` is using `Tinnci` and the repository-local `hooks.expectedGhAccount` remains `Tinnci`. Restore the user's previous active account after pushing when appropriate.
+- Keep integration brand images under `custom_components/tcl_udp_ac/brand`. They are direct copies of the identical, established TCL assets in Home Assistant Brands entries `tcl_home_unofficial` and `tcl_tv_remote`; do not redraw or combine them with Home Assistant branding. Update all four light assets together and retain their upstream aspect ratios.
 
 ## Authentication architecture
 

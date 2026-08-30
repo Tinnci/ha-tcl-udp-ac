@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import struct
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,7 @@ README_PATH = ROOT / "README.md"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 TRANSLATIONS_DIR = ROOT / "custom_components/tcl_udp_ac/translations"
 STRINGS_PATH = ROOT / "custom_components/tcl_udp_ac/strings.json"
+BRAND_DIR = ROOT / "custom_components/tcl_udp_ac/brand"
 PRIMARY_TRANSLATION_LANGUAGES = {
     "de",
     "es",
@@ -84,6 +86,28 @@ class ConfigMetadataTest(unittest.TestCase):
         self.assertFalse(hacs["content_in_root"])
         self.assertIn("hacs", hacs)
         self.assertIn("homeassistant", hacs)
+
+    def test_local_brand_images_follow_home_assistant_dimensions(self) -> None:
+        icon = self._png_dimensions(BRAND_DIR / "icon.png")
+        icon_2x = self._png_dimensions(BRAND_DIR / "icon@2x.png")
+        logo = self._png_dimensions(BRAND_DIR / "logo.png")
+        logo_2x = self._png_dimensions(BRAND_DIR / "logo@2x.png")
+
+        self.assertEqual(icon, (256, 256))
+        self.assertEqual(icon_2x, (512, 512))
+        self.assertGreater(logo[0], logo[1])
+        self.assertGreater(logo_2x[0], logo_2x[1])
+        self.assertLessEqual(128, min(logo))
+        self.assertLessEqual(min(logo), 256)
+        self.assertLessEqual(256, min(logo_2x))
+        self.assertLessEqual(min(logo_2x), 512)
+        self.assertLessEqual(abs(logo_2x[0] - 2 * logo[0]), 1)
+        self.assertLessEqual(abs(logo_2x[1] - 2 * logo[1]), 1)
+
+        self.assertFalse((ROOT / "custom_components/tcl_udp_ac/icon.png").exists())
+        self.assertIn(
+            "custom_components/tcl_udp_ac/brand/logo.png", README_PATH.read_text()
+        )
 
     def test_release_version_is_consistent_across_user_facing_metadata(self) -> None:
         manifest = json.loads(MANIFEST_PATH.read_text())
@@ -194,6 +218,16 @@ class ConfigMetadataTest(unittest.TestCase):
                 paths |= cls._leaf_paths(child, (*prefix, key))
             return paths
         return {prefix}
+
+    @staticmethod
+    def _png_dimensions(path: Path) -> tuple[int, int]:
+        data = path.read_bytes()
+        if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
+            raise AssertionError(f"{path} is not a PNG image")
+        width, height, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
+        if bit_depth != 8 or color_type not in {4, 6}:
+            raise AssertionError(f"{path} must be an 8-bit PNG with transparency")
+        return width, height
 
     def assert_no_placeholder_syntax(self, value: object) -> None:
         if isinstance(value, dict):
