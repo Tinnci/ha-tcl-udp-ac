@@ -144,9 +144,7 @@ class AccountClientTest(unittest.TestCase):
                 mod, client = _client(session)
 
                 with self.assertRaises(mod.TclAccountAuthError):
-                    asyncio.run(
-                        client.async_refresh("refresh.jwt.sig", "121517358")
-                    )
+                    asyncio.run(client.async_refresh("refresh.jwt.sig", "121517358"))
 
     def test_rate_limit_has_distinct_error(self) -> None:
         session = FakeSession()

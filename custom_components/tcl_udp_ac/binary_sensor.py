@@ -60,9 +60,8 @@ class TclUdpBinaryDiagnostic(TclUdpEntity, BinarySensorEntity):
     @property
     def available(self) -> bool:
         """Return true only after the cloud has reported this field."""
-        return (
-            getattr(super(), "available", True)
-            and self._capability.data_key in (self.coordinator.data or {})
+        return getattr(super(), "available", True) and self._capability.data_key in (
+            self.coordinator.data or {}
         )
 
     @property

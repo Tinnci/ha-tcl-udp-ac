@@ -91,11 +91,7 @@ class DeviceDescriptor:
             CONF_DEVICE_PROTOCOL: self.protocol,
         }
         patch.update(
-            {
-                key: value
-                for key, value in optional.items()
-                if value not in (None, "")
-            }
+            {key: value for key, value in optional.items() if value not in (None, "")}
         )
         return patch
 

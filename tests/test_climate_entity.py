@@ -175,8 +175,12 @@ class ClimateEntityTest(unittest.TestCase):
 
         self.assertTrue(features & self.climate.ClimateEntityFeature.FAN_MODE)
         self.assertTrue(features & self.climate.ClimateEntityFeature.SWING_MODE)
-        self.assertEqual(entity._attr_fan_modes, ["auto", "1", "2", "3", "4", "5", "6", "7"])
-        self.assertEqual(entity._attr_swing_modes, ["off", "vertical", "horizontal", "both"])
+        self.assertEqual(
+            entity._attr_fan_modes, ["auto", "1", "2", "3", "4", "5", "6", "7"]
+        )
+        self.assertEqual(
+            entity._attr_swing_modes, ["off", "vertical", "horizontal", "both"]
+        )
 
     def test_tsl_seven_gear_fan_round_trips_without_legacy_compression(self) -> None:
         coordinator = FakeCoordinator(
@@ -223,9 +227,7 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertEqual(entity._attr_unique_id, "45816970_climate")
         self.assertEqual(entity._attr_device_info["name"], "Living room AC")
         self.assertEqual(entity._attr_device_info["suggested_area"], "Living room")
-        self.assertEqual(
-            entity._attr_device_info["model"], "KFRd-35G/D-STA22Bp(B1)"
-        )
+        self.assertEqual(entity._attr_device_info["model"], "KFRd-35G/D-STA22Bp(B1)")
 
     def test_climate_does_not_fabricate_humidity_properties(self) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator())

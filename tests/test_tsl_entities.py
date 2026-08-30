@@ -20,7 +20,6 @@ class FakeClient:
 
     async def async_set_number(self, data_key, value):
         self.calls.append((data_key, value))
-        return None
 
 
 class FakeCoordinator:
@@ -85,7 +84,9 @@ class TslEntityTest(unittest.TestCase):
         coordinator = FakeCoordinator()
         sensors = setup_entities("sensor", coordinator)
         query_time = next(
-            item for item in sensors if item._attr_unique_id == "45816970_tsl_query_time"
+            item
+            for item in sensors
+            if item._attr_unique_id == "45816970_tsl_query_time"
         )
 
         self.assertFalse(query_time.available)

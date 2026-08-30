@@ -518,8 +518,13 @@ class EntityCommandTest(unittest.TestCase):
             client.async_set_swing(vertical=True, horizontal=True)
         )
 
-        self.assertEqual(property_calls[0].payload, {"windSpeedAutoSwitch": 0, "windSpeed7Gear": 7})
-        self.assertEqual(property_calls[1].payload, {"verticalDirection": 1, "horizontalDirection": 1})
+        self.assertEqual(
+            property_calls[0].payload, {"windSpeedAutoSwitch": 0, "windSpeed7Gear": 7}
+        )
+        self.assertEqual(
+            property_calls[1].payload,
+            {"verticalDirection": 1, "horizontalDirection": 1},
+        )
         self.assertTrue(fan_receipt.delivery.accepted)
         self.assertTrue(swing_receipt.delivery.accepted)
 

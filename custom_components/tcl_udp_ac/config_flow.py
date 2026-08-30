@@ -317,9 +317,7 @@ class TclUdpFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="existing_account",
-            data_schema=vol.Schema(
-                {vol.Required(ACCOUNT_ENTRY_ID): vol.In(choices)}
-            ),
+            data_schema=vol.Schema({vol.Required(ACCOUNT_ENTRY_ID): vol.In(choices)}),
             errors=errors,
         )
 

@@ -546,7 +546,9 @@ class CloudClient:
             cur_status.get("expansionValve ", cur_status.get("expansionValve"))
         )
         if expansion is not None:
-            status["expansion_valve"] = int(expansion) if expansion.is_integer() else expansion
+            status["expansion_valve"] = (
+                int(expansion) if expansion.is_integer() else expansion
+            )
 
         text_map = {
             "tslLatestVersion": "tsl_version",
@@ -863,7 +865,9 @@ class CloudClient:
 
         try:
             request = (
-                self._session.post(url, headers=headers, json={"deviceId": self._tid}, timeout=10)
+                self._session.post(
+                    url, headers=headers, json={"deviceId": self._tid}, timeout=10
+                )
                 if is_tsl
                 else self._session.get(url, headers=headers, timeout=10)
             )
@@ -1469,7 +1473,9 @@ class TclUdpApiClient:
                 fan_speed=speed_str,
             )
             return None
-        return await self.async_send_command_bundle(profile.build_fan_command(speed_str))
+        return await self.async_send_command_bundle(
+            profile.build_fan_command(speed_str)
+        )
 
     async def async_set_swing(
         self, *, vertical: bool, horizontal: bool
@@ -1523,7 +1529,9 @@ class TclUdpApiClient:
         """Set beep on/off."""
         return await self.async_set_feature("beep", enabled=enabled)
 
-    async def async_set_feature(self, data_key: str, *, enabled: bool) -> CommandReceipt:
+    async def async_set_feature(
+        self, data_key: str, *, enabled: bool
+    ) -> CommandReceipt:
         """Set a profile-described feature without leaking protocol details."""
         profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
         bundle = profile.build_feature_command(data_key, enabled=enabled)

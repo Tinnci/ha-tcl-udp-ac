@@ -214,36 +214,113 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
     diagnostic_sensors=(
         DiagnosticSensorCapability("error_codes", "error_codes", "mdi:alert-circle"),
         DiagnosticSensorCapability(
-            "internal_coil_temperature", "internal_coil_temperature", "mdi:thermometer", "°C", "temperature", "measurement"
+            "internal_coil_temperature",
+            "internal_coil_temperature",
+            "mdi:thermometer",
+            "°C",
+            "temperature",
+            "measurement",
         ),
         DiagnosticSensorCapability(
-            "external_coil_temperature", "external_coil_temperature", "mdi:thermometer", "°C", "temperature", "measurement"
+            "external_coil_temperature",
+            "external_coil_temperature",
+            "mdi:thermometer",
+            "°C",
+            "temperature",
+            "measurement",
         ),
         DiagnosticSensorCapability(
-            "external_exhaust_temperature", "external_exhaust_temperature", "mdi:thermometer-high", "°C", "temperature", "measurement"
+            "external_exhaust_temperature",
+            "external_exhaust_temperature",
+            "mdi:thermometer-high",
+            "°C",
+            "temperature",
+            "measurement",
         ),
-        DiagnosticSensorCapability("external_voltage", "external_voltage", "mdi:sine-wave", "V", "voltage", "measurement"),
-        DiagnosticSensorCapability("external_current", "external_current", "mdi:current-ac", "A", "current", "measurement"),
-        DiagnosticSensorCapability("compressor_frequency", "compressor_frequency", "mdi:sine-wave", "Hz", "frequency", "measurement"),
-        DiagnosticSensorCapability("internal_fan_speed", "internal_fan_speed", "mdi:fan"),
-        DiagnosticSensorCapability("external_fan_speed", "external_fan_speed", "mdi:fan"),
-        DiagnosticSensorCapability("internal_fan_gear", "internal_fan_gear", "mdi:fan-speed-1"),
-        DiagnosticSensorCapability("external_fan_gear", "external_fan_gear", "mdi:fan-speed-1"),
-        DiagnosticSensorCapability("wind_speed_percentage", "wind_speed_percentage", "mdi:percent", "%", None, "measurement"),
-        DiagnosticSensorCapability("fresh_air_mode", "fresh_air_mode", "mdi:air-purifier"),
-        DiagnosticSensorCapability("fresh_air_percentage", "fresh_air_percentage", "mdi:percent", "%", None, "measurement"),
+        DiagnosticSensorCapability(
+            "external_voltage",
+            "external_voltage",
+            "mdi:sine-wave",
+            "V",
+            "voltage",
+            "measurement",
+        ),
+        DiagnosticSensorCapability(
+            "external_current",
+            "external_current",
+            "mdi:current-ac",
+            "A",
+            "current",
+            "measurement",
+        ),
+        DiagnosticSensorCapability(
+            "compressor_frequency",
+            "compressor_frequency",
+            "mdi:sine-wave",
+            "Hz",
+            "frequency",
+            "measurement",
+        ),
+        DiagnosticSensorCapability(
+            "internal_fan_speed", "internal_fan_speed", "mdi:fan"
+        ),
+        DiagnosticSensorCapability(
+            "external_fan_speed", "external_fan_speed", "mdi:fan"
+        ),
+        DiagnosticSensorCapability(
+            "internal_fan_gear", "internal_fan_gear", "mdi:fan-speed-1"
+        ),
+        DiagnosticSensorCapability(
+            "external_fan_gear", "external_fan_gear", "mdi:fan-speed-1"
+        ),
+        DiagnosticSensorCapability(
+            "wind_speed_percentage",
+            "wind_speed_percentage",
+            "mdi:percent",
+            "%",
+            None,
+            "measurement",
+        ),
+        DiagnosticSensorCapability(
+            "fresh_air_mode", "fresh_air_mode", "mdi:air-purifier"
+        ),
+        DiagnosticSensorCapability(
+            "fresh_air_percentage",
+            "fresh_air_percentage",
+            "mdi:percent",
+            "%",
+            None,
+            "measurement",
+        ),
         DiagnosticSensorCapability("sleep_time", "sleep_time", "mdi:timer-outline"),
-        DiagnosticSensorCapability("self_clean_status", "self_clean_status", "mdi:air-filter"),
+        DiagnosticSensorCapability(
+            "self_clean_status", "self_clean_status", "mdi:air-filter"
+        ),
         DiagnosticSensorCapability("expansion_valve", "expansion_valve", "mdi:valve"),
         DiagnosticSensorCapability("tsl_version", "tsl_version", "mdi:code-tags"),
-        DiagnosticSensorCapability("tsl_request_version", "tsl_request_version", "mdi:code-tags"),
-        DiagnosticSensorCapability("tsl_query_time", "tsl_query_time", "mdi:clock-outline", device_class="timestamp"),
-        DiagnosticSensorCapability("ai_control_source", "ai_control_source", "mdi:robot"),
+        DiagnosticSensorCapability(
+            "tsl_request_version", "tsl_request_version", "mdi:code-tags"
+        ),
+        DiagnosticSensorCapability(
+            "tsl_query_time",
+            "tsl_query_time",
+            "mdi:clock-outline",
+            device_class="timestamp",
+        ),
+        DiagnosticSensorCapability(
+            "ai_control_source", "ai_control_source", "mdi:robot"
+        ),
     ),
     binary_diagnostics=(
-        BinaryDiagnosticCapability("filter_blocked", "filter_blocked", "mdi:air-filter", "problem"),
-        BinaryDiagnosticCapability("four_way_valve_active", "four_way_valve_active", "mdi:valve"),
-        BinaryDiagnosticCapability("aux_heat_active", "aux_heat_active", "mdi:radiator"),
+        BinaryDiagnosticCapability(
+            "filter_blocked", "filter_blocked", "mdi:air-filter", "problem"
+        ),
+        BinaryDiagnosticCapability(
+            "four_way_valve_active", "four_way_valve_active", "mdi:valve"
+        ),
+        BinaryDiagnosticCapability(
+            "aux_heat_active", "aux_heat_active", "mdi:radiator"
+        ),
         BinaryDiagnosticCapability("self_learning", "self_learning", "mdi:school"),
     ),
 )
@@ -365,16 +442,23 @@ class ProtocolProfile:
     def build_fan_command(self, fan_mode: str) -> TclCommandBundle:
         """Build a legacy fan-speed transaction."""
         if fan_mode not in self.capabilities.fan_modes:
-            raise UnsupportedModeError(f"Unsupported fan mode: {fan_mode}")
+            msg = f"Unsupported fan mode: {fan_mode}"
+            raise UnsupportedModeError(msg)
         return TclCommandBundle(
             intent="fan_speed:set",
             payload={"windSpd": fan_mode, "optSleepMd": "0", "optSuper": "0"},
-            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy grouped fan writes."),
+            evidence=CaptureEvidence(
+                "existing-default",
+                "pre-profile integration behavior",
+                "Preserves legacy grouped fan writes.",
+            ),
             requires_power_on=True,
             expected_status={"fan_speed": fan_mode},
         )
 
-    def build_swing_command(self, *, vertical: bool, horizontal: bool) -> TclCommandBundle:
+    def build_swing_command(
+        self, *, vertical: bool, horizontal: bool
+    ) -> TclCommandBundle:
         """Build a legacy swing transaction."""
         return TclCommandBundle(
             intent="swing:set",
@@ -383,16 +467,23 @@ class ProtocolProfile:
                 "directH": "on" if horizontal else "off",
                 "optSolidWd": "off",
             },
-            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy grouped swing writes."),
+            evidence=CaptureEvidence(
+                "existing-default",
+                "pre-profile integration behavior",
+                "Preserves legacy grouped swing writes.",
+            ),
             requires_power_on=True,
             expected_status={"swing_v": vertical, "swing_h": horizontal},
         )
 
-    def build_feature_command(self, data_key: str, *, enabled: bool) -> TclCommandBundle:
+    def build_feature_command(
+        self, data_key: str, *, enabled: bool
+    ) -> TclCommandBundle:
         """Build one legacy feature transaction from its capability description."""
         capability = self.capabilities.switches.get(data_key)
         if capability is None:
-            raise UnsupportedModeError(f"Unsupported feature: {data_key}")
+            msg = f"Unsupported feature: {data_key}"
+            raise UnsupportedModeError(msg)
         value: str | int
         if capability.api_key == "optSleepMd":
             value = "1" if enabled else "0"
@@ -401,14 +492,19 @@ class ProtocolProfile:
         return TclCommandBundle(
             intent=f"switch:{data_key}",
             payload={capability.api_key: value},
-            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy feature writes."),
+            evidence=CaptureEvidence(
+                "existing-default",
+                "pre-profile integration behavior",
+                "Preserves legacy feature writes.",
+            ),
             requires_power_on=capability.requires_power,
             expected_status={data_key: enabled},
         )
 
-    def build_number_command(self, data_key: str, value: float) -> TclCommandBundle:
+    def build_number_command(self, data_key: str, _value: float) -> TclCommandBundle:
         """Reject numeric controls not described by this profile."""
-        raise UnsupportedModeError(f"Unsupported numeric control: {data_key}")
+        msg = f"Unsupported numeric control: {data_key}"
+        raise UnsupportedModeError(msg)
 
 
 class Legacy2743138Profile(ProtocolProfile):
@@ -707,9 +803,11 @@ class Tsl1112013595NProfile(ProtocolProfile):
             try:
                 gear = int(fan_mode)
             except (TypeError, ValueError) as exc:
-                raise UnsupportedModeError(f"Unsupported TSL fan mode: {fan_mode}") from exc
+                msg = f"Unsupported TSL fan mode: {fan_mode}"
+                raise UnsupportedModeError(msg) from exc
             if gear not in range(1, 8):
-                raise UnsupportedModeError(f"Unsupported TSL fan gear: {gear}")
+                msg = f"Unsupported TSL fan gear: {gear}"
+                raise UnsupportedModeError(msg)
             payload = {"windSpeedAutoSwitch": 0, "windSpeed7Gear": gear}
             expected = {"fan_speed": str(gear), "fan_gear": gear}
         return self._property_bundle(
@@ -720,7 +818,9 @@ class Tsl1112013595NProfile(ProtocolProfile):
             source_type="2",
         )
 
-    def build_swing_command(self, *, vertical: bool, horizontal: bool) -> TclCommandBundle:
+    def build_swing_command(
+        self, *, vertical: bool, horizontal: bool
+    ) -> TclCommandBundle:
         """Build TSL swing switches using the device's direction enums."""
         return self._property_bundle(
             intent="swing:set",
@@ -733,11 +833,14 @@ class Tsl1112013595NProfile(ProtocolProfile):
             source_type="2",
         )
 
-    def build_feature_command(self, data_key: str, *, enabled: bool) -> TclCommandBundle:
+    def build_feature_command(
+        self, data_key: str, *, enabled: bool
+    ) -> TclCommandBundle:
         """Build one mapped TSL boolean-property transaction."""
         capability = self.capabilities.switches.get(data_key)
         if capability is None:
-            raise UnsupportedModeError(f"Unsupported TSL feature: {data_key}")
+            msg = f"Unsupported TSL feature: {data_key}"
+            raise UnsupportedModeError(msg)
         return self._property_bundle(
             intent=f"switch:{data_key}",
             payload={capability.api_key: 1 if enabled else 0},
@@ -753,8 +856,11 @@ class Tsl1112013595NProfile(ProtocolProfile):
             None,
         )
         if capability is None:
-            raise UnsupportedModeError(f"Unsupported TSL numeric control: {data_key}")
-        normalized = round(float(value) / capability.native_step) * capability.native_step
+            msg = f"Unsupported TSL numeric control: {data_key}"
+            raise UnsupportedModeError(msg)
+        normalized = (
+            round(float(value) / capability.native_step) * capability.native_step
+        )
         normalized = min(capability.native_max, max(capability.native_min, normalized))
         raw_key = {"fresh_air_percentage": "newWindPercentage"}[data_key]
         return self._property_bundle(

@@ -129,8 +129,9 @@ class CloudStatisticsTest(unittest.TestCase):
         credential_mod = load_integration_module("credential_manager")
 
         for status in (401, 403):
-            with self.subTest(status=status), self.assertRaises(
-                credential_mod.CloudAuthRejectedError
+            with (
+                self.subTest(status=status),
+                self.assertRaises(credential_mod.CloudAuthRejectedError),
             ):
                 self.api_mod.CloudClient._raise_for_auth_status(status)
 

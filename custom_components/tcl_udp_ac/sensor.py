@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -72,13 +72,12 @@ class TclUdpDiagnosticSensor(TclUdpEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Return true only after the cloud has reported this field."""
-        return (
-            getattr(super(), "available", True)
-            and self._capability.data_key in (self.coordinator.data or {})
+        return getattr(super(), "available", True) and self._capability.data_key in (
+            self.coordinator.data or {}
         )
 
     @property
-    def native_value(self):
+    def native_value(self) -> Any:
         """Return the normalized diagnostic value."""
         return (self.coordinator.data or {}).get(self._capability.data_key)
 

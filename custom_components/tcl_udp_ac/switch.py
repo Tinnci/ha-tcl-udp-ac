@@ -174,7 +174,5 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         if hasattr(client, method_name):
             command_id = await getattr(client, method_name)(enabled=enabled)
         else:
-            command_id = await client.async_set_feature(
-                self._data_key, enabled=enabled
-            )
+            command_id = await client.async_set_feature(self._data_key, enabled=enabled)
         await _async_after_command(self.coordinator, command_id)

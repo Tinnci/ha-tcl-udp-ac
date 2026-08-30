@@ -37,9 +37,7 @@ class FakeEntry:
         self.data = data
         self.options = {}
         self.domain = "tcl_udp_ac"
-        self.runtime_data = (
-            SimpleNamespace(session=FakeSession()) if loaded else None
-        )
+        self.runtime_data = SimpleNamespace(session=FakeSession()) if loaded else None
 
 
 class FakeConfigEntries:

@@ -95,7 +95,9 @@ class CommandConfirmationTest(unittest.TestCase):
         self.assertEqual(event["outcome"], "applied")
         self.assertEqual(event["transport_outcome"], "unknown")
 
-    def test_command_result_event_preserves_entity_and_context_correlation(self) -> None:
+    def test_command_result_event_preserves_entity_and_context_correlation(
+        self,
+    ) -> None:
         client = FakeClient({"power": True})
         client._pending.update(
             {

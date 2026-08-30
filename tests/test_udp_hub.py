@@ -104,7 +104,9 @@ class UdpHubRoutingTest(unittest.TestCase):
         self.assertEqual(first, [])
         self.assertEqual(second, [])
 
-    def test_unknown_subscription_cannot_claim_known_devices_unmatched_mac(self) -> None:
+    def test_unknown_subscription_cannot_claim_known_devices_unmatched_mac(
+        self,
+    ) -> None:
         hub = self.udp_hub.UdpHub()
         known: list[bytes] = []
         unknown: list[bytes] = []

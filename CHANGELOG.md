@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1 - 2026-08-30
+
+- Bring the protocol 1 implementation and related inventory code into full
+  repository Ruff and formatting compliance after the initial 0.9.0 release.
+
 ## 0.9.0 - 2026-08-30
 
 - Give every child entity its translated semantic name, so Home Assistant shows

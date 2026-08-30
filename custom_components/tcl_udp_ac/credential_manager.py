@@ -97,8 +97,10 @@ class CredentialManager:
                 msg = "Manual TCL cloud token was rejected; update authentication"
                 raise ConfigEntryAuthFailed(msg)
             return access_token or None
-        if not force and access_token and not access_token_needs_refresh(
-            access_token, current_time
+        if (
+            not force
+            and access_token
+            and not access_token_needs_refresh(access_token, current_time)
         ):
             return access_token
         if not account_id:
@@ -115,8 +117,10 @@ class CredentialManager:
                 return access_token or None
             if force and rejected_token is not None and access_token != rejected_token:
                 return access_token or None
-            if not force and access_token and not access_token_needs_refresh(
-                access_token, current_time
+            if (
+                not force
+                and access_token
+                and not access_token_needs_refresh(access_token, current_time)
             ):
                 return access_token
             if refresh_token_expired(refresh_token, current_time):

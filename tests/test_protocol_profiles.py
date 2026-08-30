@@ -63,20 +63,25 @@ class ProtocolProfileTest(unittest.TestCase):
 
         self.assertEqual(auto.payload, {"windSpeedAutoSwitch": 1, "windSpeed7Gear": 0})
         self.assertEqual(gear.payload, {"windSpeedAutoSwitch": 0, "windSpeed7Gear": 6})
-        self.assertEqual(swing.payload, {"verticalDirection": 1, "horizontalDirection": 8})
+        self.assertEqual(
+            swing.payload, {"verticalDirection": 1, "horizontalDirection": 8}
+        )
         self.assertEqual(clean.payload, {"selfClean": 1})
         self.assertEqual(clean.expected_status, {"self_clean": True})
         self.assertEqual(fresh_air.payload, {"newWindPercentage": 33})
         for bundle in (auto, gear, swing, clean, fresh_air):
-            self.assertEqual(bundle.transport, self.profiles.CommandTransport.TSL_PROPERTY)
+            self.assertEqual(
+                bundle.transport, self.profiles.CommandTransport.TSL_PROPERTY
+            )
             self.assertEqual(bundle.source_type, "2")
 
     def test_tsl_invalid_fan_gear_is_rejected(self) -> None:
         profile = self.profiles.resolve_protocol_profile("45816970")
 
         for value in ("low", "0", "8"):
-            with self.subTest(value=value), self.assertRaises(
-                self.profiles.UnsupportedModeError
+            with (
+                self.subTest(value=value),
+                self.assertRaises(self.profiles.UnsupportedModeError),
             ):
                 profile.build_fan_command(value)
 

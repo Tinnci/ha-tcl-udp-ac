@@ -38,7 +38,9 @@ class DeviceDescriptorTest(unittest.TestCase):
 
         patch = descriptor.config_patch()
 
-        self.assertEqual(descriptor.routing_identities, ("45816970", "e0:01:c7:05:b3:ca"))
+        self.assertEqual(
+            descriptor.routing_identities, ("45816970", "e0:01:c7:05:b3:ca")
+        )
         self.assertEqual(descriptor.title, "空调 - 客厅")
         self.assertEqual(patch["cloud_tid"], "45816970")
         self.assertEqual(patch["device_name"], "空调")
@@ -58,9 +60,7 @@ class DeviceDescriptorTest(unittest.TestCase):
         self.assertIs(inventory.find("2743138"), first)
 
     def test_catalog_uses_token_manager_and_rereads_rotated_token(self) -> None:
-        entry = SimpleNamespace(
-            data={"cloud_access_token": "old"}, options={}
-        )
+        entry = SimpleNamespace(data={"cloud_access_token": "old"}, options={})
         calls: list[str] = []
         discovered = self.descriptor("45816970")
         account_module = load_integration_module("account_client")

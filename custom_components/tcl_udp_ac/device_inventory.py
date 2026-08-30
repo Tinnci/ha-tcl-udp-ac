@@ -50,6 +50,7 @@ class AccountDeviceCatalog:
         token_manager: TokenManager,
         source_entry: Any,
     ) -> None:
+        """Initialize the authenticated inventory adapter."""
         self._account_client = account_client
         self._token_manager = token_manager
         self._source_entry = source_entry
