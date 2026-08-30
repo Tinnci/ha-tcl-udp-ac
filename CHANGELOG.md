@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2 - 2026-08-30
+
+- Interpret the protocol 1 F-series healthy `errorCode` byte marker `[48]` as
+  no fault instead of exposing a misleading error 48.
+- Render defined F-series numeric fault identifiers with their product-panel
+  short codes while preserving unknown identifiers for diagnostics.
+
 ## 0.9.1 - 2026-08-30
 
 - Bring the protocol 1 implementation and related inventory code into full

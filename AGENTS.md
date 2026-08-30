@@ -45,7 +45,7 @@
 - Product `1112013595N` / protocol 1 is cloud-only. Its `ProtocolDriver` must keep local listener, discovery, status request, and legacy XML control disabled; do not emit periodic UDP discovery for it.
 - Fetch its authoritative status with `POST /v1/thing/status` and body `{"deviceId": tid}`. Normalize `data.status`; do not route protocol 1 through the legacy `curStatus` response shape.
 - Power, mode, target temperature, seven-gear/automatic fan, swing, profile-described feature switches, and numeric controls compile to TSL property bundles. Keep product identifiers and expected-state projections inside the protocol profile rather than adding protocol conditionals to entities or the coordinator.
-- Preserve all observed F-series diagnostics through profile-described HA entities. Do not invent physical units for fan-speed or valve fields, treat `errorCode` lists as stable scalar sensor state, and accept both `expansionValve` and the observed `expansionValve ` key.
+- Preserve all observed F-series diagnostics through profile-described HA entities. Do not invent physical units for fan-speed or valve fields. For `errorCode`, normalize the observed healthy byte marker `[48]` (ASCII `"0"`) to `none`, map defined numeric fault identifiers to the product-panel short codes, and preserve unknown identifiers verbatim. Accept both `expansionValve` and the observed `expansionValve ` key.
 - Every TSL status and property request still passes through `TokenManager.async_authenticated_request`, and HTTP acceptance is not device confirmation; retain the normal command status-match loop.
 
 ## Tests and translations

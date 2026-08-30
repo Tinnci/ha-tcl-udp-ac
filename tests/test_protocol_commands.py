@@ -169,7 +169,7 @@ class CloudProtocolMappingTest(unittest.TestCase):
     def test_tsl_cloud_status_preserves_all_observed_diagnostics(self) -> None:
         status = self.client._parse_cloud_status(
             {
-                "errorCode": [48, 49],
+                "errorCode": [52, 3, 99],
                 "internalUnitCoilTemperature": 25,
                 "externalUnitCoilTemperature": 20,
                 "externalUnitExhaustTemperature": 49,
@@ -203,7 +203,7 @@ class CloudProtocolMappingTest(unittest.TestCase):
         )
 
         expected = {
-            "error_codes": "48, 49",
+            "error_codes": "E1, E3, 99",
             "internal_coil_temperature": 25,
             "external_coil_temperature": 20,
             "external_exhaust_temperature": 49,
@@ -236,6 +236,11 @@ class CloudProtocolMappingTest(unittest.TestCase):
         for key, value in expected.items():
             self.assertEqual(status[key], value)
         self.assertEqual(status["tsl_query_time"].timestamp(), 1787583278.199)
+
+    def test_tsl_ascii_zero_error_marker_means_no_fault(self) -> None:
+        status = self.client._parse_cloud_status({"errorCode": [48]})
+
+        self.assertEqual(status["error_codes"], "none")
 
     def test_tsl_status_uses_native_thing_status_endpoint(self) -> None:
         calls = []

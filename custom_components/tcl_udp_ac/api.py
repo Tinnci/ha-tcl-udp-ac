@@ -141,6 +141,40 @@ class CloudClient:
     """Cloud API client to isolate HTTP behavior from UDP logic."""
 
     _HALF_C_IN_F = 0.5 * 9 / 5
+    # F-series control-panel fault identifiers. TCL reports these as numeric
+    # items in ``errorCode``; the panel presents the corresponding short code.
+    _TSL_FAULT_CODES = {
+        1: "E0",
+        2: "EC",
+        3: "E3",
+        4: "E4",
+        5: "E5",
+        6: "E7",
+        7: "E8",
+        8: "E9",
+        9: "EF",
+        10: "EA",
+        11: "EE",
+        12: "EP",
+        13: "EU",
+        14: "EH",
+        27: "Ej",
+        28: "En",
+        29: "Ey",
+        30: "F9",
+        31: "FA",
+        32: "H1",
+        33: "H2",
+        52: "E1",
+        53: "E2",
+        54: "E6",
+        55: "Eb",
+        58: "bf",
+        61: "bU",
+        62: "bd",
+        63: "be",
+        64: "b5",
+    }
 
     def __init__(
         self,
@@ -562,7 +596,20 @@ class CloudClient:
 
         errors = cur_status.get("errorCode")
         if isinstance(errors, list):
-            status["error_codes"] = ", ".join(str(item) for item in errors) or "none"
+            # A healthy live F-series unit returns [48], the JSON byte form of
+            # ASCII "0". 48 is not a fault identifier in its control panel.
+            if errors == [48]:
+                status["error_codes"] = "none"
+            else:
+                status["error_codes"] = (
+                    ", ".join(
+                        self._TSL_FAULT_CODES.get(item, str(item))
+                        if isinstance(item, int) and not isinstance(item, bool)
+                        else str(item)
+                        for item in errors
+                    )
+                    or "none"
+                )
         elif errors is not None:
             status["error_codes"] = str(errors)
 

@@ -101,6 +101,13 @@ valve, filter blockage, four-way valve and active PTC state, errors, TSL
 versions/query time, and AI control source. Fields without a proven physical
 unit remain unitless.
 
+The F-series `errorCode` field is a numeric list, but the healthy live device
+returns `[48]`: decimal 48 is ASCII `"0"`, and 48 is absent from the product's
+control-panel fault table. The integration therefore normalizes `[48]` to
+`none`. Defined fault identifiers are rendered using the same short codes as
+the product panel (for example, identifier 52 is `E1` and identifier 3 is
+`E3`); unknown identifiers remain numeric so future faults are not discarded.
+
 ## Electricity and runtime statistics
 
 `GET /v1/ac/statistics/electricity/summary?timeType=1|2|3`
