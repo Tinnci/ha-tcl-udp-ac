@@ -13,6 +13,7 @@ HACS_PATH = ROOT / "hacs.json"
 README_PATH = ROOT / "README.md"
 CHANGELOG_PATH = ROOT / "CHANGELOG.md"
 TRANSLATIONS_DIR = ROOT / "custom_components/tcl_udp_ac/translations"
+STRINGS_PATH = ROOT / "custom_components/tcl_udp_ac/strings.json"
 PRIMARY_TRANSLATION_LANGUAGES = {
     "de",
     "es",
@@ -177,8 +178,11 @@ class ConfigMetadataTest(unittest.TestCase):
                 self.assertEqual(self._leaf_paths(data), english_keys)
                 self.assert_no_placeholder_syntax(data)
 
-    def test_no_strings_json_for_custom_integration_translations(self) -> None:
-        self.assertFalse((ROOT / "custom_components/tcl_udp_ac/strings.json").exists())
+    def test_strings_json_is_the_canonical_english_translation_source(self) -> None:
+        strings = json.loads(STRINGS_PATH.read_text())
+        english = json.loads((TRANSLATIONS_DIR / "en.json").read_text())
+
+        self.assertEqual(strings, english)
 
     @classmethod
     def _leaf_paths(

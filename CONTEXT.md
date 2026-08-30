@@ -26,3 +26,20 @@ state, commands, entities, and reloads are local to one device entry.
 UDP packets may identify the same AC by cloud TID or MAC. A device subscription
 therefore owns a normalized identity set. Source IP is only a learned route for
 identity-free replies; it cannot override an explicit packet identity.
+
+## Protocol Capability
+
+A `ProtocolCapability` is the product-specific semantic description owned by a
+`ProtocolDriver`: supported modes, controls, diagnostics, transport families,
+and the command bundle needed to realize one user intent. It does not own HTTP,
+UDP sockets, credentials, entity lifecycle, or mutable device state. Protocol 1
+capabilities compile to TSL properties and explicitly disable local transport;
+legacy capabilities compile to XML fields and retain local UDP.
+
+## Device Diagnostic
+
+A `DeviceDiagnostic` is a normalized, read-only observation whose meaning and
+unit are known for one protocol profile. Diagnostics are exposed as stable
+Home Assistant sensor or binary-sensor entities. Missing fields remain
+unavailable; enum/status fields are not guessed into booleans, percentages, or
+physical units.

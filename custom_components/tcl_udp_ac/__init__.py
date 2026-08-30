@@ -31,7 +31,9 @@ if TYPE_CHECKING:
     from .data import TclUdpConfigEntry
 
 PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
     Platform.CLIMATE,
+    Platform.NUMBER,
     Platform.SWITCH,
     Platform.SENSOR,
 ]

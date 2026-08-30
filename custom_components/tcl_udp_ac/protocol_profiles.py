@@ -28,6 +28,41 @@ class SwitchCapability:
 
 
 @dataclass(frozen=True)
+class DiagnosticSensorCapability:
+    """One read-only value exposed as a Home Assistant diagnostic sensor."""
+
+    data_key: str
+    translation_key: str
+    icon: str
+    native_unit: str | None = None
+    device_class: str | None = None
+    state_class: str | None = None
+
+
+@dataclass(frozen=True)
+class BinaryDiagnosticCapability:
+    """One read-only boolean exposed as a diagnostic binary sensor."""
+
+    data_key: str
+    translation_key: str
+    icon: str
+    device_class: str | None = None
+
+
+@dataclass(frozen=True)
+class NumberCapability:
+    """One writable numeric TSL property."""
+
+    data_key: str
+    translation_key: str
+    icon: str
+    native_min: float
+    native_max: float
+    native_step: float
+    native_unit: str | None = None
+
+
+@dataclass(frozen=True)
 class DeviceCapabilities:
     """Home Assistant-facing capabilities for a TCL protocol profile."""
 
@@ -43,6 +78,10 @@ class DeviceCapabilities:
     switches: dict[str, SwitchCapability] = field(default_factory=dict)
     supports_fan_speed: bool = True
     supports_swing: bool = True
+    fan_modes: tuple[str, ...] = ("auto", "low", "middle", "high")
+    diagnostic_sensors: tuple[DiagnosticSensorCapability, ...] = ()
+    binary_diagnostics: tuple[BinaryDiagnosticCapability, ...] = ()
+    numbers: tuple[NumberCapability, ...] = ()
 
 
 def _default_switch_capabilities() -> dict[str, SwitchCapability]:
@@ -110,9 +149,103 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
     # The captured listControl exposes cool/dry/fan/heat/AI, but keep fan/AI
     # behind the existing opt-in until there is write confirmation.
     experimental_hvac_modes=(MODE_FAN, MODE_AUTO),
-    switches={},
-    supports_fan_speed=False,
-    supports_swing=False,
+    switches={
+        "eco_mode": SwitchCapability("ECO", "eco_mode", "eco_mode", "mdi:leaf"),
+        "display": SwitchCapability(
+            "screen", "display", "display", "mdi:led-on", entity_category="config"
+        ),
+        "health_mode": SwitchCapability(
+            "healthy", "health_mode", "health_mode", "mdi:doctor"
+        ),
+        "sleep_mode": SwitchCapability(
+            "sleep", "sleep_mode", "sleep_mode", "mdi:sleep"
+        ),
+        "turbo_mode": SwitchCapability(
+            "turbo", "turbo_mode", "turbo_mode", "mdi:rocket"
+        ),
+        "aux_heat": SwitchCapability(
+            "PTC",
+            "aux_heat",
+            "aux_heat",
+            "mdi:radiator",
+            available_modes=frozenset({MODE_HEAT}),
+            requires_power=True,
+        ),
+        "beep": SwitchCapability(
+            "beepSwitch", "beep", "beep", "mdi:volume-high", entity_category="config"
+        ),
+        "beep_temperature": SwitchCapability(
+            "beepTempEn",
+            "beep_temperature",
+            "beep_temperature",
+            "mdi:volume-medium",
+            entity_category="config",
+        ),
+        "anti_mildew": SwitchCapability(
+            "antiMoldew", "anti_mildew", "anti_mildew", "mdi:shield-check"
+        ),
+        "soft_wind": SwitchCapability(
+            "softWind", "soft_wind", "soft_wind", "mdi:weather-windy"
+        ),
+        "self_clean": SwitchCapability(
+            "selfClean", "self_clean", "self_clean", "mdi:air-filter"
+        ),
+        "fresh_air_auto": SwitchCapability(
+            "newWindAutoSwitch",
+            "fresh_air_auto",
+            "fresh_air_auto",
+            "mdi:fan-auto",
+        ),
+    },
+    supports_fan_speed=True,
+    supports_swing=True,
+    fan_modes=("auto", "1", "2", "3", "4", "5", "6", "7"),
+    numbers=(
+        NumberCapability(
+            "fresh_air_percentage",
+            "fresh_air_percentage",
+            "mdi:percent",
+            0,
+            100,
+            1,
+            "%",
+        ),
+    ),
+    diagnostic_sensors=(
+        DiagnosticSensorCapability("error_codes", "error_codes", "mdi:alert-circle"),
+        DiagnosticSensorCapability(
+            "internal_coil_temperature", "internal_coil_temperature", "mdi:thermometer", "°C", "temperature", "measurement"
+        ),
+        DiagnosticSensorCapability(
+            "external_coil_temperature", "external_coil_temperature", "mdi:thermometer", "°C", "temperature", "measurement"
+        ),
+        DiagnosticSensorCapability(
+            "external_exhaust_temperature", "external_exhaust_temperature", "mdi:thermometer-high", "°C", "temperature", "measurement"
+        ),
+        DiagnosticSensorCapability("external_voltage", "external_voltage", "mdi:sine-wave", "V", "voltage", "measurement"),
+        DiagnosticSensorCapability("external_current", "external_current", "mdi:current-ac", "A", "current", "measurement"),
+        DiagnosticSensorCapability("compressor_frequency", "compressor_frequency", "mdi:sine-wave", "Hz", "frequency", "measurement"),
+        DiagnosticSensorCapability("internal_fan_speed", "internal_fan_speed", "mdi:fan"),
+        DiagnosticSensorCapability("external_fan_speed", "external_fan_speed", "mdi:fan"),
+        DiagnosticSensorCapability("internal_fan_gear", "internal_fan_gear", "mdi:fan-speed-1"),
+        DiagnosticSensorCapability("external_fan_gear", "external_fan_gear", "mdi:fan-speed-1"),
+        DiagnosticSensorCapability("wind_speed_percentage", "wind_speed_percentage", "mdi:percent", "%", None, "measurement"),
+        DiagnosticSensorCapability("fresh_air_mode", "fresh_air_mode", "mdi:air-purifier"),
+        DiagnosticSensorCapability("fresh_air_percentage", "fresh_air_percentage", "mdi:percent", "%", None, "measurement"),
+        DiagnosticSensorCapability("sleep_time", "sleep_time", "mdi:timer-outline"),
+        DiagnosticSensorCapability("self_clean_status", "self_clean_status", "mdi:air-filter"),
+        DiagnosticSensorCapability("expansion_valve", "expansion_valve", "mdi:valve"),
+        DiagnosticSensorCapability("tsl_version", "tsl_version", "mdi:code-tags"),
+        DiagnosticSensorCapability("tsl_request_version", "tsl_request_version", "mdi:code-tags"),
+        DiagnosticSensorCapability("tsl_query_time", "tsl_query_time", "mdi:clock-outline", device_class="timestamp"),
+        DiagnosticSensorCapability("ai_control_source", "ai_control_source", "mdi:robot"),
+    ),
+    binary_diagnostics=(
+        BinaryDiagnosticCapability("filter_blocked", "filter_blocked", "mdi:air-filter", "problem"),
+        BinaryDiagnosticCapability("four_way_valve_active", "four_way_valve_active", "mdi:valve"),
+        BinaryDiagnosticCapability("aux_heat_active", "aux_heat_active", "mdi:radiator"),
+        BinaryDiagnosticCapability("self_learning", "self_learning", "mdi:school"),
+    ),
 )
 
 
@@ -124,6 +257,7 @@ class ProtocolProfile:
     name: str = "default"
     capabilities: DeviceCapabilities = DEFAULT_CAPABILITIES
     legacy_transport_enabled: bool = True
+    local_transport_enabled: bool = True
     cloud_status_family: str = "hybrid"
 
     def build_mode_command(
@@ -227,6 +361,54 @@ class ProtocolProfile:
             requires_power_on=False,
             expected_status={"power": True},
         )
+
+    def build_fan_command(self, fan_mode: str) -> TclCommandBundle:
+        """Build a legacy fan-speed transaction."""
+        if fan_mode not in self.capabilities.fan_modes:
+            raise UnsupportedModeError(f"Unsupported fan mode: {fan_mode}")
+        return TclCommandBundle(
+            intent="fan_speed:set",
+            payload={"windSpd": fan_mode, "optSleepMd": "0", "optSuper": "0"},
+            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy grouped fan writes."),
+            requires_power_on=True,
+            expected_status={"fan_speed": fan_mode},
+        )
+
+    def build_swing_command(self, *, vertical: bool, horizontal: bool) -> TclCommandBundle:
+        """Build a legacy swing transaction."""
+        return TclCommandBundle(
+            intent="swing:set",
+            payload={
+                "directV": "on" if vertical else "off",
+                "directH": "on" if horizontal else "off",
+                "optSolidWd": "off",
+            },
+            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy grouped swing writes."),
+            requires_power_on=True,
+            expected_status={"swing_v": vertical, "swing_h": horizontal},
+        )
+
+    def build_feature_command(self, data_key: str, *, enabled: bool) -> TclCommandBundle:
+        """Build one legacy feature transaction from its capability description."""
+        capability = self.capabilities.switches.get(data_key)
+        if capability is None:
+            raise UnsupportedModeError(f"Unsupported feature: {data_key}")
+        value: str | int
+        if capability.api_key == "optSleepMd":
+            value = "1" if enabled else "0"
+        else:
+            value = "on" if enabled else "off"
+        return TclCommandBundle(
+            intent=f"switch:{data_key}",
+            payload={capability.api_key: value},
+            evidence=CaptureEvidence("existing-default", "pre-profile integration behavior", "Preserves legacy feature writes."),
+            requires_power_on=capability.requires_power,
+            expected_status={data_key: enabled},
+        )
+
+    def build_number_command(self, data_key: str, value: float) -> TclCommandBundle:
+        """Reject numeric controls not described by this profile."""
+        raise UnsupportedModeError(f"Unsupported numeric control: {data_key}")
 
 
 class Legacy2743138Profile(ProtocolProfile):
@@ -407,6 +589,7 @@ class Tsl1112013595NProfile(ProtocolProfile):
             name="tsl_1112013595N",
             capabilities=TSL_1112013595N_CAPABILITIES,
             legacy_transport_enabled=False,
+            local_transport_enabled=False,
             cloud_status_family="tsl",
         )
 
@@ -513,6 +696,73 @@ class Tsl1112013595NProfile(ProtocolProfile):
             expected_status={"power": True},
             action="powerSwitch=1",
             module_id="-100",
+        )
+
+    def build_fan_command(self, fan_mode: str) -> TclCommandBundle:
+        """Build the paired TSL automatic/seven-gear fan transaction."""
+        if fan_mode == "auto":
+            payload = {"windSpeedAutoSwitch": 1, "windSpeed7Gear": 0}
+            expected = {"fan_speed": "auto", "fan_gear": 0}
+        else:
+            try:
+                gear = int(fan_mode)
+            except (TypeError, ValueError) as exc:
+                raise UnsupportedModeError(f"Unsupported TSL fan mode: {fan_mode}") from exc
+            if gear not in range(1, 8):
+                raise UnsupportedModeError(f"Unsupported TSL fan gear: {gear}")
+            payload = {"windSpeedAutoSwitch": 0, "windSpeed7Gear": gear}
+            expected = {"fan_speed": str(gear), "fan_gear": gear}
+        return self._property_bundle(
+            intent="fan_speed:set",
+            payload=payload,
+            expected_status=expected,
+            action=f"fan={fan_mode}",
+            source_type="2",
+        )
+
+    def build_swing_command(self, *, vertical: bool, horizontal: bool) -> TclCommandBundle:
+        """Build TSL swing switches using the device's direction enums."""
+        return self._property_bundle(
+            intent="swing:set",
+            payload={
+                "verticalDirection": 1 if vertical else 8,
+                "horizontalDirection": 1 if horizontal else 8,
+            },
+            expected_status={"swing_v": vertical, "swing_h": horizontal},
+            action=f"swing vertical={vertical} horizontal={horizontal}",
+            source_type="2",
+        )
+
+    def build_feature_command(self, data_key: str, *, enabled: bool) -> TclCommandBundle:
+        """Build one mapped TSL boolean-property transaction."""
+        capability = self.capabilities.switches.get(data_key)
+        if capability is None:
+            raise UnsupportedModeError(f"Unsupported TSL feature: {data_key}")
+        return self._property_bundle(
+            intent=f"switch:{data_key}",
+            payload={capability.api_key: 1 if enabled else 0},
+            expected_status={data_key: enabled},
+            action=f"{capability.api_key}={int(enabled)}",
+            source_type="2",
+        )
+
+    def build_number_command(self, data_key: str, value: float) -> TclCommandBundle:
+        """Build a bounded numeric TSL property transaction."""
+        capability = next(
+            (item for item in self.capabilities.numbers if item.data_key == data_key),
+            None,
+        )
+        if capability is None:
+            raise UnsupportedModeError(f"Unsupported TSL numeric control: {data_key}")
+        normalized = round(float(value) / capability.native_step) * capability.native_step
+        normalized = min(capability.native_max, max(capability.native_min, normalized))
+        raw_key = {"fresh_air_percentage": "newWindPercentage"}[data_key]
+        return self._property_bundle(
+            intent=f"number:{data_key}",
+            payload={raw_key: int(normalized)},
+            expected_status={data_key: normalized},
+            action=f"{raw_key}={normalized}",
+            source_type="2",
         )
 
 

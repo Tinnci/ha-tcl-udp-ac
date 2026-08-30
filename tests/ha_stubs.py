@@ -22,6 +22,8 @@ def install_homeassistant_stubs() -> None:
     components = types.ModuleType("homeassistant.components")
     climate = types.ModuleType("homeassistant.components.climate")
     sensor = types.ModuleType("homeassistant.components.sensor")
+    binary_sensor = types.ModuleType("homeassistant.components.binary_sensor")
+    number = types.ModuleType("homeassistant.components.number")
     switch = types.ModuleType("homeassistant.components.switch")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
@@ -69,7 +71,9 @@ def install_homeassistant_stubs() -> None:
         HOURS = "h"
 
     class Platform(enum.StrEnum):
+        BINARY_SENSOR = "binary_sensor"
         CLIMATE = "climate"
+        NUMBER = "number"
         SWITCH = "switch"
         SENSOR = "sensor"
 
@@ -160,10 +164,23 @@ def install_homeassistant_stubs() -> None:
         TEMPERATURE = "temperature"
         ENERGY = "energy"
         DURATION = "duration"
+        VOLTAGE = "voltage"
+        CURRENT = "current"
+        FREQUENCY = "frequency"
+        TIMESTAMP = "timestamp"
 
     class SensorStateClass(enum.StrEnum):
         MEASUREMENT = "measurement"
         TOTAL = "total"
+
+    class BinarySensorDeviceClass(enum.StrEnum):
+        PROBLEM = "problem"
+
+    class BinarySensorEntity:
+        entity_id = "binary_sensor.tcl_ac_diagnostic"
+
+    class NumberEntity:
+        entity_id = "number.tcl_ac_control"
 
     class DeviceInfo(dict):
         pass
@@ -186,6 +203,9 @@ def install_homeassistant_stubs() -> None:
     sensor.SensorStateClass = SensorStateClass
 
     switch.SwitchEntity = SwitchEntity
+    binary_sensor.BinarySensorDeviceClass = BinarySensorDeviceClass
+    binary_sensor.BinarySensorEntity = BinarySensorEntity
+    number.NumberEntity = NumberEntity
 
     const.ATTR_TEMPERATURE = "temperature"
     const.Platform = Platform
@@ -216,6 +236,8 @@ def install_homeassistant_stubs() -> None:
     sys.modules["homeassistant"] = ha
     sys.modules["homeassistant.components"] = components
     sys.modules["homeassistant.components.climate"] = climate
+    sys.modules["homeassistant.components.binary_sensor"] = binary_sensor
+    sys.modules["homeassistant.components.number"] = number
     sys.modules["homeassistant.components.sensor"] = sensor
     sys.modules["homeassistant.components.switch"] = switch
     sys.modules["homeassistant.config_entries"] = config_entries

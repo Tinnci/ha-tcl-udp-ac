@@ -13,7 +13,9 @@ from homeassistant.components.sensor import (
 from homeassistant.const import UnitOfEnergy, UnitOfTemperature, UnitOfTime
 from homeassistant.helpers.entity import EntityCategory
 
+from .config_settings import capabilities_for_entry
 from .entity import TclUdpEntity
+from .protocol_profiles import DiagnosticSensorCapability
 from .temperature_validity import is_valid_outdoor_temperature
 
 if TYPE_CHECKING:
@@ -31,13 +33,54 @@ async def async_setup_entry(
 ) -> None:
     """Set up the sensor platform."""
     coordinator = entry.runtime_data.coordinator
+    capabilities = capabilities_for_entry(coordinator.config_entry)
     async_add_entities(
         [
             TclUdpOutdoorTempSensor(coordinator),
             TclUdpCurrentMonthEnergySensor(coordinator),
             TclUdpCurrentMonthRuntimeSensor(coordinator),
+            *(
+                TclUdpDiagnosticSensor(coordinator, capability)
+                for capability in capabilities.diagnostic_sensors
+            ),
         ]
     )
+
+
+class TclUdpDiagnosticSensor(TclUdpEntity, SensorEntity):
+    """One profile-described read-only diagnostic value."""
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: TclUdpDataUpdateCoordinator,
+        capability: DiagnosticSensorCapability,
+    ) -> None:
+        """Initialize the diagnostic entity."""
+        super().__init__(coordinator)
+        self._capability = capability
+        self._attr_translation_key = capability.translation_key
+        self._attr_unique_id = self._entity_unique_id(capability.data_key)
+        self._attr_icon = capability.icon
+        self._attr_native_unit_of_measurement = capability.native_unit
+        if capability.device_class:
+            self._attr_device_class = SensorDeviceClass(capability.device_class)
+        if capability.state_class:
+            self._attr_state_class = SensorStateClass(capability.state_class)
+
+    @property
+    def available(self) -> bool:
+        """Return true only after the cloud has reported this field."""
+        return (
+            getattr(super(), "available", True)
+            and self._capability.data_key in (self.coordinator.data or {})
+        )
+
+    @property
+    def native_value(self):
+        """Return the normalized diagnostic value."""
+        return (self.coordinator.data or {}).get(self._capability.data_key)
 
 
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
@@ -50,7 +93,6 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = None
         self._attr_translation_key = "outdoor_temperature"
         self._attr_unique_id = self._entity_unique_id("outdoor_temperature")
 
@@ -126,7 +168,6 @@ class TclUdpCurrentMonthEnergySensor(TclUdpCloudStatisticsSensor):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = None
         self._attr_translation_key = "current_month_energy"
         self._attr_unique_id = self._entity_unique_id("current_month_energy")
 
@@ -150,7 +191,6 @@ class TclUdpCurrentMonthRuntimeSensor(TclUdpCloudStatisticsSensor):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_name = None
         self._attr_translation_key = "current_month_runtime"
         self._attr_unique_id = self._entity_unique_id("current_month_runtime")
 

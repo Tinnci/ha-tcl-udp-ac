@@ -130,6 +130,8 @@ class TclCommandBundle:
             "optHealthy": "OptHealthy",
             "optSleepMd": "Opt_sleepMode",
             "optHeat": "OptHeat",
+            "optDisplay": "OptDisplay",
+            "beepEn": "BeepEnable",
             "directH": "WindDirection_H",
             "directV": "WindDirection_V",
             "optSolidWd": "OptSolidWd",

@@ -101,7 +101,6 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         self._api_key = capability.api_key
         self._key = capability.api_key
         self._data_key = capability.data_key
-        self._attr_name = None
         self._attr_translation_key = capability.translation_key
         self._attr_unique_id = self._entity_unique_id(capability.data_key)
         self._attr_icon = capability.icon
@@ -121,6 +120,9 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
             return False
 
         data = self.coordinator.data or {}
+        if self._data_key not in data:
+            return False
+
         if self._requires_power and data.get("power") is not True:
             return False
 
@@ -142,7 +144,10 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""
         if not self.available:
-            msg = f"{self._attr_name} is not available in the current HVAC mode"
+            msg = (
+                f"{self._attr_translation_key} is not available in the current "
+                "device state"
+            )
             raise HomeAssistantError(msg)
         log_info(
             LOGGER,
@@ -168,4 +173,8 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         method_name = f"async_set_{self._data_key}"
         if hasattr(client, method_name):
             command_id = await getattr(client, method_name)(enabled=enabled)
-            await _async_after_command(self.coordinator, command_id)
+        else:
+            command_id = await client.async_set_feature(
+                self._data_key, enabled=enabled
+            )
+        await _async_after_command(self.coordinator, command_id)

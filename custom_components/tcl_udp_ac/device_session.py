@@ -213,6 +213,16 @@ class DeviceSession:
         """Enable or disable command beeps."""
         return await self._run_command("async_set_beep", enabled=enabled)
 
+    async def async_set_feature(self, data_key: str, *, enabled: bool) -> str | None:
+        """Set any feature described by the selected protocol profile."""
+        return await self._run_command(
+            "async_set_feature", data_key, enabled=enabled
+        )
+
+    async def async_set_number(self, data_key: str, value: float) -> str | None:
+        """Set any numeric property described by the selected profile."""
+        return await self._run_command("async_set_number", data_key, value)
+
     async def async_send_discovery(self) -> None:
         """Send local device discovery."""
         await self._client.async_send_discovery()

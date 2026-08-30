@@ -40,6 +40,14 @@
 - UDP subscriptions use every known stable identity (currently TID and MAC). Never fan out an explicitly identified packet; conflicting or ambiguous routes must be dropped.
 - Inventory reconciliation may refresh descriptor metadata but must not change existing config-entry unique IDs, entity unique IDs, config-entry titles, or user-customized registry names.
 
+## Protocol 1 TSL devices
+
+- Product `1112013595N` / protocol 1 is cloud-only. Its `ProtocolDriver` must keep local listener, discovery, status request, and legacy XML control disabled; do not emit periodic UDP discovery for it.
+- Fetch its authoritative status with `POST /v1/thing/status` and body `{"deviceId": tid}`. Normalize `data.status`; do not route protocol 1 through the legacy `curStatus` response shape.
+- Power, mode, target temperature, seven-gear/automatic fan, swing, profile-described feature switches, and numeric controls compile to TSL property bundles. Keep product identifiers and expected-state projections inside the protocol profile rather than adding protocol conditionals to entities or the coordinator.
+- Preserve all observed F-series diagnostics through profile-described HA entities. Do not invent physical units for fan-speed or valve fields, treat `errorCode` lists as stable scalar sensor state, and accept both `expansionValve` and the observed `expansionValve ` key.
+- Every TSL status and property request still passes through `TokenManager.async_authenticated_request`, and HTTP acceptance is not device confirmation; retain the normal command status-match loop.
+
 ## Tests and translations
 
 - Run the complete suite after authentication, persistence, lifecycle, config-flow, or cloud-request changes:
@@ -58,12 +66,13 @@
 
 - Authentication tests must cover ordinary refresh, expired refresh tokens, transient failures, explicit rejection with one retry, concurrent same-account refresh, cross-entry synchronization, hot updates, and credential-only no-reload behavior.
 - All primary translation JSON files must have the same leaf-key shape as `translations/en.json`. When adding or renaming a config-flow step, update every primary language and keep `tests/test_config_metadata.py` passing.
+- Keep `strings.json` equal to the canonical English translation source. For child entities with `has_entity_name`, set `translation_key` but do not assign `_attr_name = None`: Home Assistant 2026.6 treats the mere presence of `_attr_name` as authoritative and otherwise suppresses the translated semantic suffix.
 
 ## Home Assistant deployment checks
 
 - Treat deployment, restart, and publication as explicit boundaries: run local tests first, then back up the installed integration, deploy, compile inside the HA container, restart, and inspect logs from the new start.
 - Never place backup directories inside `config/custom_components`. Home Assistant may discover names such as `tcl_udp_ac.backup-*` as Python modules and fail to import the integration. Store recoverable backups under `config/backups` or outside the HA config tree.
 - Deploy only `custom_components/tcl_udp_ac`; exclude `__pycache__` and `.pyc` files.
-- After restart, verify all three platforms (`climate`, `switch`, and `sensor`) load and observe at least one completed coordinator refresh. Search specifically for `tcl_udp_ac`, authentication errors, `ERROR`, and tracebacks.
+- After restart, verify all five platforms (`binary_sensor`, `climate`, `number`, `switch`, and `sensor`) load and observe at least one completed coordinator refresh. Search specifically for `tcl_udp_ac`, authentication errors, `ERROR`, and tracebacks.
 - Do not force a real token refresh merely to test deployment when the current token is healthy. Verify the fresh-token path in the live instance and cover refresh/rejection/concurrency branches with deterministic tests.
 - A transient DNS or TCL cloud outage in logs is not evidence that reauthentication is required. Correlate the HTTP status and subsequent recovery before changing authentication behavior.

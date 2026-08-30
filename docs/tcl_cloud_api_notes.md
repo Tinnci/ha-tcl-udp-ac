@@ -52,10 +52,10 @@ Observed purpose: TSL-style status for newer devices. Request body was
 `powerSwitch`, `workMode`, `currentTemperature`, `targetTemperature`, `ECO`,
 `sleep`, `screen`, `beepSwitch`, and outdoor-unit telemetry.
 
-Integration status: partially connected. The cloud fallback parses TSL status
-fields when they appear in the status payload, including `powerSwitch`,
-`workMode`, temperatures, fan-speed telemetry, swing telemetry, and common
-feature switches.
+Integration status: connected for product `1112013595N`. The cloud client uses
+this native endpoint and normalizes `data.status`, including core climate state,
+exact seven-gear fan state, swing, feature state, and every observed diagnostic
+field. The legacy `curStatus` endpoint remains limited to legacy profiles.
 
 `POST /v1/control/convertMqtt/{tid}`
 
@@ -86,9 +86,20 @@ The integration mirrors that shape for the `1112013595N` profile:
   `targetTemperature`;
 - power writes: property body with `powerSwitch` and `moduleId: "-100"`.
 
-This path is static-analysis-supported, not live-capture-confirmed. Fan speed,
-swing, and feature-switch writes remain disabled for this profile until their
-write payloads are captured or verified.
+The same property envelope now covers automatic/seven-gear fan, horizontal and
+vertical swing, ECO, sleep, turbo, health, display, beep, temperature beep,
+auxiliary heat, anti-mildew, soft wind, self-clean, automatic fresh air, and
+fresh-air percentage. Each command carries an expected normalized state and is
+confirmed by a later native TSL status read; HTTP success alone is not treated
+as device application. Protocol 1 disables UDP listener/discovery/status and
+legacy XML control entirely.
+
+Observed diagnostics are exposed as diagnostic sensors or binary sensors:
+coil/exhaust temperatures, voltage/current, compressor frequency, indoor and
+outdoor fan telemetry, wind/fresh-air percentages, self-clean state, expansion
+valve, filter blockage, four-way valve and active PTC state, errors, TSL
+versions/query time, and AI control source. Fields without a proven physical
+unit remain unitless.
 
 ## Electricity and runtime statistics
 

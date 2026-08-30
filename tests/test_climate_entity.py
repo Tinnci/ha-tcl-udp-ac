@@ -162,7 +162,7 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertIn(self.climate.HVACMode.FAN_ONLY, entity.hvac_modes)
         self.assertNotIn(self.climate.HVACMode.AUTO, entity.hvac_modes)
 
-    def test_tsl_product_key_removes_unmapped_fan_and_swing_features(self) -> None:
+    def test_tsl_product_key_exposes_seven_gear_fan_and_swing_features(self) -> None:
         entity = self.climate.TclUdpClimate(
             FakeCoordinator(
                 entry_data={
@@ -173,10 +173,27 @@ class ClimateEntityTest(unittest.TestCase):
         )
         features = entity._attr_supported_features
 
-        self.assertFalse(features & self.climate.ClimateEntityFeature.FAN_MODE)
-        self.assertFalse(features & self.climate.ClimateEntityFeature.SWING_MODE)
-        self.assertEqual(entity._attr_fan_modes, [])
-        self.assertEqual(entity._attr_swing_modes, [])
+        self.assertTrue(features & self.climate.ClimateEntityFeature.FAN_MODE)
+        self.assertTrue(features & self.climate.ClimateEntityFeature.SWING_MODE)
+        self.assertEqual(entity._attr_fan_modes, ["auto", "1", "2", "3", "4", "5", "6", "7"])
+        self.assertEqual(entity._attr_swing_modes, ["off", "vertical", "horizontal", "both"])
+
+    def test_tsl_seven_gear_fan_round_trips_without_legacy_compression(self) -> None:
+        coordinator = FakeCoordinator(
+            {"fan_speed": "6"},
+            entry_data={
+                "cloud_tid": "45816970",
+                "cloud_product_key": "1112013595N",
+            },
+        )
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        self.assertEqual(entity.fan_mode, "6")
+        asyncio.run(entity.async_set_fan_mode("7"))
+
+        self.assertIn(
+            ("async_set_fan_speed", {"speed_str": "7"}), coordinator.client.calls
+        )
 
     def test_entity_uses_modern_ha_naming_and_stable_device_identifier(self) -> None:
         entity = self.climate.TclUdpClimate(

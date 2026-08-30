@@ -173,6 +173,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         )
         if capabilities.supports_fan_speed:
             features |= ClimateEntityFeature.FAN_MODE
+            self._attr_fan_modes = list(capabilities.fan_modes)
         else:
             self._attr_fan_modes = []
         if capabilities.supports_swing:
@@ -297,6 +298,8 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         if not data:
             return None
         speed_val = data.get("fan_speed", TCL_FAN_AUTO)
+        if speed_val in self._attr_fan_modes:
+            return str(speed_val)
         return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
 
     @property
@@ -405,7 +408,10 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         )
         client = _device_api(self.coordinator)
 
-        speed_val = FAN_MODE_MAP.get(fan_mode)
+        speed_val = FAN_MODE_MAP.get(
+            fan_mode,
+            fan_mode if fan_mode in self._attr_fan_modes else None,
+        )
         if speed_val is not None:
             command_id = await client.async_set_fan_speed(speed_val)
             await self._async_after_device_command(command_id)

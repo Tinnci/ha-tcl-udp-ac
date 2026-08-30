@@ -198,6 +198,69 @@
       },
       "current_month_runtime": {
         "name": "Durée de fonctionnement du mois en cours"
+      },
+      "error_codes": {
+        "name": "Error codes"
+      },
+      "internal_coil_temperature": {
+        "name": "Indoor coil temperature"
+      },
+      "external_coil_temperature": {
+        "name": "Outdoor coil temperature"
+      },
+      "external_exhaust_temperature": {
+        "name": "Outdoor exhaust temperature"
+      },
+      "external_voltage": {
+        "name": "Outdoor unit voltage"
+      },
+      "external_current": {
+        "name": "Outdoor unit current"
+      },
+      "compressor_frequency": {
+        "name": "Compressor frequency"
+      },
+      "internal_fan_speed": {
+        "name": "Indoor fan speed"
+      },
+      "external_fan_speed": {
+        "name": "Outdoor fan speed"
+      },
+      "internal_fan_gear": {
+        "name": "Indoor fan gear"
+      },
+      "external_fan_gear": {
+        "name": "Outdoor fan gear"
+      },
+      "wind_speed_percentage": {
+        "name": "Wind speed percentage"
+      },
+      "fresh_air_mode": {
+        "name": "Fresh air mode"
+      },
+      "fresh_air_percentage": {
+        "name": "Fresh air percentage"
+      },
+      "sleep_time": {
+        "name": "Sleep time"
+      },
+      "self_clean_status": {
+        "name": "Self-clean status"
+      },
+      "expansion_valve": {
+        "name": "Expansion valve"
+      },
+      "tsl_version": {
+        "name": "TSL version"
+      },
+      "tsl_request_version": {
+        "name": "TSL request version"
+      },
+      "tsl_query_time": {
+        "name": "TSL query time"
+      },
+      "ai_control_source": {
+        "name": "AI control source"
       }
     },
     "switch": {
@@ -221,6 +284,40 @@
       },
       "beep": {
         "name": "Bip"
+      },
+      "beep_temperature": {
+        "name": "Temperature beep"
+      },
+      "anti_mildew": {
+        "name": "Anti-mildew"
+      },
+      "soft_wind": {
+        "name": "Soft wind"
+      },
+      "self_clean": {
+        "name": "Self-clean"
+      },
+      "fresh_air_auto": {
+        "name": "Automatic fresh air"
+      }
+    },
+    "binary_sensor": {
+      "filter_blocked": {
+        "name": "Filter blocked"
+      },
+      "four_way_valve_active": {
+        "name": "Four-way valve"
+      },
+      "aux_heat_active": {
+        "name": "Aux heat active"
+      },
+      "self_learning": {
+        "name": "Self learning"
+      }
+    },
+    "number": {
+      "fresh_air_percentage": {
+        "name": "Fresh air percentage"
       }
     }
   }

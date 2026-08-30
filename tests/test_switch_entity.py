@@ -87,11 +87,11 @@ class SwitchEntityTest(unittest.TestCase):
         self.assertTrue(aux_heat._requires_power)
         self.assertEqual(aux_heat._attr_unique_id, "2743138_aux_heat")
         self.assertTrue(aux_heat._attr_has_entity_name)
-        self.assertIsNone(aux_heat._attr_name)
+        self.assertFalse(hasattr(aux_heat, "_attr_name"))
         self.assertEqual(aux_heat._attr_translation_key, "aux_heat")
         self.assertEqual(eco._attr_translation_key, "eco_mode")
 
-    def test_setup_uses_product_key_for_profile_switch_capabilities(self) -> None:
+    def test_setup_uses_product_key_for_tsl_switch_capabilities(self) -> None:
         coordinator = FakeCoordinator(
             entry_data={
                 "cloud_tid": "other-device",
@@ -106,7 +106,24 @@ class SwitchEntityTest(unittest.TestCase):
 
         asyncio.run(self.switch.async_setup_entry(None, entry, add_entities))
 
-        self.assertEqual(added, [])
+        keys = {entity._data_key for entity in added}
+        self.assertEqual(
+            keys,
+            {
+                "eco_mode",
+                "display",
+                "health_mode",
+                "sleep_mode",
+                "turbo_mode",
+                "aux_heat",
+                "beep",
+                "beep_temperature",
+                "anti_mildew",
+                "soft_wind",
+                "self_clean",
+                "fresh_air_auto",
+            },
+        )
 
     def test_feature_switch_uses_enabled_keyword(self) -> None:
         coordinator = FakeCoordinator({"sleep_mode": False})
@@ -132,7 +149,7 @@ class SwitchEntityTest(unittest.TestCase):
 
     def test_aux_heat_is_only_available_when_powered_heat_mode(self) -> None:
         cool_entity = self.switch.TclUdpSwitch(
-            FakeCoordinator({"power": True, "mode": "cool"}),
+            FakeCoordinator({"power": True, "mode": "cool", "aux_heat": False}),
             "optHeat",
             "aux_heat",
             "Aux Heat",
@@ -141,7 +158,7 @@ class SwitchEntityTest(unittest.TestCase):
             requires_power=True,
         )
         heat_entity = self.switch.TclUdpSwitch(
-            FakeCoordinator({"power": True, "mode": "heat"}),
+            FakeCoordinator({"power": True, "mode": "heat", "aux_heat": False}),
             "optHeat",
             "aux_heat",
             "Aux Heat",
@@ -150,7 +167,7 @@ class SwitchEntityTest(unittest.TestCase):
             requires_power=True,
         )
         off_entity = self.switch.TclUdpSwitch(
-            FakeCoordinator({"power": False, "mode": "heat"}),
+            FakeCoordinator({"power": False, "mode": "heat", "aux_heat": False}),
             "optHeat",
             "aux_heat",
             "Aux Heat",
@@ -164,7 +181,9 @@ class SwitchEntityTest(unittest.TestCase):
         self.assertFalse(off_entity.available)
 
     def test_aux_heat_turn_on_is_blocked_when_mode_unavailable(self) -> None:
-        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        coordinator = FakeCoordinator(
+            {"power": True, "mode": "cool", "aux_heat": False}
+        )
         entity = self.switch.TclUdpSwitch(
             coordinator,
             "optHeat",
@@ -183,7 +202,14 @@ class SwitchEntityTest(unittest.TestCase):
         self.assertEqual(coordinator.refresh_count, 0)
 
     def test_sleep_and_turbo_remain_available_in_cool_mode(self) -> None:
-        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        coordinator = FakeCoordinator(
+            {
+                "power": True,
+                "mode": "cool",
+                "sleep_mode": False,
+                "turbo_mode": False,
+            }
+        )
 
         sleep = self.switch.TclUdpSwitch(
             coordinator,
@@ -202,6 +228,19 @@ class SwitchEntityTest(unittest.TestCase):
 
         self.assertTrue(sleep.available)
         self.assertTrue(turbo.available)
+
+    def test_feature_is_unavailable_until_device_reports_its_state(self) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        entity = self.switch.TclUdpSwitch(
+            coordinator,
+            "turbo",
+            "turbo_mode",
+            "Turbo Mode",
+            "mdi:rocket",
+        )
+
+        self.assertFalse(entity.available)
+        self.assertIsNone(entity.is_on)
 
 
 if __name__ == "__main__":

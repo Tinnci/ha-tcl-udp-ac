@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.9.0 - 2026-08-30
+
+- Give every child entity its translated semantic name, so Home Assistant shows
+  labels such as “Air conditioner 2 Eco mode” instead of repeating only the
+  parent device name.
+- Make protocol 1 product `1112013595N` explicitly cloud-only so it no longer
+  opens a UDP subscription or emits discovery/status datagrams to the device's
+  closed port.
+- Use the captured native `POST /v1/thing/status` response shape for protocol 1
+  while preserving the authenticated request and token-refresh lifecycle.
+- Add TSL property control for exact automatic/seven-gear fan, horizontal and
+  vertical swing, ECO, sleep, turbo, health, display, beep, temperature beep,
+  auxiliary heat, anti-mildew, soft wind, self-clean, automatic fresh air, and
+  fresh-air percentage.
+- Expose every observed F-series diagnostic as stable diagnostic sensor or
+  binary-sensor entities, including thermal, electrical, compressor, fan,
+  valve, filter, self-clean, error, TSL metadata, and AI source fields.
+- Deepen the protocol capability Interface so Home Assistant entities submit
+  semantic intents without owning product identifiers or transport details.
+
 ## 0.8.1 - 2026-08-30
 
 - Skip the redundant account-selection form when exactly one loaded TCL+

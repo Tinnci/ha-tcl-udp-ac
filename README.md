@@ -1,7 +1,7 @@
 # TCL UDP Air Conditioner Integration for Home Assistant
 
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.8.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
+[![Version](https://img.shields.io/badge/version-0.9.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
 [![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
 
 A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
@@ -72,8 +72,9 @@ A robust Home Assistant integration for TCL Air Conditioners that use the local 
    - **TCL+ account login**: log in with password or SMS, then select a discovered AC device. The integration stores refreshable tokens and fills the cloud TID plus legacy sender/device JIDs from TCL+ account metadata.
    - **Existing TCL+ account**: select an already loaded account, refresh its device inventory, then choose an AC that has not been configured. No password is requested or stored.
    - **Manual token entry**: paste a captured token and provide the cloud TID/JIDs yourself.
-5. Keep local UDP as the primary control path. Cloud status fallback and legacy cloud control are optional helpers for networks that miss UDP updates.
-6. For the newer TCL+ protocol 1 product `1112013595N`, the integration uses the TSL-style status fields and a static-analysis-derived property-control path for power, mode, and target temperature. Fan speed, swing, and feature-switch writes remain disabled for this profile until their write payloads are confirmed.
+5. Legacy devices keep local UDP as their primary control path, with cloud status/control as optional fallback.
+6. The TCL+ protocol 1 product `1112013595N` is cloud-only. It uses native TSL status and property control for power, modes, target temperature, automatic/seven-gear fan, swing, feature switches, and fresh-air percentage.
+7. Protocol 1 also exposes the observed temperatures, electrical values, compressor/fan telemetry, valve/filter/self-clean state, TSL metadata, error codes, and other read-only fields as diagnostic entities. Unknown units are deliberately left unitless.
 
 ### TCL+ Authentication
 

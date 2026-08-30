@@ -300,11 +300,9 @@ class CloudClient:
             return FAN_AUTO
         if gear is None:
             return None
-        if gear <= 2:
-            return FAN_LOW
-        if gear <= 4:
-            return FAN_MIDDLE
-        return FAN_HIGH
+        if 1 <= gear <= 7:
+            return str(gear)
+        return None
 
     @staticmethod
     def _tsl_direction_is_swing(
@@ -446,6 +444,9 @@ class CloudClient:
         fan_speed = self._tsl_fan_speed(cur_status)
         if fan_speed is not None:
             status["fan_speed"] = fan_speed
+        fan_gear = self._cloud_int(cur_status.get("windSpeed7Gear"))
+        if fan_gear is not None:
+            status["fan_gear"] = fan_gear
 
         work_mode = cur_status.get("workMode")
         if work_mode is not None:
@@ -494,6 +495,11 @@ class CloudClient:
             "healthy": "health_mode",
             "screen": "display",
             "beepSwitch": "beep",
+            "beepTempEn": "beep_temperature",
+            "antiMoldew": "anti_mildew",
+            "softWind": "soft_wind",
+            "selfClean": "self_clean",
+            "newWindAutoSwitch": "fresh_air_auto",
         }
         for raw_key, status_key in feature_map.items():
             value = self._cloud_bool(cur_status.get(raw_key))
@@ -501,17 +507,86 @@ class CloudClient:
                 status[status_key] = value
 
         aux_heat = self._cloud_bool(
-            cur_status.get("PTCStatus", cur_status.get("eightAddHot"))
+            cur_status.get(
+                "PTC",
+                cur_status.get("PTCStatus", cur_status.get("eightAddHot")),
+            )
         )
         if aux_heat is not None:
             status["aux_heat"] = aux_heat
 
         return status
 
+    def _parse_tsl_diagnostics(self, cur_status: dict[str, Any]) -> dict[str, Any]:
+        """Normalize every observed read-only field from the F-series TSL."""
+        status: dict[str, Any] = {}
+        numeric_map = {
+            "internalUnitCoilTemperature": "internal_coil_temperature",
+            "externalUnitCoilTemperature": "external_coil_temperature",
+            "externalUnitExhaustTemperature": "external_exhaust_temperature",
+            "externalUnitVoltage": "external_voltage",
+            "externalUnitElectricCurrent": "external_current",
+            "compressorFrequency": "compressor_frequency",
+            "internalUnitFanSpeed": "internal_fan_speed",
+            "externalUnitFanSpeed": "external_fan_speed",
+            "internalUnitFanCurrentGear": "internal_fan_gear",
+            "externalUnitFanGear": "external_fan_gear",
+            "windSpeedPercentage": "wind_speed_percentage",
+            "newWindSetMode": "fresh_air_mode",
+            "newWindPercentage": "fresh_air_percentage",
+            "sleepTime": "sleep_time",
+            "selfCleanStatus": "self_clean_status",
+        }
+        for raw_key, data_key in numeric_map.items():
+            value = self._cloud_float(cur_status.get(raw_key))
+            if value is not None:
+                status[data_key] = int(value) if value.is_integer() else value
+
+        expansion = self._cloud_float(
+            cur_status.get("expansionValve ", cur_status.get("expansionValve"))
+        )
+        if expansion is not None:
+            status["expansion_valve"] = int(expansion) if expansion.is_integer() else expansion
+
+        text_map = {
+            "tslLatestVersion": "tsl_version",
+            "tslReqVersion": "tsl_request_version",
+            "aiSmartControlSource": "ai_control_source",
+        }
+        for raw_key, data_key in text_map.items():
+            value = cur_status.get(raw_key)
+            if value is not None:
+                status[data_key] = str(value) or "unknown"
+
+        errors = cur_status.get("errorCode")
+        if isinstance(errors, list):
+            status["error_codes"] = ", ".join(str(item) for item in errors) or "none"
+        elif errors is not None:
+            status["error_codes"] = str(errors)
+
+        query_time = self._cloud_float(cur_status.get("tslQueryTime"))
+        if query_time is not None and query_time > 0:
+            status["tsl_query_time"] = datetime.fromtimestamp(
+                query_time / 1000.0, tz=UTC
+            )
+
+        bool_map = {
+            "filterBlockStatus": "filter_blocked",
+            "fourWayValveStatus": "four_way_valve_active",
+            "PTCStatus": "aux_heat_active",
+            "selfLearn": "self_learning",
+        }
+        for raw_key, data_key in bool_map.items():
+            value = self._cloud_bool(cur_status.get(raw_key))
+            if value is not None:
+                status[data_key] = value
+        return status
+
     def _parse_tsl_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
         status = self._parse_tsl_core_status(cur_status)
         status.update(self._parse_tsl_swing_status(cur_status))
         status.update(self._parse_tsl_feature_status(cur_status))
+        status.update(self._parse_tsl_diagnostics(cur_status))
         return status
 
     def _parse_cloud_status(self, cur_status: dict[str, Any]) -> dict[str, Any]:
@@ -774,16 +849,25 @@ class CloudClient:
         if not self.status_enabled:
             return None
 
-        url = (
-            f"{self._base_url}/device/getdevicestatus"
-            f"?tid={self._tid}&category=AC&v={int(time.time() * 1000)}"
-        )
+        is_tsl = self._profile.cloud_status_family == "tsl"
+        if is_tsl:
+            url = f"{self._base_url}/v1/thing/status"
+        else:
+            url = (
+                f"{self._base_url}/device/getdevicestatus"
+                f"?tid={self._tid}&category=AC&v={int(time.time() * 1000)}"
+            )
         headers = self._headers.build(
             token=self._token, include_token=bool(self._token)
         )
 
         try:
-            async with self._session.get(url, headers=headers, timeout=10) as resp:
+            request = (
+                self._session.post(url, headers=headers, json={"deviceId": self._tid}, timeout=10)
+                if is_tsl
+                else self._session.get(url, headers=headers, timeout=10)
+            )
+            async with request as resp:
                 text = await resp.text()
                 self._raise_for_auth_status(resp.status)
                 if resp.status != HTTPStatus.OK:
@@ -804,7 +888,11 @@ class CloudClient:
             log_debug(LOGGER, "cloud_status_not_json")
             return None
 
-        cur_status = payload.get("curStatus") or {}
+        cur_status = (
+            ((payload.get("data") or {}).get("status") or {})
+            if is_tsl
+            else (payload.get("curStatus") or {})
+        )
         return self._parse_cloud_status(cur_status)
 
     async def async_send_command(
@@ -1065,6 +1153,8 @@ class TclUdpApiClient:
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
+        if not self._protocol_profile.local_transport_enabled:
+            return
         try:
             await self._udp.async_start_listener(status_callback)
         except OSError as exception:
@@ -1081,6 +1171,8 @@ class TclUdpApiClient:
 
     async def async_stop_listener(self) -> None:
         """Stop the UDP listener."""
+        if not self._protocol_profile.local_transport_enabled:
+            return
         await self._udp.async_stop_listener()
 
     @property
@@ -1377,14 +1469,7 @@ class TclUdpApiClient:
                 fan_speed=speed_str,
             )
             return None
-        delivery = await self.async_send_commands(
-            [
-                ("WindSpeed", speed_str),
-                ("Opt_sleepMode", "0"),
-                ("Opt_super", "off"),
-            ]
-        )
-        return CommandReceipt("fan_speed:set", {"fan_speed": speed_str}, delivery)
+        return await self.async_send_command_bundle(profile.build_fan_command(speed_str))
 
     async def async_set_swing(
         self, *, vertical: bool, horizontal: bool
@@ -1400,17 +1485,8 @@ class TclUdpApiClient:
                 horizontal=horizontal,
             )
             return None
-        delivery = await self.async_send_commands(
-            [
-                ("WindDirection_V", "on" if vertical else "off"),
-                ("WindDirection_H", "on" if horizontal else "off"),
-                ("OptSolidWd", "off"),
-            ]
-        )
-        return CommandReceipt(
-            "swing:set",
-            {"swing_v": vertical, "swing_h": horizontal},
-            delivery,
+        return await self.async_send_command_bundle(
+            profile.build_swing_command(vertical=vertical, horizontal=horizontal)
         )
 
     async def async_set_mode(self, mode_str: str) -> CommandReceipt:
@@ -1421,57 +1497,53 @@ class TclUdpApiClient:
 
     async def async_set_eco_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set ECO mode."""
-        # Java: <Opt_ECO>on</Opt_ECO>
-        delivery = await self.async_send_command("Opt_ECO", "on" if enabled else "off")
-        return CommandReceipt("switch:eco_mode", {"eco_mode": enabled}, delivery)
+        return await self.async_set_feature("eco_mode", enabled=enabled)
 
     async def async_set_display(self, *, enabled: bool) -> CommandReceipt:
         """Set display on/off."""
-        delivery = await self.async_send_command(
-            "OptDisplay", "on" if enabled else "off"
-        )
-        return CommandReceipt("switch:display", {"display": enabled}, delivery)
+        return await self.async_set_feature("display", enabled=enabled)
 
     async def async_set_health_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set health mode."""
-        delivery = await self.async_send_command(
-            "OptHealthy", "on" if enabled else "off"
-        )
-        return CommandReceipt("switch:health_mode", {"health_mode": enabled}, delivery)
+        return await self.async_set_feature("health_mode", enabled=enabled)
 
     async def async_set_sleep_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set sleep mode."""
-        delivery = await self.async_send_command(
-            "Opt_sleepMode", "1" if enabled else "0"
-        )
-        return CommandReceipt("switch:sleep_mode", {"sleep_mode": enabled}, delivery)
+        return await self.async_set_feature("sleep_mode", enabled=enabled)
 
     async def async_set_turbo_mode(self, *, enabled: bool) -> CommandReceipt:
         """Set turbo (super) mode."""
-        delivery = await self.async_send_command(
-            "Opt_super", "on" if enabled else "off"
-        )
-        return CommandReceipt("switch:turbo_mode", {"turbo_mode": enabled}, delivery)
+        return await self.async_set_feature("turbo_mode", enabled=enabled)
 
     async def async_set_aux_heat(self, *, enabled: bool) -> CommandReceipt:
         """Set auxiliary (electric) heat on/off."""
-        delivery = await self.async_send_command("OptHeat", "on" if enabled else "off")
-        return CommandReceipt("switch:aux_heat", {"aux_heat": enabled}, delivery)
+        return await self.async_set_feature("aux_heat", enabled=enabled)
 
     async def async_set_beep(self, *, enabled: bool) -> CommandReceipt:
         """Set beep on/off."""
-        # Java: <BeepEnable>on</BeepEnable>
-        delivery = await self.async_send_command(
-            "BeepEnable", "on" if enabled else "off"
-        )
-        return CommandReceipt("switch:beep", {"beep": enabled}, delivery)
+        return await self.async_set_feature("beep", enabled=enabled)
+
+    async def async_set_feature(self, data_key: str, *, enabled: bool) -> CommandReceipt:
+        """Set a profile-described feature without leaking protocol details."""
+        profile = getattr(self, "_protocol_profile", resolve_protocol_driver(None))
+        bundle = profile.build_feature_command(data_key, enabled=enabled)
+        return await self.async_send_command_bundle(bundle)
+
+    async def async_set_number(self, data_key: str, value: float) -> CommandReceipt:
+        """Set a profile-described numeric property."""
+        bundle = self._protocol_profile.build_number_command(data_key, value)
+        return await self.async_send_command_bundle(bundle)
 
     async def async_send_discovery(self) -> None:
         """Send a discovery packet to find devices."""
+        if not self._protocol_profile.local_transport_enabled:
+            return
         await self._udp.async_send_discovery()
 
     async def async_request_status(self) -> None:
         """Explicitly request a full status update from the device (SyncStatusReq)."""
+        if not self._protocol_profile.local_transport_enabled:
+            return
         await self._udp.async_request_status()
 
     def get_last_status(self) -> dict[str, Any]:

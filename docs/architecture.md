@@ -12,9 +12,9 @@ Architecture changes must preserve these user-facing contracts:
 - existing device and entity unique IDs do not change;
 - `tcl_udp_ac_command_result` remains the command result event;
 - the existing Repairs translation and issue behavior remain available;
-- local UDP remains the primary state/control path;
+- local UDP remains the primary state/control path for legacy devices;
 - cloud status and control remain optional fallbacks;
-- unsupported TSL writes remain disabled rather than guessed.
+- protocol 1 devices explicitly use cloud-only TSL status and property control.
 
 The stored descriptor fields (`device_mac`, `device_name`, `device_room`,
 `device_model`, and `device_protocol`) are additive. Existing identifiers do not
@@ -107,6 +107,18 @@ A driver defines capabilities, command compilation, transport family, status
 family, and device-specific mode normalization. Existing protocol profile
 classes satisfy this interface; `resolve_protocol_profile()` remains as a
 compatibility alias.
+
+The protocol 1 driver is a deep Module: entities submit mode, fan, swing,
+feature, or numeric intents without knowing TSL identifiers or endpoints. The
+driver compiles those intents into property bundles with an expected state
+projection. The same capability description creates product-specific switches,
+numbers, and diagnostics, keeping product knowledge local to one Interface.
+
+Protocol 1 sets `local_transport_enabled=False`. The compatibility transport
+facade makes listener startup, discovery, and local status requests no-ops for
+that profile, while the coordinator continues to use the same Interface and
+polls `POST /v1/thing/status`. Legacy drivers continue using the shared UDP
+hub and optional cloud fallback.
 
 ### UdpHub
 

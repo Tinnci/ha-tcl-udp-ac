@@ -198,6 +198,69 @@
       },
       "current_month_runtime": {
         "name": "本月运行时长"
+      },
+      "error_codes": {
+        "name": "错误代码"
+      },
+      "internal_coil_temperature": {
+        "name": "室内机盘管温度"
+      },
+      "external_coil_temperature": {
+        "name": "室外机盘管温度"
+      },
+      "external_exhaust_temperature": {
+        "name": "室外机排气温度"
+      },
+      "external_voltage": {
+        "name": "室外机电压"
+      },
+      "external_current": {
+        "name": "室外机电流"
+      },
+      "compressor_frequency": {
+        "name": "压缩机频率"
+      },
+      "internal_fan_speed": {
+        "name": "室内机风机速度"
+      },
+      "external_fan_speed": {
+        "name": "室外机风机速度"
+      },
+      "internal_fan_gear": {
+        "name": "室内机风机档位"
+      },
+      "external_fan_gear": {
+        "name": "室外机风机档位"
+      },
+      "wind_speed_percentage": {
+        "name": "风速百分比"
+      },
+      "fresh_air_mode": {
+        "name": "新风模式"
+      },
+      "fresh_air_percentage": {
+        "name": "新风百分比"
+      },
+      "sleep_time": {
+        "name": "睡眠时长"
+      },
+      "self_clean_status": {
+        "name": "自清洁状态"
+      },
+      "expansion_valve": {
+        "name": "电子膨胀阀"
+      },
+      "tsl_version": {
+        "name": "TSL 版本"
+      },
+      "tsl_request_version": {
+        "name": "TSL 请求版本"
+      },
+      "tsl_query_time": {
+        "name": "TSL 查询时间"
+      },
+      "ai_control_source": {
+        "name": "AI 控制来源"
       }
     },
     "switch": {
@@ -221,6 +284,40 @@
       },
       "beep": {
         "name": "提示音"
+      },
+      "beep_temperature": {
+        "name": "温度提示音"
+      },
+      "anti_mildew": {
+        "name": "防霉"
+      },
+      "soft_wind": {
+        "name": "柔风"
+      },
+      "self_clean": {
+        "name": "自清洁"
+      },
+      "fresh_air_auto": {
+        "name": "自动新风"
+      }
+    },
+    "binary_sensor": {
+      "filter_blocked": {
+        "name": "滤网堵塞"
+      },
+      "four_way_valve_active": {
+        "name": "四通阀"
+      },
+      "aux_heat_active": {
+        "name": "辅热运行"
+      },
+      "self_learning": {
+        "name": "自学习"
+      }
+    },
+    "number": {
+      "fresh_air_percentage": {
+        "name": "新风百分比"
       }
     }
   }

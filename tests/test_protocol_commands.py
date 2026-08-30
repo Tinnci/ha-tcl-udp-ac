@@ -140,6 +140,8 @@ class CloudProtocolMappingTest(unittest.TestCase):
                 "sleep_mode": False,
                 "turbo_mode": False,
                 "aux_heat": True,
+                "fan_gear": 0,
+                "aux_heat_active": True,
                 "health_mode": False,
                 "display": True,
                 "beep": True,
@@ -162,7 +164,107 @@ class CloudProtocolMappingTest(unittest.TestCase):
         self.assertEqual(status["mode"], "dehumi")
         self.assertEqual(status["target_temp"], 27.5)
         self.assertEqual(status["current_temp"], 27.7)
-        self.assertEqual(status["fan_speed"], "low")
+        self.assertEqual(status["fan_speed"], "2")
+
+    def test_tsl_cloud_status_preserves_all_observed_diagnostics(self) -> None:
+        status = self.client._parse_cloud_status(
+            {
+                "errorCode": [48, 49],
+                "internalUnitCoilTemperature": 25,
+                "externalUnitCoilTemperature": 20,
+                "externalUnitExhaustTemperature": 49,
+                "externalUnitVoltage": 225,
+                "externalUnitElectricCurrent": 1.5,
+                "compressorFrequency": 42,
+                "internalUnitFanSpeed": 700,
+                "externalUnitFanSpeed": 800,
+                "internalUnitFanCurrentGear": 3,
+                "externalUnitFanGear": 4,
+                "windSpeedPercentage": 85,
+                "newWindSetMode": 1,
+                "newWindPercentage": 33,
+                "sleepTime": 120,
+                "selfCleanStatus": 6,
+                "expansionValve ": 302,
+                "tslLatestVersion": "V3.0.0",
+                "tslReqVersion": "V2.0.0",
+                "tslQueryTime": 1787583278199,
+                "aiSmartControlSource": "APP",
+                "filterBlockStatus": 1,
+                "fourWayValveStatus": 1,
+                "PTCStatus": 1,
+                "selfLearn": 1,
+                "beepTempEn": 1,
+                "antiMoldew": 1,
+                "softWind": 1,
+                "selfClean": 1,
+                "newWindAutoSwitch": 1,
+            }
+        )
+
+        expected = {
+            "error_codes": "48, 49",
+            "internal_coil_temperature": 25,
+            "external_coil_temperature": 20,
+            "external_exhaust_temperature": 49,
+            "external_voltage": 225,
+            "external_current": 1.5,
+            "compressor_frequency": 42,
+            "internal_fan_speed": 700,
+            "external_fan_speed": 800,
+            "internal_fan_gear": 3,
+            "external_fan_gear": 4,
+            "wind_speed_percentage": 85,
+            "fresh_air_mode": 1,
+            "fresh_air_percentage": 33,
+            "sleep_time": 120,
+            "self_clean_status": 6,
+            "expansion_valve": 302,
+            "tsl_version": "V3.0.0",
+            "tsl_request_version": "V2.0.0",
+            "ai_control_source": "APP",
+            "filter_blocked": True,
+            "four_way_valve_active": True,
+            "aux_heat_active": True,
+            "self_learning": True,
+            "beep_temperature": True,
+            "anti_mildew": True,
+            "soft_wind": True,
+            "self_clean": True,
+            "fresh_air_auto": True,
+        }
+        for key, value in expected.items():
+            self.assertEqual(status[key], value)
+        self.assertEqual(status["tsl_query_time"].timestamp(), 1787583278.199)
+
+    def test_tsl_status_uses_native_thing_status_endpoint(self) -> None:
+        calls = []
+
+        class Response:
+            status = 200
+
+            async def text(self):
+                return '{"code":200,"data":{"status":{"powerSwitch":1}}}'
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+        class Session:
+            def post(self, url, **kwargs):
+                calls.append((url, kwargs))
+                return Response()
+
+        client = self._tsl_cloud_client()
+        client._session = Session()
+
+        status = asyncio.run(client.async_fetch_status())
+
+        self.assertEqual(status["power"], True)
+        self.assertEqual(calls[0][0], "https://io.zx.tcljd.com/v1/thing/status")
+        self.assertEqual(calls[0][1]["json"], {"deviceId": "45816970"})
 
     def _tsl_cloud_client(self):
         return self.api.CloudClient(
@@ -246,11 +348,13 @@ class EntityCommandTest(unittest.TestCase):
     def test_sleep_mode_switch_emits_numeric_values(self) -> None:
         client = object.__new__(self.api.TclUdpApiClient)
         calls = []
+        bundles = load_integration_module("command_bundles")
 
-        async def fake_send_command(self, command, value, degree_half=None):
-            calls.append((command, value, degree_half))
+        async def fake_send_commands(self, items):
+            calls.append(items)
+            return bundles.TransportDelivery()
 
-        client.async_send_command = MethodType(fake_send_command, client)
+        client.async_send_commands = MethodType(fake_send_commands, client)
 
         asyncio.run(client.async_set_sleep_mode(enabled=True))
         asyncio.run(client.async_set_sleep_mode(enabled=False))
@@ -258,8 +362,8 @@ class EntityCommandTest(unittest.TestCase):
         self.assertEqual(
             calls,
             [
-                ("Opt_sleepMode", "1", None),
-                ("Opt_sleepMode", "0", None),
+                [("Opt_sleepMode", "1")],
+                [("Opt_sleepMode", "0")],
             ],
         )
 
@@ -361,28 +465,63 @@ class EntityCommandTest(unittest.TestCase):
 
         self.assertFalse(receipt.delivery.accepted)
 
-    def test_tsl_profile_blocks_unmapped_fan_and_swing_commands(self) -> None:
+    def test_tsl_profile_skips_every_local_udp_operation(self) -> None:
+        profiles = load_integration_module("protocol_profiles")
+        client = object.__new__(self.api.TclUdpApiClient)
+        client._protocol_profile = profiles.resolve_protocol_profile(
+            "45816970", product_key="1112013595N"
+        )
+        calls = []
+
+        class Udp:
+            async def async_start_listener(self, _callback):
+                calls.append("listen")
+
+            async def async_stop_listener(self):
+                calls.append("stop")
+
+            async def async_send_discovery(self):
+                calls.append("discover")
+
+            async def async_request_status(self):
+                calls.append("status")
+
+        client._udp = Udp()
+
+        async def run_case():
+            await client.async_start_listener(lambda _status: None)
+            await client.async_send_discovery()
+            await client.async_request_status()
+            await client.async_stop_listener()
+
+        asyncio.run(run_case())
+        self.assertEqual(calls, [])
+
+    def test_tsl_profile_emits_property_fan_and_swing_commands(self) -> None:
         profiles = load_integration_module("protocol_profiles")
         client = object.__new__(self.api.TclUdpApiClient)
         client._protocol_profile = profiles.resolve_protocol_profile(
             "45816970",
             product_key="1112013595N",
         )
-        calls = []
+        property_calls = []
 
-        async def fake_send_commands(self, items):
-            calls.append(items)
+        class FakeCloud:
+            async def async_send_tsl_property_bundle(self, bundle):
+                property_calls.append(bundle)
+                return True
 
-        client.async_send_commands = MethodType(fake_send_commands, client)
+        client._cloud = FakeCloud()
 
-        fan_receipt = asyncio.run(client.async_set_fan_speed("high"))
+        fan_receipt = asyncio.run(client.async_set_fan_speed("7"))
         swing_receipt = asyncio.run(
             client.async_set_swing(vertical=True, horizontal=True)
         )
 
-        self.assertEqual(calls, [])
-        self.assertIsNone(fan_receipt)
-        self.assertIsNone(swing_receipt)
+        self.assertEqual(property_calls[0].payload, {"windSpeedAutoSwitch": 0, "windSpeed7Gear": 7})
+        self.assertEqual(property_calls[1].payload, {"verticalDirection": 1, "horizontalDirection": 1})
+        self.assertTrue(fan_receipt.delivery.accepted)
+        self.assertTrue(swing_receipt.delivery.accepted)
 
 
 class ToolProtocolMappingTest(unittest.TestCase):
