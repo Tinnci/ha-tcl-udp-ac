@@ -223,10 +223,12 @@ class ConfigMetadataTest(unittest.TestCase):
     def _png_dimensions(path: Path) -> tuple[int, int]:
         data = path.read_bytes()
         if data[:8] != b"\x89PNG\r\n\x1a\n" or data[12:16] != b"IHDR":
-            raise AssertionError(f"{path} is not a PNG image")
+            message = f"{path} is not a PNG image"
+            raise AssertionError(message)
         width, height, bit_depth, color_type = struct.unpack(">IIBB", data[16:26])
         if bit_depth != 8 or color_type not in {4, 6}:
-            raise AssertionError(f"{path} must be an 8-bit PNG with transparency")
+            message = f"{path} must be an 8-bit PNG with transparency"
+            raise AssertionError(message)
         return width, height
 
     def assert_no_placeholder_syntax(self, value: object) -> None:

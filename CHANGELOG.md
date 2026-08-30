@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.4 - 2026-08-30
+
+- Bring the brand metadata regression test into compliance with the
+  repository's complete Ruff rule set after the 0.9.3 branding release.
+
 ## 0.9.3 - 2026-08-30
 
 - Replace the generic air-conditioner artwork with the established TCL icon
