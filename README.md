@@ -1,227 +1,283 @@
-# TCL UDP Air Conditioner Integration for Home Assistant
+# TCL Air Conditioner for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-0.9.4-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases)
-[![Maintainer](https://img.shields.io/badge/maintainer-@Tinnci-green)](https://github.com/Tinnci)
-
-A robust Home Assistant integration for TCL Air Conditioners that use the local UDP broadcast protocol. This integration provides local, instant feedback control without relying on the cloud for daily operations.
+[![Version](https://img.shields.io/badge/version-0.9.4-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
+[![Test](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml)
+[![Validate](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)
 
 <p align="center">
-  <img src="custom_components/tcl_udp_ac/brand/logo.png" alt="TCL UDP Air Conditioner" height="96">
+  <img src="custom_components/tcl_udp_ac/brand/logo.png" alt="TCL" height="96">
 </p>
 
-## ✨ Features
+Control supported TCL air conditioners from Home Assistant.
 
-- **🚀 100% Local Control**: Uses UDP broadcast (Port 10074/10075) for instant response and status updates.
-- **🌡️ Climate Control**:
-  - **Modes**: Cool, Heat, Dry (Dehumidifier). Fan Only and Auto/AI are available as experimental options after live confirmation on your device.
-  - **Fan Speeds**: Auto, Low, Medium, High.
-  - **Swing Modes**: Vertical, Horizontal, Both, Off.
-  - **Target Temperature**: 16°C - 31°C (adjustable in 0.5°C steps).
-- **📟 Advanced Features (Switches)**:
-  - **Eco Mode**: Toggle energy-saving mode.
-  - **Turbo Mode**: Maximize cooling/heating performance.
-  - **Sleep Mode**: Optimize for sleeping comfort.
-  - **Health Mode**: Toggle health/ionization functions (if supported).
-  - **Aux Heat**: Auxiliary heating control.
-  - **Display**: Turn the unit's LED display on/off.
-  - **Beep**: Enable/disable command confirmation beeps.
-- **🌤️ Sensors**:
-  - **Outdoor Temperature**: Real-time outdoor temperature monitoring.
-  - **Current Month Energy**: TCL+ cloud report total for the current month, exposed as a diagnostic kWh total when device metadata is available.
-  - **Current Month Runtime**: TCL+ cloud report running hours for the current month, exposed as a diagnostic duration total when device metadata is available.
-- **☁️ TCL+ Login**: Log in with a TCL+ account to obtain refreshable cloud tokens and select discovered AC devices. The integration fills the cloud TID and legacy JIDs automatically when TCL+ returns device metadata.
-- **🏠 Multiple ACs per account**: Add another unconfigured AC from an existing loaded TCL+ account without entering the password again. Each AC remains an independent Home Assistant device while credentials refresh together.
+The integration selects a local UDP or TCL+ cloud protocol for each device.
+Legacy devices use local UDP first. Supported Protocol 1 devices use TCL+ TSL cloud control.
 
-## 📦 Installation
+One TCL+ account can add multiple air conditioners. Each air conditioner gets its own Home Assistant device.
 
-### Option 1: HACS (Recommended)
+> [!IMPORTANT]
+> This project is an unofficial custom integration. TCL cloud services and device firmware can change without notice.
 
-1. Open **HACS** in Home Assistant.
-2. Go to **Integrations** > **Triple dots** (top right) > **Custom repositories**.
-3. Add this repository URL: `https://github.com/Tinnci/ha-tcl-udp-ac`.
-4. Select category: **Integration**.
-5. Click **Add**, then find "TCL UDP Air Conditioner" in the list and install it.
-6. Restart Home Assistant.
+## Supported devices
 
-### Updating with HACS
+Support depends on the device protocol and product profile.
+Account discovery alone does not prove control support.
 
-1. Open **HACS** in Home Assistant.
-2. Go to **Integrations** and open **TCL UDP Air Conditioner**.
-3. Install the latest released version.
-4. Restart Home Assistant when HACS prompts for it.
+| Device family | Status path | Control path | Support level |
+| --- | --- | --- | --- |
+| Legacy TCL AC, protocol `0` or no protocol value | Local UDP with optional TCL+ fallback | Local UDP with optional TCL+ fallback | Supported |
+| Product `1112013595N`, protocol `1` | TCL+ TSL cloud | TCL+ TSL cloud | Supported profile |
+| Other or unknown products | Not documented | Not documented | Open an issue with diagnostics |
 
-### Option 2: Manual Installation
+The Protocol 1 profile does not send UDP discovery or legacy XML commands.
+It uses the TCL+ thing-status and property-control APIs.
 
-1. Download the `custom_components/tcl_udp_ac` folder from this repository.
-2. Copy it to your Home Assistant's `config/custom_components/` directory.
-3. Restart Home Assistant.
+## Features
 
-### Removing the Integration
+### Climate control
 
-1. Remove the integration from **Settings** > **Devices & Services**.
-2. Delete `custom_components/tcl_udp_ac` from your Home Assistant config folder.
-3. Restart Home Assistant.
+- Power control
+- Cool, dry, and heat modes
+- Optional fan-only and Auto/AI modes after device-specific confirmation
+- Target temperature from 16 °C to 31 °C
+- 0.5 °C temperature steps
+- Automatic, low, medium, and high fan speeds for legacy devices
+- Automatic and seven-gear fan control for product `1112013595N`
+- Vertical and horizontal swing control
 
-## ⚙️ Configuration
+### Device features
 
-1. Go to **Settings** > **Devices & Services**.
-2. Click **+ Add Integration**.
+The integration creates only the entities that the selected product profile describes.
+
+- Eco, display, health, sleep, turbo, auxiliary heat, and beep switches
+- Protocol 1 switches for anti-mildew, soft wind, self-clean, and fresh-air control
+- Protocol 1 fresh-air percentage control
+- Outdoor temperature for supported legacy devices
+- Protocol 1 temperatures, electrical values, compressor data, fan data, valve state, filter state, and fault diagnostics
+- Current-month TCL+ energy and runtime report totals when TCL provides the required metadata
+
+Unknown diagnostic units stay empty. The integration does not invent a unit.
+
+### Account and device management
+
+- Sign in with a TCL+ password or SMS code
+- Discover air conditioners from the TCL+ account
+- Add another unconfigured device from a loaded account
+- Keep one Home Assistant config entry for each physical air conditioner
+- Refresh one account token for all devices on that account
+- Start Home Assistant reauthentication only after TCL rejects the credentials
+
+The integration does not store the TCL+ password or SMS code.
+Home Assistant stores the access token, refresh token, and account ID in config-entry storage.
+
+### State and command handling
+
+- A shared UDP hub routes identified packets to one device.
+- The integration drops conflicting or ambiguous identified packets.
+- Local UDP state has priority while it is fresh.
+- A one-minute coordinator refresh recovers missed status broadcasts.
+- Each accepted command waits for a matching device state.
+- An unconfirmed command creates a Home Assistant Repairs issue.
+- The `tcl_udp_ac_command_result` event provides the result and transport details.
+
+An HTTP or UDP acceptance does not prove that the device applied a command.
+The integration confirms the command only when a later status value matches.
+
+## Home Assistant entities
+
+| Platform | Purpose |
+| --- | --- |
+| `climate` | Power, mode, temperature, fan, and swing control |
+| `switch` | Product-specific feature control |
+| `number` | Product-specific numeric control |
+| `sensor` | Temperature, cloud reports, and protocol diagnostics |
+| `binary_sensor` | Protocol diagnostic states |
+
+Available entities depend on the product profile and the values that the device reports.
+
+## Installation
+
+### HACS
+
+HACS accepts custom repositories that use a supported repository structure (2).
+
+1. Open HACS.
+2. Open the menu in the upper-right corner.
+3. Select **Custom repositories**.
+4. Add `https://github.com/Tinnci/ha-tcl-udp-ac`.
+5. Select **Integration** as the type.
+6. Select **Add**.
+7. Install **TCL UDP Air Conditioner**.
+8. Restart Home Assistant.
+
+### Manual installation
+
+1. Download `tcl_udp_ac-vX.Y.Z.zip` from the [latest release](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest).
+2. Extract the archive.
+3. Copy `custom_components/tcl_udp_ac` to `/config/custom_components/tcl_udp_ac`.
+4. Restart Home Assistant.
+
+HACS also installs custom integrations under `custom_components` (3).
+
+## Configuration
+
+1. Open **Settings > Devices & services**.
+2. Select **Add integration**.
 3. Search for **TCL UDP Air Conditioner**.
-4. Choose a setup method:
-   - **TCL+ account login**: log in with password or SMS, then select a discovered AC device. The integration stores refreshable tokens and fills the cloud TID plus legacy sender/device JIDs from TCL+ account metadata.
-   - **Existing TCL+ account**: select an already loaded account, refresh its device inventory, then choose an AC that has not been configured. No password is requested or stored.
-   - **Manual token entry**: paste a captured token and provide the cloud TID/JIDs yourself.
-5. Legacy devices keep local UDP as their primary control path, with cloud status/control as optional fallback.
-6. The TCL+ protocol 1 product `1112013595N` is cloud-only. It uses native TSL status and property control for power, modes, target temperature, automatic/seven-gear fan, swing, feature switches, and fresh-air percentage.
-7. Protocol 1 also exposes the observed temperatures, electrical values, compressor/fan telemetry, valve/filter/self-clean state, TSL metadata, error codes, and other read-only fields as diagnostic entities. Unknown units are deliberately left unitless.
+4. Select one setup method.
 
-### TCL+ Authentication
+### TCL+ account login
 
-When you configure the integration with TCL+ login, Home Assistant stores the access and refresh tokens in the config entry and refreshes them before authorized cloud requests. Devices logged in with the same TCL+ account share one refresh operation and receive rotated credentials together, without reloading otherwise unchanged runtimes. Tokens are not shown again in the options flow. If the refresh token expires or TCL+ explicitly rejects it, Home Assistant raises a re-authentication flow so you can log in again. Transient network, server, and rate-limit failures keep the existing session and do not incorrectly request reauthentication.
+Use a TCL+ password or SMS code.
+The integration gets renewable tokens and loads the account device list.
 
-The integration does not save your TCL+ username, password, SMS code, or password hash. Password login hashes the password for TCL's protocol, wraps the login payload with TCL's public-key encryption, and keeps it only for the active config-flow request. Home Assistant persists the returned access token, refresh token, and account ID in its config-entry storage so automatic renewal can continue. These are bearer credentials protected by access to the Home Assistant configuration directory and backups; the integration does not add a separate at-rest encryption layer.
+Select one air conditioner from the list.
+The integration adds its stable TCL device ID and product metadata.
 
-Manual token entry remains available for captured-token setups, but manual tokens cannot be refreshed automatically.
+### Existing TCL+ account
 
-### Command Confirmation and Notifications
+Use this method to add another air conditioner from a loaded account.
+The device list shows only air conditioners that do not have a config entry.
 
-For supported commands, the integration separates transport acceptance from
-the later status match. Each command records whether cloud, UDP, both, or no
-transport accepted it. Only accepted commands enter the confirmation loop.
-Home Assistant then refreshes state for up to 30 seconds and checks whether the
-expected status is reported back. A match confirms the observed final state;
-the device protocols do not provide a transaction ID that could prove the
-command caused that state.
+This method does not ask for the password again.
 
-If the status matches, the pending command is cleared. If it does not match in
-time, the integration logs a warning, fires a `tcl_udp_ac_command_result` event
-with `outcome: not_confirmed`, and creates a device-entry-specific Home
-Assistant Repairs issue. The event also includes `transport_outcome`, such as
-`accepted_by_udp`, `accepted_by_cloud`, or `accepted_by_both`. It does not create
-repeated persistent notifications by default. The `transport_attempts` mapping
-retains each cloud and UDP result (`accepted`, `rejected`, `skipped`, or
-`failed`); users can build their own automations from these fields if they want
-mobile/persistent alerts.
+### Manual token
 
-### Cloud Energy and Runtime Statistics
+Use this method only when account login does not support your region or account.
+You must supply the device identifiers and captured token.
 
-Captured TCL+ traffic includes `/v1/ac/statistics/electricity/summary?timeType=1|2|3`, which returns historical electricity and running-hours report buckets with daily/monthly/yearly detail. The integration exposes the current-month TCL+ report totals as diagnostic sensors when the device was discovered through TCL+ login and a `productKey` is available.
+A manual token has no automatic refresh path.
+Home Assistant requests reauthentication if TCL explicitly rejects it.
 
-Home Assistant energy dashboards expect sensors with clear energy semantics, units, and state classes, such as kWh device energy sensors. Because the TCL+ summary endpoint is a report API rather than a live monotonic meter, these diagnostic sensors use total report semantics and are not marked as total-increasing utility meters.
+## Network requirements
 
-See `docs/tcl_cloud_api_notes.md` for the captured API mapping and HA entity notes.
+Legacy devices require local UDP access.
 
-Related captured endpoints:
+- Home Assistant listens on UDP port `10074`.
+- Home Assistant sends discovery and commands to UDP port `10075`.
+- Home Assistant Container must use host networking.
+- A firewall or VLAN must permit the required broadcast traffic.
 
-- `/v1/ac/statistics/electricity/summary`: AC electricity/runtime report summary and history.
-- `/v1/dashboard/energyStatistics/detail`: dashboard-level overview, not clearly tied to a single AC device.
-- `/v1/tclplus/eneryStatis/devices/consumable-deficiency/count`: consumable-deficiency count, not energy usage.
+```yaml
+services:
+  homeassistant:
+    network_mode: host
+```
 
-### Network Requirements
+Product `1112013595N` does not use local UDP.
+It requires access to the TCL+ cloud service.
 
-This integration communicates via **UDP Multicast/Broadcast**.
-- **Docker Users**: You **MUST** run Home Assistant in `host` networking mode.
-  ```yaml
-  # docker-compose.yml
-  services:
-    homeassistant:
-      network_mode: host
-  ```
-- **Firewall/VLANs**: Ensure UDP traffic on ports **10074** (Receive) and **10075** (Send) is allowed between Home Assistant and the AC units.
+## Authentication and security
 
-## 🔧 Troubleshooting
+The login flow uses the TCL public key for the login request.
+It keeps the password only during the active setup request.
 
-### Runtime Architecture
+The integration sends all authorized cloud requests through one token manager.
+The token manager refreshes the token before a request when necessary.
 
-The integration uses one shared UDP hub with a per-device session, source-aware
-state reconciliation, independently tracked command confirmations, and an
-ordered protocol-driver registry. See
-[`docs/architecture.md`](docs/architecture.md) for the compatibility invariants,
-multi-device routing rules, and supported extension path.
+An explicit HTTP `401` or `403` response can start one refresh and retry.
+A second rejection starts Home Assistant reauthentication.
 
-### Local Verification Tools
+Network errors, server errors, and rate limits do not start reauthentication.
+These failures keep the current session for later recovery.
 
-Read-only status checks are safe:
+The integration does not add a separate encryption layer for stored tokens.
+Protect the Home Assistant configuration directory and its backups.
+
+## Troubleshooting
+
+### The account list does not show a second air conditioner
+
+Confirm that TCL+ shows the device on the same account.
+Start the setup flow with **Existing TCL+ account**.
+The list excludes devices that already have a config entry.
+
+### A legacy device has no local state
+
+Confirm that Home Assistant uses host networking.
+Permit UDP ports `10074` and `10075` between Home Assistant and the device.
+
+Broadcast packets often do not cross a VLAN or routed subnet.
+Use the optional TCL+ fallback when local routing cannot carry these packets.
+
+### A Protocol 1 device is unavailable
+
+Confirm that Home Assistant can reach the TCL+ service.
+Do not open UDP ports for this device.
+
+### Home Assistant requests reauthentication
+
+Complete the password or SMS flow.
+The integration updates all loaded devices that use the same TCL+ account.
+
+Do not reauthenticate because of one DNS, timeout, server, or rate-limit error.
+Check later log entries for recovery.
+
+### A command creates a Repairs issue
+
+Check the device state and transport details in the event data.
+Confirm that the selected mode or feature works on the device model.
+
+The command can reach a transport and still fail the final state check.
+
+## Technical documentation
+
+- [Architecture and invariants](docs/architecture.md)
+- [TCL+ cloud API notes](docs/tcl_cloud_api_notes.md)
+- [Legacy mode evidence](docs/protocol_truth/legacy_2743138_mode_profiles.md)
+- [Brand asset provenance](docs/branding.md)
+- [Local verification tools](tools/README.md)
+
+## Development
+
+Use `uv` for the Python environment and test commands.
 
 ```bash
-/usr/local/bin/uv run python tools/test_control_api.py \
-  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
-  --status
+uv run --with aiohttp --with 'cryptography==46.0.5' \
+  --with voluptuous --with yarl \
+  python -m unittest discover -s tests
+
+uv run python -m compileall -q custom_components/tcl_udp_ac tests
+uv run --with ruff ruff check --select F,I,N custom_components/tcl_udp_ac tests
+git diff --check
 ```
 
-Live tests require `--allow-live` and now run final power-off cleanup by
-default. See `tools/README.md` before running mutating tests.
+Do not include account credentials, tokens, Home Assistant secrets, or unsanitized packet captures in an issue.
 
-Useful guarded experiments:
+## Contributing
 
-```bash
-/usr/local/bin/uv run python tools/test_control_api.py \
-  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
-  --dry-run \
-  --test mode-matrix
+1. Fork the repository.
+2. Create a focused branch.
+3. Add tests for changed behavior.
+4. Run the required checks.
+5. Open a pull request.
 
-/usr/local/bin/uv run python tools/test_control_api.py \
-  --capture-file /Users/driezy/Downloads/tcl/captures/tcl_1778552854.jsonl \
-  --dry-run \
-  --test temp-experiment
-```
+Use the [bug report](https://github.com/Tinnci/ha-tcl-udp-ac/issues/new?template=bug.yml) for a defect.
+Use the [feature request](https://github.com/Tinnci/ha-tcl-udp-ac/issues/new?template=feature_request.yml) for a new capability.
 
-Temperature is exposed to Home Assistant in Celsius. The legacy cloud path still
-uses `setTemp`/`degreeH` internally, and live testing has shown that a successful
-API response does not always mean the device accepted the target temperature.
-Mode switching uses grouped `turnOn=1 + baseMode=...` commands because live
-testing showed bare mode changes can be acknowledged but ignored.
-For legacy device `2743138`, the capture-derived mode profiles and unsupported
-mode notes are tracked in
-`docs/protocol_truth/legacy_2743138_mode_profiles.md`.
+## Documentation style
 
-### Device Not Discovered / No Status Updates
+This README applies practical rules from ASD-STE100 Simplified Technical English, Issue 9 (1).
+It uses active voice, short sentences, simple terms, and one term for each concept.
 
-If you can control the AC but don't see status updates (temperature changes, etc.), your firewall is likely blocking incoming UDP packets on port 10074.
+This use is not an ASD-STE100 compliance certification.
+Project-specific technical terms remain necessary.
 
-**Test Network Connectivity:**
-Execute this command inside your Home Assistant environment/container to verify packet reception:
+## References
 
-```python
-import socket
-s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-s.bind(('0.0.0.0', 10074))
-print("Listening on 10074...")
-while True:
-    data, addr = s.recvfrom(1024)
-    print(f"Received from {addr}: {data}")
-```
+1. ASD Simplified Technical English Maintenance Group. [ASD-STE100 Simplified Technical English, Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf). 2025.
+2. HACS. [Custom Repositories](https://www.hacs.xyz/docs/faq/custom_repositories/). Accessed 2026-08-31.
+3. HACS. [Integration repository type](https://www.hacs.xyz/docs/use/repositories/type/integration/). Accessed 2026-08-31.
 
-**Linux/Firewall Fixes:**
+## License
 
-*For `iptables` (Debian/Ubuntu/Standard Linux):*
-```bash
-sudo iptables -A INPUT -p udp --dport 10074 -j ACCEPT
-sudo iptables -A INPUT -p udp --dport 10075 -j ACCEPT
-```
-
-*For `nftables` (Alpine/PostmarketOS/Modern Linux):*
-```bash
-nft add rule inet filter input udp dport 10074 accept comment "TCL AC Status"
-```
-
-## 🤝 Contributing
-
-Contributions are welcome!
-1. Fork the repo.
-2. Create a feature branch.
-3. Submit a Pull Request.
-
-## 📄 License
-
-MIT License. See [LICENSE](LICENSE) for more information.
+This project uses the [MIT License](LICENSE).
 
 ## Trademark
 
-TCL and the TCL logo are trademarks of their respective owner. They are used
-only to identify the products supported by this unofficial community
-integration; their use does not imply endorsement or affiliation. The bundled
-brand images are the same Home Assistant Brands assets used by the existing
-`tcl_home_unofficial` and `tcl_tv_remote` community integrations. See
-[branding provenance](docs/branding.md).
+TCL and the TCL logo are trademarks of their respective owner.
+This unofficial integration uses them only to identify supported products.
+
+The brand images match the established TCL assets in Home Assistant Brands.
+See the [brand asset provenance](docs/branding.md).
