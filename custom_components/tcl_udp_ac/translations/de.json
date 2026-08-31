@@ -148,6 +148,10 @@
     "command_not_confirmed": {
       "title": "TCL-AC-Befehl wurde nicht bestätigt",
       "description": "Home Assistant hat einen Befehl an die TCL-Klimaanlage gesendet, aber das Gerät meldete den erwarteten Zustand nicht innerhalb des Bestätigungszeitlimits. Prüfe lokale UDP-Erreichbarkeit, TCL+-Cloud-Fallback und ob dieses Modell den Befehl unterstützt."
+    },
+    "command_not_sent": {
+      "title": "TCL-AC-Befehl konnte nicht gesendet werden",
+      "description": "Weder der lokale UDP-Transport noch TCL+ Cloud hat den Befehl angenommen. Prüfe Netzwerk und Cloud-Verfügbarkeit und lade anschließend die Integrationsdiagnose herunter."
     }
   },
   "options": {

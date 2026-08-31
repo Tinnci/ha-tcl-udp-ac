@@ -25,6 +25,7 @@ def install_homeassistant_stubs() -> None:
     binary_sensor = types.ModuleType("homeassistant.components.binary_sensor")
     number = types.ModuleType("homeassistant.components.number")
     switch = types.ModuleType("homeassistant.components.switch")
+    diagnostics = types.ModuleType("homeassistant.components.diagnostics")
     config_entries = types.ModuleType("homeassistant.config_entries")
     const = types.ModuleType("homeassistant.const")
     core = types.ModuleType("homeassistant.core")
@@ -36,6 +37,16 @@ def install_homeassistant_stubs() -> None:
     issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
     entity = types.ModuleType("homeassistant.helpers.entity")
     loader = types.ModuleType("homeassistant.loader")
+
+    def _async_redact_data(value, keys):
+        if isinstance(value, dict):
+            return {
+                key: "**REDACTED**" if key in keys else _async_redact_data(item, keys)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [_async_redact_data(item, keys) for item in value]
+        return value
 
     class HVACMode(enum.StrEnum):
         OFF = "off"
@@ -125,6 +136,7 @@ def install_homeassistant_stubs() -> None:
         pass
 
     class IssueSeverity(enum.StrEnum):
+        ERROR = "error"
         WARNING = "warning"
 
     class ConfigFlow:
@@ -228,6 +240,7 @@ def install_homeassistant_stubs() -> None:
     issue_registry.IssueSeverity = IssueSeverity
     issue_registry.async_create_issue = lambda *_args, **_kwargs: None
     issue_registry.async_delete_issue = lambda *_args, **_kwargs: None
+    diagnostics.async_redact_data = _async_redact_data
     update_coordinator.DataUpdateCoordinator = DataUpdateCoordinator
     update_coordinator.CoordinatorEntity = CoordinatorEntity
     update_coordinator.UpdateFailed = UpdateFailed
@@ -240,6 +253,7 @@ def install_homeassistant_stubs() -> None:
     sys.modules["homeassistant.components.number"] = number
     sys.modules["homeassistant.components.sensor"] = sensor
     sys.modules["homeassistant.components.switch"] = switch
+    sys.modules["homeassistant.components.diagnostics"] = diagnostics
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.const"] = const
     sys.modules["homeassistant.core"] = core

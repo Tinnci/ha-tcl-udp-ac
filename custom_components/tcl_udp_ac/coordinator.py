@@ -11,11 +11,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import TclUdpApiClientError
 from .const import DOMAIN, LOGGER
+from .log_utils import log_error
 
 COMMAND_CONFIRMATION_TIMEOUT = 30.0
 COMMAND_CONFIRMATION_INTERVAL = 2.0
 COMMAND_EVENT = f"{DOMAIN}_command_result"
 COMMAND_REPAIR_ISSUE_ID = "command_not_confirmed"
+COMMAND_NOT_SENT_ISSUE_ID = "command_not_sent"
 
 if TYPE_CHECKING:
     from .data import TclUdpConfigEntry
@@ -59,36 +61,47 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         entity_id: str | None = None,
         context_id: str | None = None,
     ) -> None:
+        payload = {
+            "entry_id": self.config_entry.entry_id,
+            "command_id": command_id,
+            "intent": intent,
+            "outcome": outcome,
+            "expected_status": dict(expected_status),
+            "status": dict(status),
+            "transport_outcome": transport_outcome,
+            "transport_attempts": dict(transport_attempts or {}),
+            "entity_id": entity_id,
+            "context_id": context_id,
+        }
+        self._last_command_result = payload
         hass = getattr(self, "hass", None)
         bus = getattr(hass, "bus", None)
         if bus is None:
             return
-        bus.async_fire(
-            COMMAND_EVENT,
-            {
-                "entry_id": self.config_entry.entry_id,
-                "command_id": command_id,
-                "intent": intent,
-                "outcome": outcome,
-                "expected_status": expected_status,
-                "status": status,
-                "transport_outcome": transport_outcome,
-                "transport_attempts": dict(transport_attempts or {}),
-                "entity_id": entity_id,
-                "context_id": context_id,
-            },
-        )
+        bus.async_fire(COMMAND_EVENT, payload)
+
+    @property
+    def last_command_result(self) -> dict[str, Any] | None:
+        """Return the latest command outcome for diagnostics."""
+        result = getattr(self, "_last_command_result", None)
+        return dict(result) if result is not None else None
 
     def _delete_command_issue(self) -> None:
         hass = getattr(self, "hass", None)
         if hass is None:
             return
         ir.async_delete_issue(hass, DOMAIN, self._command_issue_id)
+        ir.async_delete_issue(hass, DOMAIN, self._command_not_sent_issue_id)
 
     @property
     def _command_issue_id(self) -> str:
         """Return the per-entry Repairs issue identifier."""
         return f"{COMMAND_REPAIR_ISSUE_ID}_{self.config_entry.entry_id}"
+
+    @property
+    def _command_not_sent_issue_id(self) -> str:
+        """Return the per-entry delivery-failure Repairs issue identifier."""
+        return f"{COMMAND_NOT_SENT_ISSUE_ID}_{self.config_entry.entry_id}"
 
     def _create_command_issue(self) -> None:
         hass = getattr(self, "hass", None)
@@ -102,6 +115,61 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             severity=ir.IssueSeverity.WARNING,
             translation_key=COMMAND_REPAIR_ISSUE_ID,
         )
+
+    def _create_command_not_sent_issue(self) -> None:
+        """Create one stable Repairs issue for a failed transport delivery."""
+        hass = getattr(self, "hass", None)
+        if hass is None:
+            return
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            self._command_not_sent_issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key=COMMAND_NOT_SENT_ISSUE_ID,
+        )
+
+    async def async_report_command_delivery_failure(
+        self,
+        *,
+        entity_id: str | None = None,
+        context_id: str | None = None,
+    ) -> bool:
+        """Report a command that no configured transport accepted."""
+        runtime = self.config_entry.runtime_data
+        session = getattr(runtime, "session", None)
+        getter = getattr(session, "last_command_attempt", None)
+        attempt = getter() if getter is not None else None
+        if not attempt or attempt.get("transport_outcome") != "not_sent":
+            return False
+
+        intent = str(attempt.get("intent") or "unknown")
+        expected_status = attempt.get("expected_status") or {}
+        transport_attempts = attempt.get("transport_attempts") or {}
+        log_error(
+            LOGGER,
+            "command_not_sent",
+            intent=intent,
+            transport_attempts=transport_attempts,
+        )
+        self._create_command_not_sent_issue()
+        self._fire_command_event(
+            command_id=None,
+            outcome="not_sent",
+            intent=intent,
+            expected_status=(
+                expected_status if isinstance(expected_status, dict) else {}
+            ),
+            status=dict(self.data or session.get_last_status() or {}),
+            transport_outcome="not_sent",
+            transport_attempts=(
+                transport_attempts if isinstance(transport_attempts, dict) else {}
+            ),
+            entity_id=entity_id,
+            context_id=context_id,
+        )
+        return True
 
     async def _async_update_data(self) -> Any:
         """Update data via library."""

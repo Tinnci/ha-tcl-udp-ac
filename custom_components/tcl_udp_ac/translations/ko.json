@@ -148,6 +148,10 @@
     "command_not_confirmed": {
       "title": "TCL 에어컨 명령이 확인되지 않았습니다",
       "description": "Home Assistant가 TCL 에어컨에 명령을 보냈지만 확인 제한 시간 안에 장치가 예상 상태를 보고하지 않았습니다. 로컬 UDP 연결, TCL+ 클라우드 대체 경로, 이 모델의 명령 지원 여부를 확인하세요."
+    },
+    "command_not_sent": {
+      "title": "TCL 에어컨 명령을 보낼 수 없습니다",
+      "description": "로컬 UDP와 TCL+ 클라우드 모두 명령을 수락하지 않았습니다. 네트워크와 클라우드 상태를 확인한 뒤 통합 진단 정보를 다운로드하세요."
     }
   },
   "options": {

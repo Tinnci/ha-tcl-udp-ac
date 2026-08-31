@@ -148,6 +148,10 @@
     "command_not_confirmed": {
       "title": "La commande du climatiseur TCL n'a pas été confirmée",
       "description": "Home Assistant a envoyé une commande au climatiseur TCL, mais l'appareil n'a pas signalé l'état attendu avant l'expiration du délai de confirmation. Vérifiez l'accès UDP local, le repli cloud TCL+ et la prise en charge de la commande par ce modèle."
+    },
+    "command_not_sent": {
+      "title": "La commande du climatiseur TCL n'a pas pu être envoyée",
+      "description": "Ni le transport UDP local ni le cloud TCL+ n'a accepté la commande. Vérifiez le réseau et la disponibilité du cloud, puis téléchargez les diagnostics de l'intégration."
     }
   },
   "options": {

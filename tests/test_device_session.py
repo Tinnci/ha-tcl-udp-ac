@@ -141,6 +141,16 @@ class DeviceSessionTest(unittest.TestCase):
 
         self.assertIsNone(command_id)
         self.assertIsNone(session.pending_command_confirmation())
+        self.assertEqual(
+            session.last_command_attempt(),
+            {
+                "intent": "power:on",
+                "expected_status": {"power": True},
+                "transport_outcome": "not_sent",
+                "transport_attempts": {"cloud": "skipped", "udp": "skipped"},
+                "created_at": session.last_command_attempt()["created_at"],
+            },
+        )
 
     def test_derived_state_rejects_device_control_fields(self) -> None:
         session = self.session_mod.DeviceSession(FakeTransportClient())

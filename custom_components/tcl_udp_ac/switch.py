@@ -9,7 +9,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
 from .config_settings import capabilities_for_entry
-from .const import LOGGER
+from .const import COMMAND_NOT_SENT_MESSAGE, LOGGER
 from .entity import TclUdpEntity
 from .log_utils import log_info
 from .protocol_profiles import SwitchCapability
@@ -41,6 +41,9 @@ async def async_setup_entry(
 async def _async_after_command(
     coordinator: TclUdpDataUpdateCoordinator,
     command_id: str | None = None,
+    *,
+    entity_id: str | None = None,
+    context_id: str | None = None,
 ) -> None:
     """Confirm command application when the coordinator supports it."""
     confirm = getattr(coordinator, "async_confirm_pending_command", None)
@@ -50,6 +53,14 @@ async def _async_after_command(
         elif (
             getattr(coordinator.config_entry.runtime_data, "session", None) is not None
         ):
+            reporter = getattr(
+                coordinator, "async_report_command_delivery_failure", None
+            )
+            if reporter is not None and await reporter(
+                entity_id=entity_id,
+                context_id=context_id,
+            ):
+                raise HomeAssistantError(COMMAND_NOT_SENT_MESSAGE)
             await coordinator.async_request_refresh()
         else:
             await confirm()
@@ -175,4 +186,10 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
             command_id = await getattr(client, method_name)(enabled=enabled)
         else:
             command_id = await client.async_set_feature(self._data_key, enabled=enabled)
-        await _async_after_command(self.coordinator, command_id)
+        context = getattr(self, "_context", None)
+        await _async_after_command(
+            self.coordinator,
+            command_id,
+            entity_id=self.entity_id,
+            context_id=getattr(context, "id", None),
+        )

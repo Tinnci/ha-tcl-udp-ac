@@ -148,6 +148,10 @@
     "command_not_confirmed": {
       "title": "No se confirmó el comando del aire acondicionado TCL",
       "description": "Home Assistant envió un comando al aire acondicionado TCL, pero el dispositivo no informó el estado esperado dentro del tiempo de confirmación. Revisa la conectividad UDP local, el respaldo de nube TCL+ y si este modelo admite el comando."
+    },
+    "command_not_sent": {
+      "title": "No se pudo enviar el comando del aire acondicionado TCL",
+      "description": "Ni el transporte UDP local ni la nube TCL+ aceptaron el comando. Revisa la red y la disponibilidad de la nube y descarga los diagnósticos de la integración."
     }
   },
   "options": {

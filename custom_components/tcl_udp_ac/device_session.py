@@ -19,6 +19,7 @@ class DeviceSession:
         self._client = client
         self._state = StateReducer()
         self._commands = CommandTracker()
+        self._last_command_attempt: dict[str, Any] | None = None
         self._status_callback: Any = None
 
     @property
@@ -133,7 +134,26 @@ class DeviceSession:
                 context_id=context_id,
             )
 
+    def last_command_attempt(self) -> dict[str, Any] | None:
+        """Return the latest transport result, including rejected deliveries."""
+        if self._last_command_attempt is None:
+            return None
+        return {
+            **self._last_command_attempt,
+            "expected_status": dict(self._last_command_attempt["expected_status"]),
+            "transport_attempts": dict(
+                self._last_command_attempt["transport_attempts"]
+            ),
+        }
+
     def _track_command(self, receipt: CommandReceipt) -> str | None:
+        self._last_command_attempt = {
+            "intent": receipt.intent,
+            "expected_status": dict(receipt.expected_status),
+            "transport_outcome": receipt.delivery.outcome,
+            "transport_attempts": receipt.delivery.as_dict(),
+            "created_at": time.time(),
+        }
         if not receipt.delivery.accepted:
             return None
         return self._commands.record(receipt)

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.10.0 - 2026-08-31
+
+- Add Home Assistant config-entry diagnostics with protocol, capability, state,
+  coordinator, and recent command information while recursively redacting
+  credentials, account/device identity, names, rooms, and HA correlation IDs.
+- Preserve the latest transport attempt even when no transport accepts a
+  command, and expose it through diagnostics.
+- Fail the originating Home Assistant service call immediately when neither
+  local UDP nor TCL+ cloud accepts a command.
+- Add a distinct Repairs issue and `tcl_udp_ac_command_result` event outcome for
+  transport delivery failure, separate from post-delivery state confirmation.
+
 ## 0.9.4 - 2026-08-30
 
 - Bring the brand metadata regression test into compliance with the

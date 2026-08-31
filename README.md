@@ -1,6 +1,6 @@
 # TCL Air Conditioner for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-0.9.4-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.10.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
 [![Test](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml)
 [![Validate](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)
@@ -220,6 +220,14 @@ Check the device state and transport details in the event data.
 Confirm that the selected mode or feature works on the device model.
 
 The command can reach a transport and still fail the final state check.
+
+If neither local UDP nor TCL+ cloud accepts a command, the service call now
+fails immediately and Home Assistant creates a separate Repairs issue.
+
+Download diagnostics from the integration or device page before reporting a
+problem. The report includes the selected protocol profile, enabled transports,
+capabilities, normalized state, and recent command outcomes. It redacts tokens,
+account and device identifiers, names, rooms, entity IDs, and context IDs.
 
 ## Technical documentation
 

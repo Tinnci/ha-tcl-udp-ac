@@ -94,6 +94,7 @@ class CommandConfirmationTest(unittest.TestCase):
         self.assertEqual(event_type, "tcl_udp_ac_command_result")
         self.assertEqual(event["outcome"], "applied")
         self.assertEqual(event["transport_outcome"], "unknown")
+        self.assertEqual(coordinator.last_command_result["outcome"], "applied")
 
     def test_command_result_event_preserves_entity_and_context_correlation(
         self,
@@ -140,6 +141,81 @@ class CommandConfirmationTest(unittest.TestCase):
         event_type, event = coordinator.hass.bus.events[-1]
         self.assertEqual(event_type, "tcl_udp_ac_command_result")
         self.assertEqual(event["outcome"], "not_confirmed")
+
+    def test_unaccepted_delivery_creates_error_issue_and_event(self) -> None:
+        class FailedSession:
+            def last_command_attempt(self):
+                return {
+                    "intent": "power:on",
+                    "expected_status": {"power": True},
+                    "transport_outcome": "not_sent",
+                    "transport_attempts": {
+                        "cloud": "failed",
+                        "udp": "rejected",
+                    },
+                }
+
+            def get_last_status(self):
+                return {"power": False}
+
+        coordinator = self.make_coordinator(FakeClient({}), [{"power": False}])
+        coordinator.config_entry.runtime_data.session = FailedSession()
+        created = []
+        original_create = self.issue_registry.async_create_issue
+        self.issue_registry.async_create_issue = lambda *args, **kwargs: created.append(
+            (args, kwargs)
+        )
+        try:
+            reported = asyncio.run(
+                coordinator.async_report_command_delivery_failure(
+                    entity_id="climate.bedroom_ac",
+                    context_id="service-call-1",
+                )
+            )
+        finally:
+            self.issue_registry.async_create_issue = original_create
+
+        self.assertTrue(reported)
+        self.assertEqual(created[0][0][1:], ("tcl_udp_ac", "command_not_sent_entry-1"))
+        self.assertEqual(created[0][1]["translation_key"], "command_not_sent")
+        self.assertEqual(created[0][1]["severity"], "error")
+        event_type, event = coordinator.hass.bus.events[-1]
+        self.assertEqual(event_type, "tcl_udp_ac_command_result")
+        self.assertEqual(event["outcome"], "not_sent")
+        self.assertEqual(event["entity_id"], "climate.bedroom_ac")
+        self.assertEqual(event["context_id"], "service-call-1")
+        self.assertEqual(coordinator.last_command_result, event)
+
+    def test_entity_helper_surfaces_unaccepted_delivery(self) -> None:
+        climate = load_integration_module("climate")
+        exceptions = sys.modules["homeassistant.exceptions"]
+
+        class FailedCoordinator:
+            def __init__(self) -> None:
+                self.config_entry = SimpleNamespace(
+                    runtime_data=SimpleNamespace(session=object())
+                )
+                self.refreshes = 0
+
+            async def async_confirm_pending_command(self, **_kwargs):
+                return True
+
+            async def async_report_command_delivery_failure(self, **_kwargs):
+                return True
+
+            async def async_request_refresh(self):
+                self.refreshes += 1
+
+        coordinator = FailedCoordinator()
+        with self.assertRaises(exceptions.HomeAssistantError):
+            asyncio.run(
+                climate._async_after_command(
+                    coordinator,
+                    entity_id="climate.bedroom_ac",
+                    context_id="service-call-1",
+                )
+            )
+        self.assertEqual(coordinator.refreshes, 0)
 
     def test_api_client_returns_power_command_receipt(self) -> None:
         client = self.api_mod.TclUdpApiClient(cloud_enabled=False)

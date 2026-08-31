@@ -19,9 +19,11 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
+from homeassistant.exceptions import HomeAssistantError
 
 from .config_settings import capabilities_for_entry, entry_value
 from .const import (
+    COMMAND_NOT_SENT_MESSAGE,
     CONF_ENABLE_AUTO_MODE,
     CONF_ENABLE_FAN_ONLY_MODE,
     DEFAULT_ENABLE_AUTO_MODE,
@@ -125,6 +127,14 @@ async def _async_after_command(
         elif (
             getattr(coordinator.config_entry.runtime_data, "session", None) is not None
         ):
+            reporter = getattr(
+                coordinator, "async_report_command_delivery_failure", None
+            )
+            if reporter is not None and await reporter(
+                entity_id=entity_id,
+                context_id=context_id,
+            ):
+                raise HomeAssistantError(COMMAND_NOT_SENT_MESSAGE)
             await coordinator.async_request_refresh()
         else:
             await confirm()

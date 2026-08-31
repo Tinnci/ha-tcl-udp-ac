@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.number import NumberEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import EntityCategory
 
 from .config_settings import capabilities_for_entry
+from .const import COMMAND_NOT_SENT_MESSAGE
 from .entity import TclUdpEntity
 from .protocol_profiles import NumberCapability
 
@@ -68,4 +70,13 @@ class TclUdpNumber(TclUdpEntity, NumberEntity):
         if confirm is not None and command_id is not None:
             await confirm(command_id=command_id)
         else:
+            reporter = getattr(
+                self.coordinator, "async_report_command_delivery_failure", None
+            )
+            context = getattr(self, "_context", None)
+            if reporter is not None and await reporter(
+                entity_id=self.entity_id,
+                context_id=getattr(context, "id", None),
+            ):
+                raise HomeAssistantError(COMMAND_NOT_SENT_MESSAGE)
             await self.coordinator.async_request_refresh()

@@ -87,6 +87,9 @@ CONF_CLOUD_ACCEPT_ENCODING = "cloud_accept_encoding"
 CONF_CLOUD_ACCEPT_LANGUAGE = "cloud_accept_language"
 CONF_ENABLE_FAN_ONLY_MODE = "enable_fan_only_mode"
 CONF_ENABLE_AUTO_MODE = "enable_auto_mode"
+COMMAND_NOT_SENT_MESSAGE = (
+    "The command was not accepted by the local or cloud transport"
+)
 
 # Account/auth config keys
 CONF_CLOUD_REFRESH_TOKEN = "cloud_refresh_token"  # noqa: S105
