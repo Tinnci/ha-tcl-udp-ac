@@ -84,6 +84,19 @@ Home Assistant stores the access token, refresh token, and account ID in config-
 An HTTP or UDP acceptance does not prove that the device applied a command.
 The integration confirms the command only when a later status value matches.
 
+Indoor temperature relative to a setpoint does not measure compressor activity.
+`hvac_mode` requires reported power and mode. Missing feedback remains unknown.
+`hvac_action` reports explicit power-off or powered fan-only operation; heating,
+cooling, drying, and thermostat idle remain unknown without conclusive activity
+feedback. The climate attribute `hvac_action_is_estimated: false` identifies this
+behavior for consumers that also support older releases with temperature-derived
+actions. Protocol 1 compressor and electrical diagnostics remain available as
+separate sensor entities.
+
+内机温度与设定温度的比较不能测量压缩机运行。缺失电源或模式反馈时保留未知；
+制热、制冷、除湿和恒温空闲不再由温差推算。明确报告的关机与通电送风仍可表示，
+Protocol 1 的压缩机、电气诊断继续作为独立传感器提供。
+
 ## Home Assistant entities
 
 | Platform | Purpose |

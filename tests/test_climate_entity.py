@@ -104,7 +104,7 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertTrue(features & self.climate.ClimateEntityFeature.TARGET_TEMPERATURE)
         self.assertTrue(features & self.climate.ClimateEntityFeature.TURN_ON)
         self.assertTrue(features & self.climate.ClimateEntityFeature.TURN_OFF)
-        self.assertIsNotNone(entity.hvac_action)
+        self.assertIsNone(entity.hvac_action)
 
     def test_default_hvac_modes_exclude_unverified_fan_and_auto(self) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator())
@@ -235,7 +235,7 @@ class ClimateEntityTest(unittest.TestCase):
         self.assertFalse(hasattr(entity, "current_humidity"))
         self.assertFalse(hasattr(entity, "target_humidity"))
 
-    def test_hvac_action_reports_cooling_when_above_cooling_setpoint(self) -> None:
+    def test_temperature_above_cooling_setpoint_does_not_prove_activity(self) -> None:
         entity = self.climate.TclUdpClimate(
             FakeCoordinator(
                 {
@@ -247,9 +247,9 @@ class ClimateEntityTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(entity.hvac_action, self.climate.HVACAction.COOLING)
+        self.assertIsNone(entity.hvac_action)
 
-    def test_hvac_action_reports_heating_when_below_heating_setpoint(self) -> None:
+    def test_temperature_below_heating_setpoint_does_not_prove_activity(self) -> None:
         entity = self.climate.TclUdpClimate(
             FakeCoordinator(
                 {
@@ -261,9 +261,9 @@ class ClimateEntityTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(entity.hvac_action, self.climate.HVACAction.HEATING)
+        self.assertIsNone(entity.hvac_action)
 
-    def test_hvac_action_reports_idle_when_setpoint_is_reached(self) -> None:
+    def test_reaching_setpoint_does_not_prove_compressor_idle(self) -> None:
         cool_entity = self.climate.TclUdpClimate(
             FakeCoordinator(
                 {
@@ -285,10 +285,10 @@ class ClimateEntityTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(cool_entity.hvac_action, self.climate.HVACAction.IDLE)
-        self.assertEqual(heat_entity.hvac_action, self.climate.HVACAction.IDLE)
+        self.assertIsNone(cool_entity.hvac_action)
+        self.assertIsNone(heat_entity.hvac_action)
 
-    def test_hvac_action_reports_mode_actions_for_dry_and_fan(self) -> None:
+    def test_fan_only_mode_is_known_but_dry_compressor_activity_is_not(self) -> None:
         dry_entity = self.climate.TclUdpClimate(
             FakeCoordinator({"power": True, "mode": "dehumi"})
         )
@@ -299,8 +299,27 @@ class ClimateEntityTest(unittest.TestCase):
             )
         )
 
-        self.assertEqual(dry_entity.hvac_action, self.climate.HVACAction.DRYING)
+        self.assertIsNone(dry_entity.hvac_action)
         self.assertEqual(fan_entity.hvac_action, self.climate.HVACAction.FAN)
+
+    def test_missing_power_feedback_does_not_confirm_off(self) -> None:
+        for data in ({}, {"mode": "cool"}, {"target_temp": 24.0}):
+            with self.subTest(data=data):
+                entity = self.climate.TclUdpClimate(FakeCoordinator(data))
+                self.assertIsNone(entity.hvac_action)
+                self.assertIsNone(entity.hvac_mode)
+
+    def test_reported_power_on_without_mode_does_not_imply_cooling(self) -> None:
+        for mode in (None, "unsupported"):
+            with self.subTest(mode=mode):
+                entity = self.climate.TclUdpClimate(FakeCoordinator({"power": True, "mode": mode}))
+                self.assertIsNone(entity.hvac_mode)
+                self.assertIsNone(entity.hvac_action)
+
+    def test_activity_metadata_distinguishes_removed_temperature_heuristic(self) -> None:
+        entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
+
+        self.assertEqual(entity.extra_state_attributes, {"hvac_action_is_estimated": False})
 
     def test_set_temperature_while_on_uses_grouped_current_mode_profile(self) -> None:
         coordinator = FakeCoordinator({"power": True, "mode": "cool"})

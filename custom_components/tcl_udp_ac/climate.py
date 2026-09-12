@@ -250,56 +250,31 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         return None
 
     @property
-    def hvac_mode(self) -> HVACMode:
-        """Return the current HVAC mode."""
-        data = self.coordinator.data
-        if not data:
+    def hvac_mode(self) -> HVACMode | None:
+        """Return the reported power and mode without guessing missing feedback."""
+        data = self.coordinator.data or {}
+        if data.get("power") is False:
             return HVACMode.OFF
-
-        pwr_val = data.get("power")
-        mode_val = data.get("mode")
-
-        # If power is explicitly OFF, return OFF regardless of mode
-        if pwr_val is False:
-            return HVACMode.OFF
-
-        # If power is explicitly ON (or not False), use the mode
-        if mode_val:
-            return HVAC_MODE_MAP_REV.get(mode_val, HVACMode.COOL)
-
-        # Power is ON but no mode info yet, default to COOL
-        if pwr_val is True:
-            return HVACMode.COOL
-
-        # If we have other signs of life but no power/mode tag,
-        # it's likely ON (most partial updates don't include power/mode)
-        if "target_temp" in data or "fan_speed" in data:
-            return HVACMode.COOL
-
-        # No data at all — assume OFF
-        return HVACMode.OFF
+        if data.get("power") is True:
+            return HVAC_MODE_MAP_REV.get(data.get("mode"))
+        return None
 
     @property
     def hvac_action(self) -> HVACAction | None:
-        """Return what the climate device is currently doing."""
+        """Return conclusive mode feedback without a thermostat-derived action."""
         mode = self.hvac_mode
         if mode == HVACMode.OFF:
             return HVACAction.OFF
-        if mode == HVACMode.DRY:
-            return HVACAction.DRYING
         if mode == HVACMode.FAN_ONLY:
             return HVACAction.FAN
+        # Indoor temperature and target do not observe compressor operation.
+        # Keep separately reported TSL diagnostics available in their own entities.
+        return None
 
-        current = self.current_temperature
-        target = self.target_temperature
-        if current is None or target is None:
-            return HVACAction.IDLE
-
-        if mode == HVACMode.COOL and current > target:
-            return HVACAction.COOLING
-        if mode == HVACMode.HEAT and current < target:
-            return HVACAction.HEATING
-        return HVACAction.IDLE
+    @property
+    def extra_state_attributes(self) -> dict[str, bool]:
+        """Let consumers distinguish this feedback from older temperature estimates."""
+        return {"hvac_action_is_estimated": False}
 
     @property
     def fan_mode(self) -> str | None:
