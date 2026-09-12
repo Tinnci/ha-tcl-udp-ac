@@ -2,83 +2,83 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version tag, for example v0.5.0"
+        description: Existing release tag, for example v0.11.0
         required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.version || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
-  package:
-    name: Package release
+  resolve:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Determine release version
-        id: release
-        shell: bash
+      - name: Resolve release tag
+        id: tag
         env:
-          VERSION_INPUT: ${{ inputs.version }}
+          TAG: ${{ inputs.version || github.ref_name }}
+        shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            version="${GITHUB_REF_NAME}"
-          else
-            version="${VERSION_INPUT}"
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be vX.Y.Z" >&2
+            exit 1
           fi
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Verify manifest version
-        shell: bash
+  tests:
+    needs: resolve
+    uses: ./.github/workflows/test.yml
+    with:
+      ref: refs/tags/${{ needs.resolve.outputs.tag }}
+  lint:
+    needs: resolve
+    uses: ./.github/workflows/lint.yml
+    with:
+      ref: refs/tags/${{ needs.resolve.outputs.tag }}
+  validate:
+    needs: resolve
+    uses: ./.github/workflows/validate.yml
+    with:
+      ref: refs/tags/${{ needs.resolve.outputs.tag }}
+
+  package:
+    name: Publish verified integration
+    needs: [resolve, tests, lint, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/tags/${{ needs.resolve.outputs.tag }}
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Build HACS archive
         env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          release_version = os.environ["RELEASE_VERSION"].removeprefix("v")
-          manifest = json.loads(
-              Path("custom_components/tcl_udp_ac/manifest.json").read_text()
-          )
-          manifest_version = str(manifest["version"])
-          if manifest_version != release_version:
-              raise SystemExit(
-                  f"manifest version {manifest_version} != release {release_version}"
-              )
-          PY
-
-      - name: Build release zip
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: |
-          mkdir -p dist
-          zip -r "dist/tcl_udp_ac-${RELEASE_VERSION}.zip" \
-            custom_components/tcl_udp_ac \
-            hacs.json \
-            README.md \
-            -x '*/__pycache__/*'
-
+          TAG: ${{ needs.resolve.outputs.tag }}
+        run: uv run --locked python scripts/build_release_package.py --tag "$TAG"
       - name: Publish GitHub release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ needs.resolve.outputs.tag }}
         run: |
-          asset="dist/tcl_udp_ac-${RELEASE_VERSION}.zip"
-          if gh release view "${RELEASE_VERSION}" >/dev/null 2>&1; then
-            gh release upload "${RELEASE_VERSION}" "${asset}" --clobber
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/tcl_udp_ac.zip --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "${RELEASE_VERSION}" "${asset}" \
-              --title "${RELEASE_VERSION}" \
-              --generate-notes
+            gh release create "$TAG" dist/tcl_udp_ac.zip \
+              --repo "$GITHUB_REPOSITORY" --verify-tag --title "TCL AC $TAG" --generate-notes
           fi

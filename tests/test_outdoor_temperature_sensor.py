@@ -98,7 +98,7 @@ class OutdoorTemperatureSensorTest(unittest.TestCase):
             self.assertTrue(entity.available)
             self.assertEqual(entity.native_value, 42)
             self.assertTrue(valve.available)
-            self.assertIs(valve.is_on, False)
+            self.assertIs(valve.is_on, expr2=False)
             self.assertEqual(
                 entity.extra_state_attributes["observation_source"], "cloud"
             )

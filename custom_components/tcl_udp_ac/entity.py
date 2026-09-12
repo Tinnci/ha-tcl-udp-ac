@@ -80,11 +80,13 @@ class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
         )
 
     async def async_added_to_hass(self) -> None:
+        """Start publication timing from the first registered state."""
         await super().async_added_to_hass()
         self._published_state = copy.deepcopy(self._publication_state())
         self._published_at = time.monotonic()
 
     async def async_will_remove_from_hass(self) -> None:
+        """Cancel pending publication before removing the entity."""
         if self._publish_unsub is not None:
             self._publish_unsub()
             self._publish_unsub = None

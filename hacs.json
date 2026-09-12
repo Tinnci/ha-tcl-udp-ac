@@ -3,5 +3,7 @@
     "content_in_root": false,
     "hacs": "2.0.0",
     "render_readme": true,
-    "homeassistant": "2024.1.0"
+    "homeassistant": "2026.6.3",
+    "zip_release": true,
+    "filename": "tcl_udp_ac.zip"
 }

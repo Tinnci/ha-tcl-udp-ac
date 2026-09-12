@@ -1,4 +1,7 @@
-colorlog==6.10.1
-homeassistant==2025.2.4
-pip>=26.1.2
+# Compatibility list; development and CI use pyproject.toml and uv.lock.
+aiohttp>=3.13.0
+cryptography==46.0.5
+pytest>=8.0.0
 ruff==0.15.21
+voluptuous>=0.15.2
+yarl>=1.18.3

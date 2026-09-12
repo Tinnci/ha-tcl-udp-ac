@@ -1,34 +1,49 @@
 name: Validate
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to verify
+        type: string
+        default: ""
   workflow_dispatch:
-  schedule:
-    - cron:  "0 0 * * *"
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  schedule:
+    - cron: "0 0 * * *"
 
-permissions: {}
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  hassfest: # https://developers.home-assistant.io/blog/2020/04/16/hassfest
+  hassfest:
     name: Hassfest validation
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout the repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: home-assistant/actions/hassfest@55b4a5d23e09d627c2773c2ef82afa98904d65b4 # master
 
-      - name: Run hassfest validation
-        uses: home-assistant/actions/hassfest@55b4a5d23e09d627c2773c2ef82afa98904d65b4 # master
-
-  hacs: # https://github.com/hacs/action
+  hacs:
     name: HACS validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Run HACS validation
-        uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      - uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
+        env:
+          REPOSITORY_REF: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
         with:
           category: integration
+          comment: false

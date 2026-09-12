@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.11.0 - 2026-09-13
+
+- Preserve per-field observation times and immutable snapshots. Cached fields,
+  late cloud replies and requests already in flight cannot confirm a new command.
+- Keep heating/cooling activity unknown without physical feedback. Temperature
+  differences no longer imply compressor activity.
+- Confirm encoded temperature targets and preserve quiet accessory settings.
+- Coalesce identical entity reports for at most 120 seconds while publishing all
+  real changes and availability transitions immediately; retain raw fan and valve
+  measurement statistics without invented units.
+- Prepare a component-root `tcl_udp_ac.zip` for HACS, require HA 2026.6.3+, and run
+  locked uv tests, full Ruff rules, Hassfest and HACS before publishing a tag.
+
+本版本收录家庭实机相关的反馈、静默控制与减写修复。发布包改为直接解压到
+`custom_components/tcl_udp_ac`；服务调用成功仍不等于设备已执行。
+
 ## 0.10.0 - 2026-08-31
 
 - Add Home Assistant config-entry diagnostics with protocol, capability, state,

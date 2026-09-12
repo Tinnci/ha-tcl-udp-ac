@@ -1,6 +1,6 @@
 # TCL Air Conditioner for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-0.10.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.11.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
 [![Test](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml)
 [![Validate](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)
@@ -10,6 +10,8 @@
 </p>
 
 Control supported TCL air conditioners from Home Assistant.
+
+Requires Home Assistant 2026.6.3 or later, the household version used for runtime verification.
 
 The integration selects a local UDP or TCL+ cloud protocol for each device.
 Legacy devices use local UDP first. Supported Protocol 1 devices use TCL+ TSL cloud control.
@@ -170,10 +172,13 @@ HACS accepts custom repositories that use a supported repository structure (2).
 
 ### Manual installation
 
-1. Download `tcl_udp_ac-vX.Y.Z.zip` from the [latest release](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest).
-2. Extract the archive.
-3. Copy `custom_components/tcl_udp_ac` to `/config/custom_components/tcl_udp_ac`.
+1. Download `tcl_udp_ac.zip` from the [latest release](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest).
+2. Extract its contents directly into `/config/custom_components/tcl_udp_ac`.
+3. Confirm that `manifest.json` is directly inside that directory.
 4. Restart Home Assistant.
+
+Version 0.11.0 introduces the fixed HACS filename and component-root archive.
+Earlier release archives contain an extra `custom_components/tcl_udp_ac` directory.
 
 HACS also installs custom integrations under `custom_components` (3).
 
@@ -293,18 +298,18 @@ account and device identifiers, names, rooms, entity IDs, and context IDs.
 - [Legacy mode evidence](docs/protocol_truth/legacy_2743138_mode_profiles.md)
 - [Brand asset provenance](docs/branding.md)
 - [Local verification tools](tools/README.md)
+- [Release preparation / 发布准备](docs/releasing.md)
 
 ## Development
 
 Use `uv` for the Python environment and test commands.
 
 ```bash
-uv run --with aiohttp --with 'cryptography==46.0.5' \
-  --with voluptuous --with yarl \
-  python -m unittest discover -s tests
-
+uv sync --locked --group dev
+uv run pytest
 uv run python -m compileall -q custom_components/tcl_udp_ac tests
-uv run --with ruff ruff check --select F,I,N custom_components/tcl_udp_ac tests
+uv run ruff check
+uv run ruff format --check .
 git diff --check
 ```
 
