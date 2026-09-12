@@ -37,6 +37,7 @@ class DiagnosticSensorCapability:
     native_unit: str | None = None
     device_class: str | None = None
     state_class: str | None = None
+    entity_registry_enabled_default: bool = True
 
 
 @dataclass(frozen=True)
@@ -266,10 +267,16 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
             "measurement",
         ),
         DiagnosticSensorCapability(
-            "internal_fan_speed", "internal_fan_speed", "mdi:fan"
+            "internal_fan_speed",
+            "internal_fan_speed",
+            "mdi:fan",
+            state_class="measurement",
         ),
         DiagnosticSensorCapability(
-            "external_fan_speed", "external_fan_speed", "mdi:fan"
+            "external_fan_speed",
+            "external_fan_speed",
+            "mdi:fan",
+            state_class="measurement",
         ),
         DiagnosticSensorCapability(
             "internal_fan_gear", "internal_fan_gear", "mdi:fan-speed-1"
@@ -300,16 +307,27 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
         DiagnosticSensorCapability(
             "self_clean_status", "self_clean_status", "mdi:air-filter"
         ),
-        DiagnosticSensorCapability("expansion_valve", "expansion_valve", "mdi:valve"),
-        DiagnosticSensorCapability("tsl_version", "tsl_version", "mdi:code-tags"),
         DiagnosticSensorCapability(
-            "tsl_request_version", "tsl_request_version", "mdi:code-tags"
+            "expansion_valve", "expansion_valve", "mdi:valve", state_class="measurement"
+        ),
+        DiagnosticSensorCapability(
+            "tsl_version",
+            "tsl_version",
+            "mdi:code-tags",
+            entity_registry_enabled_default=False,
+        ),
+        DiagnosticSensorCapability(
+            "tsl_request_version",
+            "tsl_request_version",
+            "mdi:code-tags",
+            entity_registry_enabled_default=False,
         ),
         DiagnosticSensorCapability(
             "tsl_query_time",
             "tsl_query_time",
             "mdi:clock-outline",
             device_class="timestamp",
+            entity_registry_enabled_default=False,
         ),
         DiagnosticSensorCapability(
             "ai_control_source", "ai_control_source", "mdi:robot"

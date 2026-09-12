@@ -63,11 +63,23 @@ class TclUdpDiagnosticSensor(TclUdpEntity, SensorEntity):
         self._attr_translation_key = capability.translation_key
         self._attr_unique_id = self._entity_unique_id(capability.data_key)
         self._attr_icon = capability.icon
+        self._attr_entity_registry_enabled_default = (
+            capability.entity_registry_enabled_default
+        )
         self._attr_native_unit_of_measurement = capability.native_unit
         if capability.device_class:
             self._attr_device_class = SensorDeviceClass(capability.device_class)
         if capability.state_class:
             self._attr_state_class = SensorStateClass(capability.state_class)
+
+    def _publication_state(self) -> tuple:
+        available, value, attrs = super()._publication_state()
+        # Query timestamps are traffic diagnostics rather than physical changes.
+        return (
+            available,
+            None if self._capability.device_class == "timestamp" else value,
+            attrs,
+        )
 
     @property
     def available(self) -> bool:

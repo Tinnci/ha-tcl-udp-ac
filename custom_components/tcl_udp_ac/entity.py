@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import copy
 import time
+from collections.abc import Callable
+from datetime import datetime
 from typing import Any
 
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .config_settings import entry_value
@@ -18,6 +23,17 @@ from .const import (
 from .coordinator import TclUdpDataUpdateCoordinator
 from .device_state import DeviceState
 
+REPORT_INTERVAL = 120.0
+_RECEIPT_ATTRIBUTES = frozenset(
+    {
+        "observed_at",
+        "hvac_mode_observed_at",
+        "hvac_action_observed_at",
+        "current_temperature_observed_at",
+        "current_humidity_observed_at",
+    }
+)
+
 
 class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
     """TclUdpEntity class."""
@@ -25,6 +41,9 @@ class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
     def __init__(self, coordinator: TclUdpDataUpdateCoordinator) -> None:
         """Initialize."""
         super().__init__(coordinator)
+        self._published_state: tuple | None = None
+        self._published_at = 0.0
+        self._publish_unsub: Callable[[], None] | None = None
         device_id = self._device_identifier()
         entry = coordinator.config_entry
         self._attr_has_entity_name = True
@@ -46,6 +65,54 @@ class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
         if room:
             device_info["suggested_area"] = room
         self._attr_device_info = device_info
+
+    def _publication_state(self) -> tuple:
+        """Compare all entity values while retaining receipt times in published states."""
+        attrs = {**(self.state_attributes or {}), **(self.extra_state_attributes or {})}
+        return (
+            self.available,
+            self.state,
+            {
+                key: value
+                for key, value in attrs.items()
+                if key not in _RECEIPT_ATTRIBUTES
+            },
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._published_state = copy.deepcopy(self._publication_state())
+        self._published_at = time.monotonic()
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._publish_unsub is not None:
+            self._publish_unsub()
+            self._publish_unsub = None
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Coalesce duplicate entity reports without delaying command reconciliation."""
+        elapsed = time.monotonic() - self._published_at
+        if (
+            self._publication_state() != self._published_state
+            or elapsed >= REPORT_INTERVAL
+        ):
+            self._publish_report()
+        elif self._publish_unsub is None:
+            self._publish_unsub = async_call_later(
+                self.hass, REPORT_INTERVAL - elapsed, self._publish_report
+            )
+
+    @callback
+    def _publish_report(self, _now: datetime | None = None) -> None:
+        if self._publish_unsub is not None:
+            self._publish_unsub()
+            self._publish_unsub = None
+        # Use the latest snapshot's receipt times, never the publication clock.
+        self._published_state = copy.deepcopy(self._publication_state())
+        self._published_at = time.monotonic()
+        self.async_write_ha_state()
 
     def _state_snapshot(self) -> DeviceState | None:
         """Read one detached snapshot from the device session when available."""

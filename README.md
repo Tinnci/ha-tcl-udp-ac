@@ -127,6 +127,22 @@ values are immutable; compatibility dictionaries remain detached copies.
 
 ## Home Assistant entities
 
+Distinct states, setpoints, physical attributes, sources and availability changes
+publish immediately. Repeated identical feedback is coalesced for up to 120 seconds;
+a pending callback publishes the last received snapshot even if the device then
+falls silent. Report timestamps remain in HA history. Command confirmation and
+context-correlated evidence use the newest internal observations independently.
+
+Protocol versions and query-time diagnostics are disabled by default for new
+registrations. Existing entity choices are preserved. Physical measurements,
+faults, power feedback and valve readings remain enabled. Numeric fan and
+expansion-valve readings support long-term measurement statistics on their raw
+scale, without an invented unit.
+
+重复观测最多合并 120 秒，所有实际变化与失效恢复立即发布；指令确认仍读取最新内部
+观测。纯协议元数据在新注册时默认禁用，已有启用选择保留。风机与膨胀阀按报告原始数值
+保留长期统计，不虚构 RPM 或百分比单位。
+
 | Platform | Purpose |
 | --- | --- |
 | `climate` | Power, mode, temperature, fan, and swing control |

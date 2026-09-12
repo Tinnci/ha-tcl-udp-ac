@@ -36,6 +36,7 @@ def install_homeassistant_stubs() -> None:
     update_coordinator = types.ModuleType("homeassistant.helpers.update_coordinator")
     issue_registry = types.ModuleType("homeassistant.helpers.issue_registry")
     entity = types.ModuleType("homeassistant.helpers.entity")
+    event = types.ModuleType("homeassistant.helpers.event")
     loader = types.ModuleType("homeassistant.loader")
 
     def _async_redact_data(value, keys):
@@ -108,6 +109,12 @@ def install_homeassistant_stubs() -> None:
 
         def __init__(self, coordinator):
             self.coordinator = coordinator
+
+        async def async_added_to_hass(self):
+            pass
+
+        async def async_will_remove_from_hass(self):
+            pass
 
     class DataUpdateCoordinator:
         def __init__(self, **kwargs):
@@ -230,6 +237,7 @@ def install_homeassistant_stubs() -> None:
     config_entries.OptionsFlow = OptionsFlow
     config_entries.ConfigFlowResult = dict
     core.callback = lambda func: func
+    event.async_call_later = lambda *_args: lambda: None
     core.HomeAssistant = object
     exceptions.ConfigEntryNotReady = ConfigEntryNotReady
     exceptions.ConfigEntryAuthFailed = ConfigEntryAuthFailed
@@ -247,6 +255,7 @@ def install_homeassistant_stubs() -> None:
     loader.async_get_loaded_integration = lambda _hass, _domain: None
 
     sys.modules["homeassistant"] = ha
+    sys.modules["homeassistant.helpers.event"] = event
     sys.modules["homeassistant.components"] = components
     sys.modules["homeassistant.components.climate"] = climate
     sys.modules["homeassistant.components.binary_sensor"] = binary_sensor
