@@ -82,6 +82,8 @@ class DeviceCapabilities:
     diagnostic_sensors: tuple[DiagnosticSensorCapability, ...] = ()
     binary_diagnostics: tuple[BinaryDiagnosticCapability, ...] = ()
     numbers: tuple[NumberCapability, ...] = ()
+    target_temp_step_c: float = 0.5
+    target_temp_tolerance_c: float = 0.15
 
 
 def _default_switch_capabilities() -> dict[str, SwitchCapability]:
@@ -138,11 +140,13 @@ def _default_switch_capabilities() -> dict[str, SwitchCapability]:
 
 DEFAULT_CAPABILITIES = DeviceCapabilities(
     switches=_default_switch_capabilities(),
+    target_temp_tolerance_c=LegacyTemperatureCodec.REPORT_TOLERANCE_C,
 )
 
 LEGACY_2743138_CAPABILITIES = DeviceCapabilities(
     experimental_hvac_modes=(MODE_FAN,),
     switches=_default_switch_capabilities(),
+    target_temp_tolerance_c=LegacyTemperatureCodec.REPORT_TOLERANCE_C,
 )
 
 TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
@@ -390,7 +394,14 @@ class ProtocolProfile:
                 rationale="Default profile preserves standalone temperature writes.",
             ),
             requires_power_on=True,
-            expected_status={"target_temp": target_temperature},
+            expected_status={
+                "target_temp": LegacyTemperatureCodec.normalize(
+                    target_temperature, fallback_celsius=target_temperature
+                )
+            },
+            status_tolerances={
+                "target_temp": LegacyTemperatureCodec.REPORT_TOLERANCE_C
+            },
         )
 
     def parse_base_mode(self, base_mode: Any) -> str | None:
@@ -599,7 +610,16 @@ class Legacy2743138Profile(ProtocolProfile):
                 payload=payload,
                 evidence=self._evidence(mode),
                 requires_power_on=True,
-                expected_status={"power": True, "mode": mode},
+                expected_status={
+                    "power": True,
+                    "mode": mode,
+                    "target_temp": LegacyTemperatureCodec.normalize(
+                        target_temperature, fallback_celsius=fallback
+                    ),
+                },
+                status_tolerances={
+                    "target_temp": LegacyTemperatureCodec.REPORT_TOLERANCE_C
+                },
             )
 
         msg = f"Unsupported legacy mode: {mode}"
@@ -645,7 +665,12 @@ class Legacy2743138Profile(ProtocolProfile):
             requires_power_on=True,
             expected_status={
                 "mode": current_mode,
-                "target_temp": target_temperature,
+                "target_temp": LegacyTemperatureCodec.normalize(
+                    target_temperature, fallback_celsius=target_temperature
+                ),
+            },
+            status_tolerances={
+                "target_temp": LegacyTemperatureCodec.REPORT_TOLERANCE_C
             },
         )
 

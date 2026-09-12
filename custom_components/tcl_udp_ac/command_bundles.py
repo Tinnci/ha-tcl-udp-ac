@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
@@ -76,11 +76,15 @@ class CommandReceipt:
     intent: str
     expected_status: Mapping[str, Any]
     delivery: TransportDelivery
+    status_tolerances: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Isolate and freeze the expected status projection."""
         values = deepcopy(dict(self.expected_status))
         object.__setattr__(self, "expected_status", MappingProxyType(values))
+        object.__setattr__(
+            self, "status_tolerances", MappingProxyType(dict(self.status_tolerances))
+        )
 
 
 @dataclass(frozen=True)
@@ -116,6 +120,7 @@ class TclCommandBundle:
     transport: CommandTransport = CommandTransport.LEGACY_XML
     module_id: str | None = None
     source_type: str | None = None
+    status_tolerances: dict[str, float] = field(default_factory=dict)
 
     def to_command_items(self) -> list[tuple[str, str]]:
         """Convert protocol fields to integration command item names."""

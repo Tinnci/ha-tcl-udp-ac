@@ -46,6 +46,33 @@ class LegacyTemperatureCodecTest(unittest.TestCase):
 
         self.assertLessEqual(abs(round_trip - 23.5), 0.25)
 
+    def test_every_half_degree_target_fits_the_profile_confirmation_tolerance(
+        self,
+    ) -> None:
+        profiles = load_integration_module("protocol_profiles")
+        coordinator_type = load_integration_module(
+            "coordinator"
+        ).TclUdpDataUpdateCoordinator
+        coordinator = object.__new__(coordinator_type)
+        profile = profiles.resolve_protocol_profile("2743138")
+        for half in range(32, 63):
+            with self.subTest(target=half / 2):
+                bundle = profile.build_temperature_command(
+                    half / 2, current_mode="cool"
+                )
+                decoded = round(
+                    self.codec.fahrenheit_to_celsius(float(bundle.payload["setTemp"])),
+                    1,
+                )
+                decoded += 0.5 * int(bundle.payload["degreeH"])
+                self.assertTrue(
+                    coordinator._command_matches(
+                        bundle.expected_status,
+                        {"mode": "cool", "target_temp": decoded},
+                        bundle.status_tolerances,
+                    )
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

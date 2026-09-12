@@ -274,9 +274,14 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         return None
 
     @property
-    def extra_state_attributes(self) -> dict[str, bool | str | None]:
+    def extra_state_attributes(self) -> dict[str, bool | str | float | None]:
         """Let consumers distinguish this feedback from older temperature estimates."""
-        attrs: dict[str, bool | str | None] = {"hvac_action_is_estimated": False}
+        capabilities = self._capabilities()
+        attrs: dict[str, bool | str | float | None] = {
+            "hvac_action_is_estimated": False,
+            "target_temp_step_c": capabilities.target_temp_step_c,
+            "target_temp_tolerance_c": capabilities.target_temp_tolerance_c,
+        }
         snapshot = self._state_snapshot()
         if snapshot is not None:
             required = (
@@ -326,6 +331,18 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         hvac_mode = kwargs.get("hvac_mode")
         client = _device_api(self.coordinator)
+
+        # A same-mode temperature adjustment must not replay a mode bundle:
+        # legacy mode bundles reset fan speed, undoing a quiet fan selection.
+        current_mode = self.hvac_mode
+        if (
+            temperature is not None
+            and current_mode in (HVACMode.COOL, HVACMode.HEAT)
+            and (hvac_mode is None or hvac_mode == current_mode)
+        ):
+            command_id = await client.async_set_temperature(float(temperature))
+            await self._async_after_device_command(command_id)
+            return
 
         if hvac_mode is not None:
             try:

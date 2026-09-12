@@ -54,6 +54,35 @@ class CommandConfirmationTest(unittest.TestCase):
         self.api_mod = load_integration_module("api")
         self.issue_registry = sys.modules["homeassistant.helpers.issue_registry"]
 
+    def test_legacy_mode_and_temperature_require_temperature_feedback(self) -> None:
+        profiles = load_integration_module("protocol_profiles")
+        bundle = profiles.resolve_protocol_profile("2743138").build_mode_command(
+            "cool", target_temperature=23.5
+        )
+        client = FakeClient(bundle.expected_status)
+        coordinator = self.make_coordinator(
+            client, [{"power": True, "mode": "cool", "target_temp": 26.0}]
+        )
+
+        confirmed = asyncio.run(coordinator.async_confirm_pending_command(timeout=0))
+
+        self.assertFalse(confirmed)
+
+    def test_protocol_temperature_tolerance_does_not_accept_a_different_half_degree(
+        self,
+    ) -> None:
+        for actual, expected in ((22.2, True), (22.5, False), (21.5, False)):
+            with self.subTest(actual=actual):
+                client = FakeClient({"target_temp": 22.0})
+                client._pending["status_tolerances"] = {"target_temp": 0.25}
+                coordinator = self.make_coordinator(client, [{"target_temp": actual}])
+
+                confirmed = asyncio.run(
+                    coordinator.async_confirm_pending_command(timeout=0)
+                )
+
+                self.assertEqual(confirmed, expected)
+
     def make_coordinator(self, client, statuses):
         coordinator = object.__new__(self.coordinator_mod.TclUdpDataUpdateCoordinator)
         coordinator.data = statuses[0] if statuses else {}

@@ -1400,6 +1400,7 @@ class TclUdpApiClient:
             intent=bundle.intent,
             expected_status=dict(bundle.expected_status),
             delivery=delivery,
+            status_tolerances=dict(bundle.status_tolerances),
         )
 
     async def async_set_power(self, *, power: bool) -> CommandReceipt:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import issue_registry as ir
@@ -30,21 +31,26 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
     config_entry: TclUdpConfigEntry
 
     @staticmethod
-    def _value_matches(expected: Any, actual: Any) -> bool:
+    def _value_matches(expected: Any, actual: Any, tolerance: float = 0.15) -> bool:
         if actual is None:
             return False
         if isinstance(expected, bool):
             return bool(actual) is expected
         try:
-            return abs(float(expected) - float(actual)) <= 0.15
+            return abs(float(expected) - float(actual)) <= tolerance
         except (TypeError, ValueError):
             return str(actual) == str(expected)
 
     def _command_matches(
-        self, expected_status: dict[str, Any], status: dict[str, Any]
+        self,
+        expected_status: dict[str, Any],
+        status: dict[str, Any],
+        status_tolerances: Mapping[str, float] | None = None,
     ) -> bool:
         return all(
-            self._value_matches(expected, status.get(key))
+            self._value_matches(
+                expected, status.get(key), (status_tolerances or {}).get(key, 0.15)
+            )
             for key, expected in expected_status.items()
         )
 
@@ -60,6 +66,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         transport_attempts: dict[str, str] | None = None,
         entity_id: str | None = None,
         context_id: str | None = None,
+        status_tolerances: Mapping[str, float] | None = None,
     ) -> None:
         payload = {
             "entry_id": self.config_entry.entry_id,
@@ -72,6 +79,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             "transport_attempts": dict(transport_attempts or {}),
             "entity_id": entity_id,
             "context_id": context_id,
+            "status_tolerances": dict(status_tolerances or {}),
         }
         self._last_command_result = payload
         hass = getattr(self, "hass", None)
@@ -227,6 +235,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
 
         intent = str(pending.get("intent") or "unknown")
         expected_status = pending.get("expected_status") or {}
+        status_tolerances = pending.get("status_tolerances") or {}
         transport_outcome = str(pending.get("transport_outcome") or "unknown")
         transport_attempts = pending.get("transport_attempts") or {}
         entity_id = pending.get("entity_id")
@@ -248,7 +257,9 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                 confirmation_status = snapshot.observed_since(pending["started_at"])
             else:
                 confirmation_status = status
-            if self._command_matches(expected_status, confirmation_status):
+            if self._command_matches(
+                expected_status, confirmation_status, status_tolerances
+            ):
                 self._clear_pending_command(client, command_id)
                 self._delete_command_issue()
                 self._fire_command_event(
@@ -261,6 +272,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                     transport_attempts=transport_attempts,
                     entity_id=entity_id,
                     context_id=context_id,
+                    status_tolerances=status_tolerances,
                 )
                 return True
 
@@ -284,6 +296,7 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
             outcome="not_confirmed",
             intent=intent,
             expected_status=expected_status,
+            status_tolerances=status_tolerances,
             status=status,
             transport_outcome=transport_outcome,
             transport_attempts=transport_attempts,

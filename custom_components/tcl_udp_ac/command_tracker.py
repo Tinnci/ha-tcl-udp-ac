@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .command_bundles import CommandReceipt
@@ -22,6 +22,7 @@ class PendingCommand:
     started_at: float
     entity_id: str | None = None
     context_id: str | None = None
+    status_tolerances: dict[str, float] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         """Return the compatibility dictionary used by existing callers."""
@@ -35,6 +36,7 @@ class PendingCommand:
             "started_at": self.started_at,
             "entity_id": self.entity_id,
             "context_id": self.context_id,
+            "status_tolerances": dict(self.status_tolerances),
         }
 
 
@@ -60,6 +62,7 @@ class CommandTracker:
             transport_attempts=receipt.delivery.as_dict(),
             created_at=time.time(),
             started_at=time.monotonic() if started_at is None else started_at,
+            status_tolerances=dict(receipt.status_tolerances),
         )
         return command_id
 

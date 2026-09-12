@@ -6,6 +6,7 @@ import asyncio
 import sys
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
@@ -241,6 +242,29 @@ class SwitchEntityTest(unittest.TestCase):
 
         self.assertFalse(entity.available)
         self.assertIsNone(entity.is_on)
+
+    def test_old_beeper_feedback_expires_even_while_temperature_reports_arrive(
+        self,
+    ) -> None:
+        from tests.test_device_session import FakeTransportClient
+
+        state_mod = load_integration_module("device_state")
+        session_mod = load_integration_module("device_session")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        session.observe(state_mod.StateSource.UDP, {"beep": False}, received_at=10)
+        coordinator = FakeCoordinator()
+        coordinator.config_entry.runtime_data.session = session
+        coordinator.data = session.observe(
+            state_mod.StateSource.UDP, {"current_temp": 24.0}, received_at=400
+        )
+        entity = self.switch.TclUdpSwitch(
+            coordinator, "beepEn", "beep", "Beep", "mdi:volume-high"
+        )
+
+        with patch("time.monotonic", return_value=400):
+            self.assertFalse(entity.available)
+            self.assertIsNone(entity.is_on)
+            self.assertIsNotNone(entity.extra_state_attributes["observed_at"])
 
 
 if __name__ == "__main__":

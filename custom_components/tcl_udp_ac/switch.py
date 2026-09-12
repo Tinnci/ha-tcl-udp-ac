@@ -130,7 +130,7 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
         if not base_available:
             return False
 
-        data = self.coordinator.data or {}
+        data = self._reported_state()
         if self._data_key not in data:
             return False
 
@@ -148,9 +148,12 @@ class TclUdpSwitch(TclUdpEntity, SwitchEntity):
     @property
     def is_on(self) -> bool | None:
         """Return true if the switch is on."""
-        if self.coordinator.data:
-            return self.coordinator.data.get(self._data_key)
-        return None
+        return self._reported_state().get(self._data_key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None] | None:
+        """Expose the accessory's own report time, including when it expires."""
+        return self._observation_attributes(self._data_key)
 
     async def async_turn_on(self, **_kwargs: Any) -> None:
         """Turn the switch on."""

@@ -8,6 +8,15 @@ class LegacyTemperatureCodec:
 
     MIN_CELSIUS = 16.0
     MAX_CELSIUS = 31.0
+    # Integer Fahrenheit plus the half-Celsius flag can report a nominal
+    # half-degree target up to 0.2 C away after decoding to one decimal place.
+    REPORT_TOLERANCE_C = 0.25
+
+    @classmethod
+    def normalize(cls, temp_c: float | None, *, fallback_celsius: float) -> float:
+        """Return the nominal half-degree setpoint represented by a command."""
+        target = float(temp_c) if cls.is_valid_celsius(temp_c) else fallback_celsius
+        return round(target * 2) / 2
 
     @staticmethod
     def fahrenheit_to_celsius(temp_f: float) -> float:

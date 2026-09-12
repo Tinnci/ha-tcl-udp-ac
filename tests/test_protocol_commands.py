@@ -450,6 +450,43 @@ class EntityCommandTest(unittest.TestCase):
         )
         self.assertEqual(receipt.delivery.outcome, "accepted_by_cloud")
 
+    def test_legacy_temperature_receipt_preserves_protocol_tolerance_and_quiet_fields(
+        self,
+    ) -> None:
+        profiles = load_integration_module("protocol_profiles")
+        bundles = load_integration_module("command_bundles")
+        tracker_type = load_integration_module("command_tracker").CommandTracker
+        client = object.__new__(self.api.TclUdpApiClient)
+        calls = []
+
+        async def send_commands(items):
+            calls.append(items)
+            return bundles.TransportDelivery(udp=bundles.TransportAttempt.ACCEPTED)
+
+        client.async_send_commands = send_commands
+        bundle = profiles.resolve_protocol_profile("2743138").build_temperature_command(
+            22.0, current_mode="cool"
+        )
+        receipt = asyncio.run(client.async_send_command_bundle(bundle))
+        tracker = tracker_type()
+        command_id = tracker.record(receipt)
+
+        self.assertEqual(set(dict(calls[0])), {"SetTemp", "DegreeH", "Opt_super"})
+        self.assertEqual(receipt.expected_status, {"mode": "cool", "target_temp": 22.0})
+        self.assertEqual(
+            tracker.pending(command_id).as_dict()["status_tolerances"],
+            {"target_temp": 0.25},
+        )
+
+    def test_tsl_temperature_retains_native_celsius_confirmation_precision(
+        self,
+    ) -> None:
+        profiles = load_integration_module("protocol_profiles")
+        bundle = profiles.resolve_protocol_profile(
+            "45816970"
+        ).build_temperature_command(22.0)
+        self.assertEqual(bundle.status_tolerances, {})
+
     def test_tsl_bundle_send_failure_does_not_record_pending_confirmation(
         self,
     ) -> None:

@@ -390,14 +390,57 @@ class ClimateEntityTest(unittest.TestCase):
         entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
 
         self.assertEqual(
-            entity.extra_state_attributes, {"hvac_action_is_estimated": False}
+            entity.extra_state_attributes,
+            {
+                "hvac_action_is_estimated": False,
+                "target_temp_step_c": 0.5,
+                "target_temp_tolerance_c": 0.25,
+            },
         )
 
-    def test_set_temperature_while_on_uses_grouped_current_mode_profile(self) -> None:
+    def test_temperature_representation_metadata_uses_profile_native_units(
+        self,
+    ) -> None:
+        coordinator = FakeCoordinator(entry_data={"cloud_product_key": "1112013595N"})
+        entity = self.climate.TclUdpClimate(coordinator)
+        self.assertEqual(entity.extra_state_attributes["target_temp_step_c"], 0.5)
+        self.assertEqual(entity.extra_state_attributes["target_temp_tolerance_c"], 0.15)
+
+    def test_set_temperature_while_on_preserves_fan_and_accessory_settings(
+        self,
+    ) -> None:
         coordinator = FakeCoordinator({"power": True, "mode": "cool"})
         entity = self.climate.TclUdpClimate(coordinator)
 
         asyncio.run(entity.async_set_temperature(temperature=23.5))
+
+        self.assertEqual(
+            coordinator.client.calls,
+            [("async_set_temperature", {"temperature": 23.5})],
+        )
+        self.assertEqual(coordinator.refresh_count, 1)
+
+    def test_temperature_with_unchanged_explicit_mode_uses_standalone_write(
+        self,
+    ) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "cool"})
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        asyncio.run(entity.async_set_temperature(temperature=23.5, hvac_mode="cool"))
+
+        self.assertEqual(
+            coordinator.client.calls,
+            [("async_set_temperature", {"temperature": 23.5})],
+        )
+        self.assertEqual(coordinator.refresh_count, 1)
+
+    def test_explicit_mode_change_still_uses_a_power_mode_temperature_bundle(
+        self,
+    ) -> None:
+        coordinator = FakeCoordinator({"power": True, "mode": "heat"})
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        asyncio.run(entity.async_set_temperature(temperature=23.5, hvac_mode="cool"))
 
         self.assertEqual(
             coordinator.client.calls,
@@ -408,7 +451,6 @@ class ClimateEntityTest(unittest.TestCase):
                 )
             ],
         )
-        self.assertEqual(coordinator.refresh_count, 1)
 
     def test_set_temperature_without_current_mode_uses_temperature_service(
         self,
