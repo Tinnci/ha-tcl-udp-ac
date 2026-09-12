@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import UTC, datetime, timedelta
 
 from tests.test_protocol_commands import load_integration_module
 
@@ -150,6 +151,92 @@ class StateReducerTest(unittest.TestCase):
             reducer.as_dict()["energy_statistics"]["energy_kwh"],
             3.4,
         )
+
+    def test_snapshot_nested_values_cannot_change_while_shared(self) -> None:
+        """Consumers must not be able to rewrite a retained observation snapshot."""
+        reducer = self.state.StateReducer()
+        snapshot = reducer.apply(
+            self.state.Observation(
+                source=self.state.StateSource.DERIVED,
+                received_at=1,
+                values={"energy_statistics": {"energy_kwh": 3.4}},
+            )
+        )
+
+        with self.assertRaises(TypeError):
+            snapshot.values["energy_statistics"]["energy_kwh"] = 99
+
+    def test_partial_reports_retain_per_field_receipt_time_and_source(self) -> None:
+        """A new field must not refresh the evidence attached to existing fields."""
+        reducer = self.state.StateReducer()
+        first_at = datetime(2026, 9, 12, tzinfo=UTC)
+        first = reducer.apply(
+            self.state.Observation(
+                source=self.state.StateSource.CLOUD,
+                received_at=10,
+                received_at_utc=first_at,
+                values={"compressor_frequency": 42},
+            )
+        )
+        latest = reducer.apply(
+            self.state.Observation(
+                source=self.state.StateSource.UDP,
+                received_at=400,
+                received_at_utc=first_at + timedelta(seconds=390),
+                values={"power": True},
+            )
+        )
+
+        self.assertEqual(
+            latest.observations["compressor_frequency"],
+            first.observations["compressor_frequency"],
+        )
+        self.assertEqual(latest.fresh_values(400), {"power": True})
+        self.assertEqual(
+            latest.observed_at("compressor_frequency"), first_at.isoformat()
+        )
+        self.assertEqual(first.as_dict(), {"compressor_frequency": 42})
+        with self.assertRaises(TypeError):
+            latest.observations["power"] = first.observations["compressor_frequency"]
+
+    def test_repeated_equal_report_can_confirm_without_a_value_change(self) -> None:
+        """Confirmation needs a new report, not necessarily a changed value."""
+        reducer = self.state.StateReducer()
+        for timestamp in (10, 20):
+            snapshot = reducer.apply(
+                self.state.Observation(
+                    source=self.state.StateSource.UDP,
+                    received_at=timestamp,
+                    values={"power": False},
+                )
+            )
+
+        self.assertEqual(snapshot.observed_since(15), {"power": False})
+
+    def test_late_cloud_response_cannot_replace_a_newer_requested_snapshot(
+        self,
+    ) -> None:
+        """Responses arriving out of request order must not rewind physical state."""
+        reducer = self.state.StateReducer()
+        reducer.apply(
+            self.state.Observation(
+                source=self.state.StateSource.CLOUD,
+                requested_at=20,
+                received_at=21,
+                values={"power": False},
+            )
+        )
+        snapshot = reducer.apply(
+            self.state.Observation(
+                source=self.state.StateSource.CLOUD,
+                requested_at=10,
+                received_at=22,
+                values={"power": True},
+            )
+        )
+
+        self.assertEqual(snapshot.as_dict(), {"power": False})
+        self.assertEqual(snapshot.observations["power"].received_at, 21)
 
 
 if __name__ == "__main__":

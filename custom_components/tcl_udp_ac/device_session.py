@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Coroutine
+from datetime import UTC, datetime
 from inspect import isawaitable
 from typing import Any
 
 from .command_bundles import CommandReceipt
 from .command_tracker import CommandTracker
-from .device_state import Observation, StateReducer, StateSource
+from .device_state import DeviceState, Observation, StateReducer, StateSource
 
 
 class DeviceSession:
@@ -40,10 +42,23 @@ class DeviceSession:
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start transport listeners and normalize local push updates."""
         self._status_callback = status_callback
-        await self._client.async_start_listener(self._async_handle_udp_status)
+        await self._client.async_start_listener(self._handle_udp_status)
 
-    async def _async_handle_udp_status(self, status: dict[str, Any]) -> None:
-        snapshot = self.observe(StateSource.UDP, status)
+    def _handle_udp_status(self, status: dict[str, Any]) -> Coroutine[Any, Any, None]:
+        """Capture receipt time before the transport queues its async callback."""
+        return self._async_observe_udp_status(
+            status, time.monotonic(), datetime.now(UTC)
+        )
+
+    async def _async_observe_udp_status(
+        self, status: dict[str, Any], received_at: float, received_at_utc: datetime
+    ) -> None:
+        snapshot = self.observe(
+            StateSource.UDP,
+            status,
+            received_at=received_at,
+            received_at_utc=received_at_utc,
+        )
         if self._status_callback is not None:
             result = self._status_callback(snapshot)
             if isawaitable(result):
@@ -55,6 +70,8 @@ class DeviceSession:
         values: dict[str, Any],
         *,
         received_at: float | None = None,
+        received_at_utc: datetime | None = None,
+        requested_at: float | None = None,
     ) -> dict[str, Any]:
         """Apply one normalized observation and return the device snapshot."""
         snapshot = self._state.apply(
@@ -62,6 +79,10 @@ class DeviceSession:
                 source=source,
                 received_at=time.monotonic() if received_at is None else received_at,
                 values=dict(values),
+                received_at_utc=received_at_utc
+                if received_at_utc is not None
+                else datetime.now(UTC),
+                requested_at=requested_at,
             )
         )
         return snapshot.as_dict()
@@ -84,12 +105,13 @@ class DeviceSession:
         retry_delay: float = 1.0,
     ) -> dict[str, Any] | None:
         """Fetch and reconcile cloud fallback status."""
+        requested_at = time.monotonic()
         status = await self._client.async_fetch_cloud_status(
             retries=retries,
             retry_delay=retry_delay,
         )
         if status:
-            return self.observe(StateSource.CLOUD, status)
+            return self.observe(StateSource.CLOUD, status, requested_at=requested_at)
         return None
 
     async def async_fetch_cloud_energy_statistics(self) -> dict[str, Any] | None:
@@ -105,6 +127,10 @@ class DeviceSession:
         if legacy_state:
             return self.observe(StateSource.DERIVED, legacy_state)
         return {}
+
+    def state_snapshot(self) -> DeviceState:
+        """Return values and their original per-field observation metadata."""
+        return self._state.snapshot()
 
     def pending_command_confirmation(
         self, command_id: str | None = None
@@ -146,7 +172,9 @@ class DeviceSession:
             ),
         }
 
-    def _track_command(self, receipt: CommandReceipt) -> str | None:
+    def _track_command(
+        self, receipt: CommandReceipt, *, started_at: float
+    ) -> str | None:
         self._last_command_attempt = {
             "intent": receipt.intent,
             "expected_status": dict(receipt.expected_status),
@@ -156,15 +184,16 @@ class DeviceSession:
         }
         if not receipt.delivery.accepted:
             return None
-        return self._commands.record(receipt)
+        return self._commands.record(receipt, started_at=started_at)
 
     async def _run_command(
         self, method_name: str, *args: Any, **kwargs: Any
     ) -> str | None:
+        started_at = time.monotonic()
         receipt = await getattr(self._client, method_name)(*args, **kwargs)
         if not isinstance(receipt, CommandReceipt):
             return None
-        return self._track_command(receipt)
+        return self._track_command(receipt, started_at=started_at)
 
     async def async_set_power(self, *, power: bool) -> str | None:
         """Set device power and return its confirmation identifier."""

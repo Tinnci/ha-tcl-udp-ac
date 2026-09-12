@@ -1,10 +1,11 @@
-"""Outdoor temperature sensor behavior tests."""
+"""Outdoor temperature and diagnostic observation tests."""
 
 from __future__ import annotations
 
 import unittest
 import xml.etree.ElementTree as ET
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
@@ -44,6 +45,63 @@ class OutdoorTemperatureSensorTest(unittest.TestCase):
 
         self.assertTrue(entity.available)
         self.assertEqual(entity.native_value, 30.0)
+
+    def test_unrelated_reports_do_not_refresh_old_compressor_diagnostics(self) -> None:
+        """A fresh power bit cannot make a retained compressor frequency current."""
+        from tests.test_device_session import FakeTransportClient
+
+        state_mod = load_integration_module("device_state")
+        session_mod = load_integration_module("device_session")
+        profiles = load_integration_module("protocol_profiles")
+        binary_sensor = load_integration_module("binary_sensor")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        session.observe(
+            state_mod.StateSource.CLOUD,
+            {"compressor_frequency": 42, "four_way_valve_active": True},
+            received_at=10,
+        )
+        coordinator = SimpleNamespace(
+            data=session.observe(
+                state_mod.StateSource.CLOUD, {"power": True}, received_at=400
+            ),
+            config_entry=SimpleNamespace(
+                entry_id="entry-1",
+                domain="tcl_udp_ac",
+                runtime_data=SimpleNamespace(session=session),
+            ),
+        )
+        entity = self.sensor_mod.TclUdpDiagnosticSensor(
+            coordinator,
+            profiles.DiagnosticSensorCapability(
+                "compressor_frequency", "compressor_frequency", "mdi:sine-wave"
+            ),
+        )
+        valve = binary_sensor.TclUdpBinaryDiagnostic(
+            coordinator,
+            profiles.BinaryDiagnosticCapability(
+                "four_way_valve_active", "four_way_valve_active", "mdi:valve"
+            ),
+        )
+
+        with patch("time.monotonic", return_value=400):
+            self.assertFalse(entity.available)
+            self.assertIsNone(entity.native_value)
+            self.assertFalse(valve.available)
+            self.assertIsNone(valve.is_on)
+
+        coordinator.data = session.observe(
+            state_mod.StateSource.CLOUD,
+            {"compressor_frequency": 42, "four_way_valve_active": False},
+            received_at=401,
+        )
+        with patch("time.monotonic", return_value=401):
+            self.assertTrue(entity.available)
+            self.assertEqual(entity.native_value, 42)
+            self.assertTrue(valve.available)
+            self.assertIs(valve.is_on, False)
+            self.assertEqual(
+                entity.extra_state_attributes["observation_source"], "cloud"
+            )
 
     def test_cloud_status_skips_outdoor_temperature_placeholder(self) -> None:
         client = self.api_mod.CloudClient(

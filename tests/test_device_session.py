@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from tests.test_protocol_commands import load_integration_module
 
@@ -58,6 +59,30 @@ class DeviceSessionTest(unittest.TestCase):
 
         self.assertEqual(received, [{"power": True}])
         self.assertEqual(session.get_last_status(), {"power": True})
+
+    def test_queued_udp_callback_keeps_the_packet_receipt_time(self) -> None:
+        """Dispatch may start before a received packet's async callback runs."""
+        client = FakeTransportClient()
+        session = self.session_mod.DeviceSession(client)
+
+        async def run_case():
+            await session.async_start_listener(lambda status: None)
+            with patch.object(
+                self.session_mod.time, "monotonic", return_value=10
+            ) as clock:
+                queued_report = client.callback({"power": True})
+                clock.return_value = 20
+                command_id = await session.async_set_power(power=True)
+                clock.return_value = 30
+                await queued_report
+            return command_id
+
+        command_id = asyncio.run(run_case())
+        snapshot = session.state_snapshot()
+        started_at = session.pending_command_confirmation(command_id)["started_at"]
+
+        self.assertEqual(snapshot.observations["power"].received_at, 10)
+        self.assertEqual(snapshot.observed_since(started_at), {})
 
     def test_recent_udp_state_survives_cloud_fallback(self) -> None:
         client = FakeTransportClient()

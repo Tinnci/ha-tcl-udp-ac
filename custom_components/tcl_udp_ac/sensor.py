@@ -71,15 +71,18 @@ class TclUdpDiagnosticSensor(TclUdpEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        """Return true only after the cloud has reported this field."""
-        return getattr(super(), "available", True) and self._capability.data_key in (
-            self.coordinator.data or {}
-        )
+        """Return true only while this field has a current physical report."""
+        return getattr(super(), "available", True) and self.native_value is not None
 
     @property
     def native_value(self) -> Any:
         """Return the normalized diagnostic value."""
-        return (self.coordinator.data or {}).get(self._capability.data_key)
+        return self._reported_state().get(self._capability.data_key)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None] | None:
+        """Describe this field's report rather than the last coordinator refresh."""
+        return self._observation_attributes(self._capability.data_key)
 
 
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
@@ -104,12 +107,18 @@ class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
     @property
     def native_value(self) -> float | None:
         """Return the state of the sensor."""
-        if self.coordinator.data and "outdoor_temp" in self.coordinator.data:
+        value = self._reported_state().get("outdoor_temp")
+        if value is not None:
             # Check for valid range, sometimes devices report placeholder values.
-            val = float(self.coordinator.data["outdoor_temp"])
+            val = float(value)
             if is_valid_outdoor_temperature(val):
                 return val
         return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None] | None:
+        """Expose the outdoor reading's original receipt time."""
+        return self._observation_attributes("outdoor_temp")
 
 
 class TclUdpCloudStatisticsSensor(TclUdpEntity, SensorEntity):

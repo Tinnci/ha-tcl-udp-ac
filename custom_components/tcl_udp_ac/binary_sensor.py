@@ -59,13 +59,16 @@ class TclUdpBinaryDiagnostic(TclUdpEntity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
-        """Return true only after the cloud has reported this field."""
-        return getattr(super(), "available", True) and self._capability.data_key in (
-            self.coordinator.data or {}
-        )
+        """Return true only while this field has a current physical report."""
+        return getattr(super(), "available", True) and self.is_on is not None
 
     @property
     def is_on(self) -> bool | None:
         """Return the normalized boolean state."""
-        value = (self.coordinator.data or {}).get(self._capability.data_key)
+        value = self._reported_state().get(self._capability.data_key)
         return bool(value) if value is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None] | None:
+        """Expose the diagnostic report's original receipt time and source."""
+        return self._observation_attributes(self._capability.data_key)

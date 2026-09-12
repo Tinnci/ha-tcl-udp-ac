@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import time
+from typing import Any
+
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -13,6 +16,7 @@ from .const import (
     CONF_DEVICE_ROOM,
 )
 from .coordinator import TclUdpDataUpdateCoordinator
+from .device_state import DeviceState
 
 
 class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
@@ -42,6 +46,32 @@ class TclUdpEntity(CoordinatorEntity[TclUdpDataUpdateCoordinator]):
         if room:
             device_info["suggested_area"] = room
         self._attr_device_info = device_info
+
+    def _state_snapshot(self) -> DeviceState | None:
+        """Read one detached snapshot from the device session when available."""
+        runtime = getattr(self.coordinator.config_entry, "runtime_data", None)
+        session = getattr(runtime, "session", None)
+        return session.state_snapshot() if session is not None else None
+
+    def _reported_state(self) -> dict[str, Any]:
+        """Keep expired or derived fields out of physical entity feedback."""
+        snapshot = self._state_snapshot()
+        if snapshot is not None:
+            return snapshot.fresh_values(time.monotonic())
+        return dict(self.coordinator.data or {})
+
+    def _observation_attributes(self, key: str) -> dict[str, str | None] | None:
+        """Expose receipt provenance independently of HA publication time."""
+        snapshot = self._state_snapshot()
+        if snapshot is None:
+            return None
+        observation = snapshot.observations.get(key)
+        return {
+            "observed_at": snapshot.observed_at(key),
+            "observation_source": observation.source.value
+            if observation is not None
+            else None,
+        }
 
     def _device_identifier(self) -> str:
         """Return the most stable known device identifier for registry IDs."""

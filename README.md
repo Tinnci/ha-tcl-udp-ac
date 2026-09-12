@@ -82,7 +82,16 @@ Home Assistant stores the access token, refresh token, and account ID in config-
 - The `tcl_udp_ac_command_result` event provides the result and transport details.
 
 An HTTP or UDP acceptance does not prove that the device applied a command.
-The integration confirms the command only when a later status value matches.
+The integration confirms the command only when every required field has a matching
+report from an observation begun after that command's dispatch started. Cached or
+integration-derived values cannot confirm it. The dispatch start is captured before
+awaiting transport, so early feedback remains usable. UDP receipt time is captured
+before queuing its callback; cloud requests already in flight before dispatch do
+not qualify. A late cloud response cannot overwrite a newer requested snapshot.
+
+指令确认要求每个必要字段都有派发开始后的匹配报告，不能只比较合并后的旧缓存或派生值。
+派发等待期间提前到达的反馈仍有效；UDP 接收时间在回调入队前采集，派发前已在途的云端查询
+不能充当确认，乱序云端响应也不能回写较新的快照。
 
 Indoor temperature relative to a setpoint does not measure compressor activity.
 `hvac_mode` requires reported power and mode. Missing feedback remains unknown.
@@ -96,6 +105,25 @@ separate sensor entities.
 内机温度与设定温度的比较不能测量压缩机运行。缺失电源或模式反馈时保留未知；
 制热、制冷、除湿和恒温空闲不再由温差推算。明确报告的关机与通电送风仍可表示，
 Protocol 1 的压缩机、电气诊断继续作为独立传感器提供。
+
+Each reported field keeps its source and receipt time in an immutable snapshot.
+An unrelated temperature or energy update cannot refresh retained power,
+compressor or valve feedback. Climate feedback and diagnostic sensors become
+unknown or unavailable after 300 seconds without their own report. Repeated
+reports of the same value still count as fresh; missing fan and swing feedback
+does not become an assumed auto/off setting.
+
+Climate attributes `hvac_mode_observed_at` and `hvac_action_observed_at` expose the
+oldest receipt time required for each value. Diagnostic sensors expose `observed_at`
+and `observation_source`. Times are UTC ISO 8601 receipt times, not physical
+transition timestamps. An unknown action has no observation time. Nested snapshot
+values are immutable; compatibility dictionaries remain detached copies.
+
+每个字段分别保留来源与接收时间，局部更新不能刷新旧电源、压缩机或阀门反馈。
+气候反馈和诊断字段超过 300 秒未重新报告即为未知或不可用，相同数值的再次报告仍有效。
+气候实体提供模式与活动的最早必要报告时间，诊断实体提供 `observed_at` 与
+`observation_source`；这些是 UTC 接收时间，不代表精确物理动作时刻。
+嵌套快照不可修改，兼容字典输出为独立副本。
 
 ## Home Assistant entities
 

@@ -238,21 +238,23 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
     @property
     def current_temperature(self) -> float | None:
         """Return the current temperature."""
-        if self.coordinator.data and "current_temp" in self.coordinator.data:
-            return float(self.coordinator.data["current_temp"])
+        value = self._reported_state().get("current_temp")
+        if value is not None:
+            return float(value)
         return None
 
     @property
     def target_temperature(self) -> float | None:
         """Return the target temperature."""
-        if self.coordinator.data and "target_temp" in self.coordinator.data:
-            return float(self.coordinator.data["target_temp"])
+        value = self._reported_state().get("target_temp")
+        if value is not None:
+            return float(value)
         return None
 
     @property
     def hvac_mode(self) -> HVACMode | None:
         """Return the reported power and mode without guessing missing feedback."""
-        data = self.coordinator.data or {}
+        data = self._reported_state()
         if data.get("power") is False:
             return HVACMode.OFF
         if data.get("power") is True:
@@ -272,30 +274,44 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         return None
 
     @property
-    def extra_state_attributes(self) -> dict[str, bool]:
+    def extra_state_attributes(self) -> dict[str, bool | str | None]:
         """Let consumers distinguish this feedback from older temperature estimates."""
-        return {"hvac_action_is_estimated": False}
+        attrs: dict[str, bool | str | None] = {"hvac_action_is_estimated": False}
+        snapshot = self._state_snapshot()
+        if snapshot is not None:
+            required = (
+                ("power",)
+                if snapshot.values.get("power") is False
+                else ("power", "mode")
+            )
+            attrs["hvac_mode_observed_at"] = snapshot.observed_at(*required)
+            attrs["hvac_action_observed_at"] = (
+                attrs["hvac_mode_observed_at"]
+                if self.hvac_action in (HVACAction.OFF, HVACAction.FAN)
+                else None
+            )
+        return attrs
 
     @property
     def fan_mode(self) -> str | None:
         """Return the fan setting."""
-        data = self.coordinator.data
+        data = self._reported_state()
         if not data:
             return None
-        speed_val = data.get("fan_speed", TCL_FAN_AUTO)
+        speed_val = data.get("fan_speed")
         if speed_val in self._attr_fan_modes:
             return str(speed_val)
-        return FAN_MODE_MAP_REV.get(speed_val, FAN_AUTO)
+        return FAN_MODE_MAP_REV.get(speed_val)
 
     @property
     def swing_mode(self) -> str | None:
         """Return the swing setting."""
-        data = self.coordinator.data
-        if not data:
+        data = self._reported_state()
+        if "swing_h" not in data or "swing_v" not in data:
             return None
 
-        swing_h = data.get("swing_h", False)
-        swing_v = data.get("swing_v", False)
+        swing_h = data["swing_h"]
+        swing_v = data["swing_v"]
 
         if swing_h and swing_v:
             return SWING_BOTH

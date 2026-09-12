@@ -19,6 +19,7 @@ class PendingCommand:
     transport_outcome: str
     transport_attempts: dict[str, str]
     created_at: float
+    started_at: float
     entity_id: str | None = None
     context_id: str | None = None
 
@@ -31,6 +32,7 @@ class PendingCommand:
             "transport_outcome": self.transport_outcome,
             "transport_attempts": dict(self.transport_attempts),
             "created_at": self.created_at,
+            "started_at": self.started_at,
             "entity_id": self.entity_id,
             "context_id": self.context_id,
         }
@@ -44,7 +46,9 @@ class CommandTracker:
         self._sequence = 0
         self._pending: dict[str, PendingCommand] = {}
 
-    def record(self, receipt: CommandReceipt) -> str:
+    def record(
+        self, receipt: CommandReceipt, *, started_at: float | None = None
+    ) -> str:
         """Record one command expectation and return its stable identifier."""
         self._sequence += 1
         command_id = f"cmd-{self._sequence}"
@@ -55,6 +59,7 @@ class CommandTracker:
             transport_outcome=receipt.delivery.outcome,
             transport_attempts=receipt.delivery.as_dict(),
             created_at=time.time(),
+            started_at=time.monotonic() if started_at is None else started_at,
         )
         return command_id
 

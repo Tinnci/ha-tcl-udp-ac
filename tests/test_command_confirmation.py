@@ -6,8 +6,10 @@ import asyncio
 import sys
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.ha_stubs import install_homeassistant_stubs
+from tests.test_device_session import FakeTransportClient
 from tests.test_protocol_commands import load_integration_module
 
 install_homeassistant_stubs()
@@ -141,6 +143,153 @@ class CommandConfirmationTest(unittest.TestCase):
         event_type, event = coordinator.hass.bus.events[-1]
         self.assertEqual(event_type, "tcl_udp_ac_command_result")
         self.assertEqual(event["outcome"], "not_confirmed")
+
+    def test_unrelated_report_cannot_confirm_cached_matching_power(self) -> None:
+        """A refreshed temperature must not confirm power retained before dispatch."""
+        session_mod = load_integration_module("device_session")
+        state_mod = load_integration_module("device_state")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        session.observe(state_mod.StateSource.UDP, {"power": True}, received_at=10)
+        with patch.object(session_mod.time, "monotonic", return_value=20):
+            command_id = asyncio.run(session.async_set_power(power=True))
+        coordinator = self.make_coordinator(session, [])
+        coordinator.config_entry.runtime_data.session = session
+
+        async def refresh():
+            coordinator.data = session.observe(
+                state_mod.StateSource.UDP, {"current_temp": 25.0}, received_at=21
+            )
+
+        coordinator.async_request_refresh = refresh
+        result = asyncio.run(
+            coordinator.async_confirm_pending_command(
+                command_id=command_id, timeout=0, interval=0
+            )
+        )
+
+        self.assertFalse(result)
+        self.assertEqual(coordinator.last_command_result["outcome"], "not_confirmed")
+
+    def test_every_required_field_needs_a_post_dispatch_report(self) -> None:
+        """One new field does not make the rest of a mode bundle fresh."""
+        session_mod = load_integration_module("device_session")
+        state_mod = load_integration_module("device_state")
+        bundles = load_integration_module("command_bundles")
+
+        class ModeClient(FakeTransportClient):
+            async def async_set_power(self, *, power):
+                return bundles.CommandReceipt(
+                    intent="mode:cool",
+                    expected_status={
+                        "power": power,
+                        "mode": "cool",
+                        "target_temp": 24.0,
+                    },
+                    delivery=bundles.TransportDelivery(
+                        udp=bundles.TransportAttempt.ACCEPTED
+                    ),
+                )
+
+        session = session_mod.DeviceSession(ModeClient())
+        session.observe(
+            state_mod.StateSource.UDP,
+            {"power": True, "mode": "cool", "target_temp": 24.0},
+            received_at=10,
+        )
+        with patch.object(session_mod.time, "monotonic", return_value=20):
+            command_id = asyncio.run(session.async_set_power(power=True))
+        coordinator = self.make_coordinator(session, [])
+        coordinator.config_entry.runtime_data.session = session
+
+        async def refresh():
+            coordinator.data = session.observe(
+                state_mod.StateSource.UDP, {"power": True}, received_at=21
+            )
+
+        coordinator.async_request_refresh = refresh
+        result = asyncio.run(
+            coordinator.async_confirm_pending_command(command_id=command_id, timeout=0)
+        )
+
+        self.assertFalse(result)
+
+    def test_report_during_dispatch_can_confirm_before_receipt_is_recorded(
+        self,
+    ) -> None:
+        """Do not miss fast device feedback while transport dispatch is awaiting."""
+        session_mod = load_integration_module("device_session")
+        state_mod = load_integration_module("device_state")
+
+        class EarlyReportClient(FakeTransportClient):
+            async def async_set_power(self, *, power):
+                session.observe(
+                    state_mod.StateSource.UDP, {"power": power}, received_at=21
+                )
+                clock.return_value = 22
+                return await super().async_set_power(power=power)
+
+        session = session_mod.DeviceSession(EarlyReportClient())
+        with patch.object(session_mod.time, "monotonic", return_value=20) as clock:
+            command_id = asyncio.run(session.async_set_power(power=True))
+            coordinator = self.make_coordinator(session, [session.get_last_status()])
+            coordinator.config_entry.runtime_data.session = session
+            result = asyncio.run(
+                coordinator.async_confirm_pending_command(
+                    command_id=command_id, timeout=0
+                )
+            )
+
+        self.assertTrue(result)
+        self.assertEqual(coordinator.last_command_result["outcome"], "applied")
+
+    def test_compatibility_cache_is_not_device_confirmation(self) -> None:
+        """A compatibility seed has no physical report provenance."""
+        session_mod = load_integration_module("device_session")
+        client = FakeTransportClient()
+        client.status = {"power": True}
+        session = session_mod.DeviceSession(client)
+        command_id = asyncio.run(session.async_set_power(power=True))
+        coordinator = self.make_coordinator(session, [session.get_last_status()])
+        coordinator.config_entry.runtime_data.session = session
+
+        result = asyncio.run(
+            coordinator.async_confirm_pending_command(command_id=command_id, timeout=0)
+        )
+
+        self.assertFalse(result)
+
+    def test_cloud_request_started_before_dispatch_cannot_confirm_it(self) -> None:
+        """A response already in flight may describe the pre-command state."""
+        session_mod = load_integration_module("device_session")
+
+        async def run_case():
+            requested = asyncio.Event()
+            release = asyncio.Event()
+
+            class InFlightClient(FakeTransportClient):
+                async def async_fetch_cloud_status(self, **kwargs):
+                    requested.set()
+                    await release.wait()
+                    return {"power": True}
+
+            session = session_mod.DeviceSession(InFlightClient())
+            with patch.object(session_mod.time, "monotonic", return_value=10) as clock:
+                status_task = asyncio.create_task(session.async_fetch_cloud_status())
+                await requested.wait()
+                clock.return_value = 20
+                command_id = await session.async_set_power(power=True)
+                clock.return_value = 21
+                release.set()
+                await status_task
+                coordinator = self.make_coordinator(
+                    session, [session.get_last_status()]
+                )
+                coordinator.config_entry.runtime_data.session = session
+                return await coordinator.async_confirm_pending_command(
+                    command_id=command_id, timeout=0
+                )
+
+        self.assertFalse(asyncio.run(run_case()))
 
     def test_unaccepted_delivery_creates_error_issue_and_event(self) -> None:
         class FailedSession:

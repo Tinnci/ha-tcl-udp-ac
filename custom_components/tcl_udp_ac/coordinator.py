@@ -241,7 +241,14 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         while True:
             await self.async_request_refresh()
             status = dict(self.data or client.get_last_status() or {})
-            if self._command_matches(expected_status, status):
+            snapshot_reader = getattr(client, "state_snapshot", None)
+            if snapshot_reader is not None:
+                snapshot = snapshot_reader()
+                status = snapshot.as_dict()
+                confirmation_status = snapshot.observed_since(pending["started_at"])
+            else:
+                confirmation_status = status
+            if self._command_matches(expected_status, confirmation_status):
                 self._clear_pending_command(client, command_id)
                 self._delete_command_issue()
                 self._fire_command_event(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
@@ -145,6 +146,71 @@ class ClimateEntityTest(unittest.TestCase):
         entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
 
         self.assertEqual(entity.hvac_action, self.climate.HVACAction.OFF)
+
+    def test_partial_report_cannot_keep_old_power_feedback_fresh(self) -> None:
+        """An indoor temperature report must not renew an old off observation."""
+        from tests.test_device_session import FakeTransportClient
+
+        state_mod = load_integration_module("device_state")
+        session_mod = load_integration_module("device_session")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        session.observe(state_mod.StateSource.UDP, {"power": False}, received_at=10)
+        coordinator = FakeCoordinator()
+        coordinator.config_entry.runtime_data.session = session
+        coordinator.data = session.observe(
+            state_mod.StateSource.UDP, {"current_temp": 24.0}, received_at=400
+        )
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        with patch("time.monotonic", return_value=400):
+            self.assertIsNone(entity.hvac_mode)
+            self.assertIsNone(entity.hvac_action)
+            self.assertEqual(entity.current_temperature, 24.0)
+
+    def test_expired_fan_and_swing_feedback_remains_unknown(self) -> None:
+        """Missing fan fields must not become default auto and swing-off values."""
+        from tests.test_device_session import FakeTransportClient
+
+        state_mod = load_integration_module("device_state")
+        session_mod = load_integration_module("device_session")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        session.observe(
+            state_mod.StateSource.UDP,
+            {"fan_speed": "low", "swing_h": True, "swing_v": False},
+            received_at=10,
+        )
+        coordinator = FakeCoordinator()
+        coordinator.config_entry.runtime_data.session = session
+        coordinator.data = session.observe(
+            state_mod.StateSource.UDP, {"current_temp": 24.0}, received_at=400
+        )
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        with patch("time.monotonic", return_value=400):
+            self.assertIsNone(entity.fan_mode)
+            self.assertIsNone(entity.swing_mode)
+
+    def test_climate_exposes_receipt_time_without_inventing_compressor_feedback(
+        self,
+    ) -> None:
+        """The mode timestamp describes its oldest required physical report."""
+        from tests.test_device_session import FakeTransportClient
+
+        state_mod = load_integration_module("device_state")
+        session_mod = load_integration_module("device_session")
+        session = session_mod.DeviceSession(FakeTransportClient())
+        coordinator = FakeCoordinator()
+        coordinator.config_entry.runtime_data.session = session
+        coordinator.data = session.observe(
+            state_mod.StateSource.UDP, {"power": True, "mode": "cool"}, received_at=10
+        )
+        entity = self.climate.TclUdpClimate(coordinator)
+
+        with patch("time.monotonic", return_value=11):
+            attrs = entity.extra_state_attributes
+            self.assertIsNotNone(attrs["hvac_mode_observed_at"])
+            self.assertIsNone(attrs["hvac_action_observed_at"])
+            self.assertIsNone(entity.hvac_action)
 
     def test_legacy_profile_blocks_unsupported_auto_even_if_option_enabled(
         self,
@@ -312,14 +378,20 @@ class ClimateEntityTest(unittest.TestCase):
     def test_reported_power_on_without_mode_does_not_imply_cooling(self) -> None:
         for mode in (None, "unsupported"):
             with self.subTest(mode=mode):
-                entity = self.climate.TclUdpClimate(FakeCoordinator({"power": True, "mode": mode}))
+                entity = self.climate.TclUdpClimate(
+                    FakeCoordinator({"power": True, "mode": mode})
+                )
                 self.assertIsNone(entity.hvac_mode)
                 self.assertIsNone(entity.hvac_action)
 
-    def test_activity_metadata_distinguishes_removed_temperature_heuristic(self) -> None:
+    def test_activity_metadata_distinguishes_removed_temperature_heuristic(
+        self,
+    ) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator({"power": False}))
 
-        self.assertEqual(entity.extra_state_attributes, {"hvac_action_is_estimated": False})
+        self.assertEqual(
+            entity.extra_state_attributes, {"hvac_action_is_estimated": False}
+        )
 
     def test_set_temperature_while_on_uses_grouped_current_mode_profile(self) -> None:
         coordinator = FakeCoordinator({"power": True, "mode": "cool"})
