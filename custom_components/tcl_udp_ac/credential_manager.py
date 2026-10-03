@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -30,6 +31,15 @@ class CloudAuthRejectedError(Exception):
     """A cloud request was rejected specifically for authentication."""
 
 
+@dataclass
+class _RefreshFailure:
+    credentials: tuple[str, str]
+    settings: AuthSettings
+    retry_at: float
+    attempts: int
+    error: TclAccountError
+
+
 class CredentialManager:
     """Maintain one refresh flow for every TCL account identity."""
 
@@ -46,6 +56,7 @@ class CredentialManager:
         self._locks: dict[str, asyncio.Lock] = {}
         self._account_clients: dict[AuthSettings, AccountClient] = {}
         self._account_client_factory = account_client_factory
+        self._refresh_failures: dict[str, _RefreshFailure] = {}
 
     def _account_client(self, settings: AuthSettings) -> AccountClient:
         client = self._account_clients.get(settings)
@@ -127,12 +138,32 @@ class CredentialManager:
                 msg = "TCL refresh token expired; please log in again"
                 raise ConfigEntryAuthFailed(msg)
 
-            account = self._account_client(AuthSettings.from_entry(entry))
+            settings = AuthSettings.from_entry(entry)
+            credentials = (access_token, refresh_token)
+            failure = self._refresh_failures.get(current_account_id)
+            if failure and (
+                failure.credentials != credentials or failure.settings != settings
+            ):
+                self._refresh_failures.pop(current_account_id, None)
+                failure = None
+            if failure and time.monotonic() < failure.retry_at:
+                if force:
+                    raise failure.error
+                return access_token or None
+            account = self._account_client(settings)
             try:
                 tokens = await account.async_refresh(refresh_token, current_account_id)
             except TclAccountAuthError as exc:
                 raise ConfigEntryAuthFailed(str(exc)) from exc
             except TclAccountError as exc:
+                attempts = min(failure.attempts + 1, 5) if failure else 1
+                self._refresh_failures[current_account_id] = _RefreshFailure(
+                    credentials,
+                    settings,
+                    time.monotonic() + min(30 * 2 ** (attempts - 1), 300),
+                    attempts,
+                    exc.with_traceback(None),
+                )
                 LOGGER.warning("TCL token refresh failed: %s", exc)
                 if force:
                     # The cloud already rejected this access token. Retrying it
@@ -160,6 +191,8 @@ class CredentialManager:
             entry, CONF_CLOUD_ACCOUNT_ID
         )
         new_account_id = str(tokens.account_id or old_account_id)
+        self._refresh_failures.pop(old_account_id, None)
+        self._refresh_failures.pop(new_account_id, None)
         targets = [
             candidate
             for candidate in self._entries(entry)

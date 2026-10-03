@@ -7,6 +7,7 @@ import base64
 import json
 import unittest
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
@@ -80,6 +81,43 @@ class CredentialManagerTest(unittest.TestCase):
             },
             loaded=loaded,
         )
+
+    def test_transient_failure_is_shared_and_does_not_retry_rejected_token(self):
+        first, second = self.entry("first"), self.entry("second")
+        client = FakeAccountClient(None)
+        client.async_refresh = AsyncMock(
+            side_effect=self.account.TclAccountError("InternalError")
+        )
+        manager = self.mod.CredentialManager(
+            SimpleNamespace(config_entries=FakeConfigEntries([first, second])),
+            object(),
+            account_client_factory=lambda _settings: client,
+        )
+
+        async def run_case():
+            with patch.object(self.mod.time, "monotonic", return_value=100):
+                results = await asyncio.gather(
+                    manager.async_ensure_fresh(first, now=self.now),
+                    manager.async_ensure_fresh(second, now=self.now),
+                )
+                self.assertEqual(results, [first.data["cloud_access_token"]] * 2)
+                with self.assertRaises(self.account.TclAccountError):
+                    await manager.async_ensure_fresh(
+                        first,
+                        force=True,
+                        rejected_token=first.data["cloud_access_token"],
+                        now=self.now,
+                    )
+                self.assertEqual(client.async_refresh.await_count, 1)
+            with patch.object(self.mod.time, "monotonic", return_value=131):
+                await manager.async_ensure_fresh(first, now=self.now)
+                self.assertEqual(client.async_refresh.await_count, 2)
+            first.data["cloud_refresh_token"] = jwt(self.now + 2000, self.now)
+            with patch.object(self.mod.time, "monotonic", return_value=132):
+                await manager.async_ensure_fresh(first, now=self.now)
+                self.assertEqual(client.async_refresh.await_count, 3)
+
+        asyncio.run(run_case())
 
     def test_same_account_concurrent_refresh_is_single_flight_and_synchronised(
         self,

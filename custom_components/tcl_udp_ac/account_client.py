@@ -335,7 +335,9 @@ class AccountClient:
         # Note: TCL spells the endpoint "refershToken".
         url = f"{self._base_url}/auth/auth/refershToken?{query}"
         # The refresh token travels as a plaintext header, not encrypted.
-        text = await self._get_response(url, {"refreshToken": refresh_token})
+        text = await self._get_response(
+            url, {**_ENCRYPT_HEADERS, "refreshToken": refresh_token}
+        )
         payload = self._parse_token_payload(text)
         LOGGER.debug("TCL token refresh succeeded")
         return self._tokens_from_payload(payload)

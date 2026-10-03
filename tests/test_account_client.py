@@ -102,6 +102,8 @@ class AccountClientTest(unittest.TestCase):
         refresh_call = next(c for c in session.get_calls if "refershToken" in c["url"])
         # Refresh token travels as a plaintext header.
         self.assertEqual(refresh_call["headers"]["refreshToken"], "refresh.jwt.sig")
+        self.assertEqual(refresh_call["headers"]["Encrypt"], "true")
+        self.assertEqual(refresh_call["headers"]["EncryptVersion"], "2.0")
         # Query keys are plain; values are RSA-encrypted (base64, '=' -> '%3D').
         self.assertIn("accountId=", refresh_call["url"])
         self.assertIn("appSecret=", refresh_call["url"])
