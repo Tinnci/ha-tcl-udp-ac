@@ -11,7 +11,7 @@ package = false
 [dependency-groups]
 dev = [
     "aiohttp>=3.13.0",
-    "cryptography==46.0.5",
+    "cryptography>=50.0.0,<51",
     "pytest>=8.0.0",
     "ruff==0.15.21",
     "voluptuous>=0.15.2",
