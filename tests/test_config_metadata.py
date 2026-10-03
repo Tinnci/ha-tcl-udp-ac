@@ -87,6 +87,15 @@ class ConfigMetadataTest(unittest.TestCase):
         self.assertIn("hacs", hacs)
         self.assertIn("homeassistant", hacs)
 
+    def test_manifest_does_not_override_home_assistant_cryptography(self) -> None:
+        manifest = json.loads(MANIFEST_PATH.read_text())
+        self.assertFalse(
+            any(
+                requirement.startswith("cryptography")
+                for requirement in manifest.get("requirements", [])
+            )
+        )
+
     def test_local_brand_images_follow_home_assistant_dimensions(self) -> None:
         icon = self._png_dimensions(BRAND_DIR / "icon.png")
         icon_2x = self._png_dimensions(BRAND_DIR / "icon@2x.png")
