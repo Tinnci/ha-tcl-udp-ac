@@ -13,7 +13,7 @@ dev = [
     "aiohttp>=3.13.0",
     "cryptography>=50.0.0,<51",
     "pytest>=8.0.0",
-    "ruff==0.16.9",
+    "ruff==0.16.10",
     "voluptuous>=0.15.2",
     "yarl>=1.18.3",
 ]
