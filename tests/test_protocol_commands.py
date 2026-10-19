@@ -85,6 +85,58 @@ class CloudProtocolMappingTest(unittest.TestCase):
             ),
         )
 
+    def _use_product(self, product_key: str) -> None:
+        """Resolve the cloud client with one product profile."""
+        self.client._product_key = product_key
+        self.client._profile = self.api.resolve_protocol_driver(
+            "test-device", product_key=product_key
+        )
+
+    def test_1112015441n_auto_and_fresh_air_status(self) -> None:
+        self._use_product("1112015441N")
+        status = self.client._parse_cloud_status(
+            {
+                "powerSwitch": 1,
+                "workMode": 0,
+                "targetTemperature": 25.5,
+                "newWindSwitch": 1,
+                "newWindPercentage": 33,
+                "newWindSuper": 1,
+                "newWindECOSwitch": 1,
+                "AIECOSwitch": 1,
+                "AIECOStatus": 1,
+                "sensorTVOCValue": 0.4,
+                "sensorTVOCLevel": 2,
+                "selfCleanPercentage": 40,
+                "filterAgePercentage": 12,
+                "FreshAirStatus": 1,
+                "OutDoorDefrostStatus": 0,
+            }
+        )
+
+        self.assertEqual(status["mode"], self.api.MODE_AUTO)
+        self.assertTrue(status["fresh_air"])
+        self.assertTrue(status["fresh_air_super"])
+        self.assertTrue(status["fresh_air_eco"])
+        self.assertTrue(status["ai_eco"])
+        self.assertEqual(status["tvoc_value"], 0.4)
+        self.assertEqual(status["tvoc_level"], 2)
+        self.assertEqual(status["self_clean_percentage"], 40)
+        self.assertEqual(status["filter_age_percentage"], 12)
+        self.assertTrue(status["fresh_air_active"])
+        self.assertFalse(status["defrost_active"])
+
+    def test_base_tsl_profile_still_maps_work_mode_five_to_auto(self) -> None:
+        status = self.client._parse_cloud_status({"workMode": 5})
+
+        self.assertEqual(status["mode"], self.api.MODE_AUTO)
+
+    def test_1112015441n_does_not_treat_work_mode_five_as_auto(self) -> None:
+        self._use_product("1112015441N")
+        status = self.client._parse_cloud_status({"workMode": 5})
+
+        self.assertNotIn("mode", status)
+
     def test_heat_mode_maps_to_captured_base_mode_value(self) -> None:
         self.assertEqual(
             self.client._map_cloud_item("BaseMode", "heat"), ("baseMode", "4")

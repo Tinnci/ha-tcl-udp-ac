@@ -27,6 +27,15 @@ class ProtocolDriverTest(unittest.TestCase):
         self.assertEqual(driver.cloud_status_family, "tsl")
         self.assertFalse(driver.legacy_transport_enabled)
 
+    def test_product_key_1112015441n_selects_fresh_air_profile(self) -> None:
+        driver = self.drivers.resolve_protocol_driver(
+            "test-device", product_key="1112015441N"
+        )
+
+        self.assertEqual(driver.name, "tsl_1112015441N")
+        self.assertEqual(driver.cloud_status_family, "tsl")
+        self.assertFalse(driver.legacy_transport_enabled)
+
     def test_unknown_device_uses_compatibility_driver(self) -> None:
         driver = self.drivers.resolve_protocol_driver("unknown")
 

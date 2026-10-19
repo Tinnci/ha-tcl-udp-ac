@@ -265,6 +265,42 @@
       },
       "ai_control_source": {
         "name": "AI 控制来源"
+      },
+      "tvoc_value": {
+        "name": "TVOC"
+      },
+      "tvoc_level": {
+        "name": "TVOC 等级"
+      },
+      "self_clean_percentage": {
+        "name": "蒸发器清洁进度"
+      },
+      "filter_age_percentage": {
+        "name": "滤芯剩余寿命"
+      },
+      "fresh_air_rate": {
+        "name": "新风换气率"
+      },
+      "purify_wind_speed": {
+        "name": "净化风速"
+      },
+      "ai_eco_status": {
+        "name": "AI节能状态"
+      },
+      "sleep_state": {
+        "name": "睡眠状态"
+      },
+      "sleep_target_temperature": {
+        "name": "睡眠目标温度"
+      },
+      "room_size": {
+        "name": "房间面积"
+      },
+      "air_change_cube": {
+        "name": "换气量"
+      },
+      "save_money_status": {
+        "name": "省钱状态"
       }
     },
     "switch": {
@@ -303,6 +339,39 @@
       },
       "fresh_air_auto": {
         "name": "自动新风"
+      },
+      "self_learn": {
+        "name": "自学习"
+      },
+      "fresh_air": {
+        "name": "新风"
+      },
+      "fresh_air_eco": {
+        "name": "新风节能"
+      },
+      "fresh_air_super": {
+        "name": "新风超强风"
+      },
+      "fresh_air_anti_condensation": {
+        "name": "新风防凝露"
+      },
+      "ai_eco": {
+        "name": "AI节能"
+      },
+      "anti_direct_blow": {
+        "name": "防直吹"
+      },
+      "blue_light": {
+        "name": "小蓝翼灯光"
+      },
+      "purify": {
+        "name": "净化"
+      },
+      "purify_deodorize": {
+        "name": "净化除味"
+      },
+      "light_sense": {
+        "name": "光敏"
       }
     },
     "binary_sensor": {
@@ -317,6 +386,21 @@
       },
       "self_learning": {
         "name": "自学习"
+      },
+      "fresh_air_active": {
+        "name": "新风运行中"
+      },
+      "defrost_active": {
+        "name": "化霜中"
+      },
+      "light_sense_active": {
+        "name": "光敏生效"
+      },
+      "purify_deodorize_active": {
+        "name": "净化除味中"
+      },
+      "save_money_active": {
+        "name": "省钱中"
       }
     },
     "number": {

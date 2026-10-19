@@ -316,15 +316,19 @@ class CloudClient:
         except (TypeError, ValueError):
             return None
 
-    @staticmethod
-    def _tsl_mode(val: Any) -> str | None:
-        return {
-            "1": MODE_COOL,
-            "2": MODE_DEHUMI,
-            "3": MODE_FAN,
-            "4": MODE_HEAT,
-            "5": MODE_AUTO,
-        }.get(str(val))
+    def _tsl_mode(self, val: Any) -> str | None:
+        """Map the device workMode using the active protocol profile."""
+        mapping = getattr(self._profile, "tsl_work_mode_map", None) or {
+            1: MODE_COOL,
+            2: MODE_DEHUMI,
+            3: MODE_FAN,
+            4: MODE_HEAT,
+            5: MODE_AUTO,
+        }
+        try:
+            return mapping.get(int(val))
+        except (TypeError, ValueError):
+            return None
 
     @classmethod
     def _tsl_fan_speed(cls, cur_status: dict[str, Any]) -> str | None:
@@ -534,6 +538,17 @@ class CloudClient:
             "softWind": "soft_wind",
             "selfClean": "self_clean",
             "newWindAutoSwitch": "fresh_air_auto",
+            "newWindSwitch": "fresh_air",
+            "newWindECOSwitch": "fresh_air_eco",
+            "newWindSuper": "fresh_air_super",
+            "newWindAntiCondensation": "fresh_air_anti_condensation",
+            "AIECOSwitch": "ai_eco",
+            "antiDirectBlow": "anti_direct_blow",
+            "blueLightSwitch": "blue_light",
+            "purifyModeSwitch": "purify",
+            "purifyDeodorizeSwitch": "purify_deodorize",
+            "lightSense": "light_sense",
+            "selfLearn": "self_learn",
         }
         for raw_key, status_key in feature_map.items():
             value = self._cloud_bool(cur_status.get(raw_key))
@@ -570,6 +585,18 @@ class CloudClient:
             "newWindPercentage": "fresh_air_percentage",
             "sleepTime": "sleep_time",
             "selfCleanStatus": "self_clean_status",
+            "sensorTVOCValue": "tvoc_value",
+            "sensorTVOCLevel": "tvoc_level",
+            "selfCleanPercentage": "self_clean_percentage",
+            "filterAgePercentage": "filter_age_percentage",
+            "newWindAirChangeRate": "fresh_air_rate",
+            "purifyModeWindSpeed": "purify_wind_speed",
+            "AIECOStatus": "ai_eco_status",
+            "sleepState": "sleep_state",
+            "sleepTargetTemperature": "sleep_target_temperature",
+            "roomSize": "room_size",
+            "airChangeCube": "air_change_cube",
+            "saveMoneyStatus": "save_money_status",
         }
         for raw_key, data_key in numeric_map.items():
             value = self._cloud_float(cur_status.get(raw_key))
@@ -624,6 +651,11 @@ class CloudClient:
             "fourWayValveStatus": "four_way_valve_active",
             "PTCStatus": "aux_heat_active",
             "selfLearn": "self_learning",
+            "FreshAirStatus": "fresh_air_active",
+            "OutDoorDefrostStatus": "defrost_active",
+            "lightSenserStatus": "light_sense_active",
+            "purifyDeodorizeStart": "purify_deodorize_active",
+            "saveMoney": "save_money_active",
         }
         for raw_key, data_key in bool_map.items():
             value = self._cloud_bool(cur_status.get(raw_key))
