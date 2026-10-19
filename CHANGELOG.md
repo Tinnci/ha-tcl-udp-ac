@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add a TSL profile for product `1112015441N`
+  (`KFR-35G/YQ7Ga+B1`), covering its zero-based auto mode, fresh-air
+  controls, TVOC readings, AI eco, and the observed diagnostic fields.
+- Keep protocol 1 work-mode decoding profile-specific so devices that report
+  `0` for auto are not shown as an unknown mode.
+
+
 ## 0.11.0 - 2026-09-13
 
 - Preserve per-field observation times and immutable snapshots. Cached fields,

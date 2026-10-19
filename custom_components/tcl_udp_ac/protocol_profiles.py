@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import Any, ClassVar
 
 from .command_bundles import CaptureEvidence, CommandTransport, TclCommandBundle
 from .const import MODE_AUTO, MODE_COOL, MODE_DEHUMI, MODE_FAN, MODE_HEAT
@@ -348,6 +348,169 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
 )
 
 
+TSL_1112015441N_SWITCHES = {
+    "display": SwitchCapability(
+        "screen", "display", "display", "mdi:led-on", entity_category="config"
+    ),
+    "sleep_mode": SwitchCapability("sleep", "sleep_mode", "sleep_mode", "mdi:sleep"),
+    "aux_heat": SwitchCapability(
+        "PTC",
+        "aux_heat",
+        "aux_heat",
+        "mdi:radiator",
+        available_modes=frozenset({MODE_HEAT}),
+        requires_power=True,
+    ),
+    "beep": SwitchCapability(
+        "beepSwitch",
+        "beep",
+        "beep",
+        "mdi:volume-high",
+        entity_category="config",
+    ),
+    "anti_mildew": SwitchCapability(
+        "antiMoldew", "anti_mildew", "anti_mildew", "mdi:shield-check"
+    ),
+    "soft_wind": SwitchCapability(
+        "softWind", "soft_wind", "soft_wind", "mdi:weather-windy"
+    ),
+    "self_clean": SwitchCapability(
+        "selfClean", "self_clean", "self_clean", "mdi:air-filter"
+    ),
+    "self_learn": SwitchCapability(
+        "selfLearn", "self_learn", "self_learn", "mdi:school"
+    ),
+    "fresh_air": SwitchCapability(
+        "newWindSwitch", "fresh_air", "fresh_air", "mdi:air-filter"
+    ),
+    "fresh_air_auto": SwitchCapability(
+        "newWindAutoSwitch",
+        "fresh_air_auto",
+        "fresh_air_auto",
+        "mdi:fan-auto",
+    ),
+    "fresh_air_eco": SwitchCapability(
+        "newWindECOSwitch", "fresh_air_eco", "fresh_air_eco", "mdi:leaf"
+    ),
+    "fresh_air_super": SwitchCapability(
+        "newWindSuper", "fresh_air_super", "fresh_air_super", "mdi:fan"
+    ),
+    "fresh_air_anti_condensation": SwitchCapability(
+        "newWindAntiCondensation",
+        "fresh_air_anti_condensation",
+        "fresh_air_anti_condensation",
+        "mdi:water-off",
+    ),
+    "ai_eco": SwitchCapability("AIECOSwitch", "ai_eco", "ai_eco", "mdi:leaf"),
+    "anti_direct_blow": SwitchCapability(
+        "antiDirectBlow",
+        "anti_direct_blow",
+        "anti_direct_blow",
+        "mdi:weather-windy",
+    ),
+    "blue_light": SwitchCapability(
+        "blueLightSwitch", "blue_light", "blue_light", "mdi:lightbulb"
+    ),
+    "purify": SwitchCapability(
+        "purifyModeSwitch", "purify", "purify", "mdi:air-purifier"
+    ),
+    "purify_deodorize": SwitchCapability(
+        "purifyDeodorizeSwitch",
+        "purify_deodorize",
+        "purify_deodorize",
+        "mdi:spray",
+    ),
+    "light_sense": SwitchCapability(
+        "lightSense", "light_sense", "light_sense", "mdi:brightness-auto"
+    ),
+}
+
+TSL_1112015441N_EXTRA_SENSORS = (
+    DiagnosticSensorCapability(
+        "tvoc_value",
+        "tvoc_value",
+        "mdi:air-filter",
+        "ppb",
+        None,
+        "measurement",
+    ),
+    DiagnosticSensorCapability("tvoc_level", "tvoc_level", "mdi:leaf"),
+    DiagnosticSensorCapability(
+        "self_clean_percentage",
+        "self_clean_percentage",
+        "mdi:air-filter",
+        "%",
+        None,
+        "measurement",
+    ),
+    DiagnosticSensorCapability(
+        "filter_age_percentage",
+        "filter_age_percentage",
+        "mdi:air-filter",
+        "%",
+        None,
+        "measurement",
+    ),
+    DiagnosticSensorCapability(
+        "fresh_air_rate",
+        "fresh_air_rate",
+        "mdi:air-filter",
+        "%",
+        None,
+        "measurement",
+    ),
+    DiagnosticSensorCapability("purify_wind_speed", "purify_wind_speed", "mdi:fan"),
+    DiagnosticSensorCapability("ai_eco_status", "ai_eco_status", "mdi:leaf"),
+    DiagnosticSensorCapability("sleep_state", "sleep_state", "mdi:sleep"),
+    DiagnosticSensorCapability(
+        "sleep_target_temperature",
+        "sleep_target_temperature",
+        "mdi:thermometer",
+        "°C",
+        "temperature",
+        "measurement",
+    ),
+    DiagnosticSensorCapability("room_size", "room_size", "mdi:ruler-square"),
+    DiagnosticSensorCapability(
+        "air_change_cube", "air_change_cube", "mdi:cube-outline"
+    ),
+    DiagnosticSensorCapability("save_money_status", "save_money_status", "mdi:cash"),
+)
+
+TSL_1112015441N_EXTRA_BINARY = (
+    BinaryDiagnosticCapability(
+        "fresh_air_active", "fresh_air_active", "mdi:air-filter"
+    ),
+    BinaryDiagnosticCapability("defrost_active", "defrost_active", "mdi:snowflake"),
+    BinaryDiagnosticCapability(
+        "light_sense_active", "light_sense_active", "mdi:brightness-auto"
+    ),
+    BinaryDiagnosticCapability(
+        "purify_deodorize_active",
+        "purify_deodorize_active",
+        "mdi:spray",
+    ),
+    BinaryDiagnosticCapability("save_money_active", "save_money_active", "mdi:cash"),
+)
+
+_REUSED_TSL_1112015441N_DIAGNOSTICS = tuple(
+    item
+    for item in TSL_1112013595N_CAPABILITIES.diagnostic_sensors
+    if item.data_key not in {"fresh_air_mode", "sleep_time"}
+)
+
+TSL_1112015441N_CAPABILITIES = replace(
+    TSL_1112013595N_CAPABILITIES,
+    switches=TSL_1112015441N_SWITCHES,
+    diagnostic_sensors=(
+        _REUSED_TSL_1112015441N_DIAGNOSTICS + TSL_1112015441N_EXTRA_SENSORS
+    ),
+    binary_diagnostics=(
+        TSL_1112013595N_CAPABILITIES.binary_diagnostics + TSL_1112015441N_EXTRA_BINARY
+    ),
+)
+
+
 @dataclass(frozen=True)
 class ProtocolProfile:
     """Base TCL protocol profile."""
@@ -358,6 +521,14 @@ class ProtocolProfile:
     legacy_transport_enabled: bool = True
     local_transport_enabled: bool = True
     cloud_status_family: str = "hybrid"
+
+    tsl_work_mode_map: ClassVar[dict[int, str]] = {
+        1: MODE_COOL,
+        2: MODE_DEHUMI,
+        3: MODE_FAN,
+        4: MODE_HEAT,
+        5: MODE_AUTO,
+    }
 
     def build_mode_command(
         self,
@@ -912,6 +1083,38 @@ class Tsl1112013595NProfile(ProtocolProfile):
             expected_status={data_key: normalized},
             action=f"{raw_key}={normalized}",
             source_type="2",
+        )
+
+
+class Tsl1112015441NProfile(Tsl1112013595NProfile):
+    """TSL profile for product 1112015441N (KFR-35G/YQ7Ga+B1)."""
+
+    _MODE_TO_WORK_MODE = {
+        MODE_AUTO: 0,
+        MODE_COOL: 1,
+        MODE_DEHUMI: 2,
+        MODE_FAN: 3,
+        MODE_HEAT: 4,
+    }
+
+    tsl_work_mode_map = {
+        0: MODE_AUTO,
+        1: MODE_COOL,
+        2: MODE_DEHUMI,
+        3: MODE_FAN,
+        4: MODE_HEAT,
+    }
+
+    def __init__(self, device_id: str | None = None) -> None:
+        """Initialize the profile for the fresh-air F-series AC."""
+        ProtocolProfile.__init__(
+            self,
+            device_id=device_id,
+            name="tsl_1112015441N",
+            capabilities=TSL_1112015441N_CAPABILITIES,
+            legacy_transport_enabled=False,
+            local_transport_enabled=False,
+            cloud_status_family="tsl",
         )
 
 

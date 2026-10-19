@@ -12,6 +12,7 @@ from .protocol_profiles import (
     Legacy2743138Profile,
     ProtocolProfile,
     Tsl1112013595NProfile,
+    Tsl1112015441NProfile,
 )
 
 
@@ -85,6 +86,10 @@ DEFAULT_DRIVER_REGISTRY = ProtocolDriverRegistry(
         DriverRule(
             matches=lambda device_id, _product_key: device_id == "2743138",
             factory=lambda _device_id: Legacy2743138Profile(device_id="2743138"),
+        ),
+        DriverRule(
+            matches=lambda _device_id, product_key: product_key == "1112015441N",
+            factory=lambda device_id: Tsl1112015441NProfile(device_id=device_id),
         ),
         DriverRule(
             matches=lambda device_id, product_key: (

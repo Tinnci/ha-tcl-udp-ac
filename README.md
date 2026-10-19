@@ -30,6 +30,7 @@ Account discovery alone does not prove control support.
 | --- | --- | --- | --- |
 | Legacy TCL AC, protocol `0` or no protocol value | Local UDP with optional TCL+ fallback | Local UDP with optional TCL+ fallback | Supported |
 | Product `1112013595N`, protocol `1` | TCL+ TSL cloud | TCL+ TSL cloud | Supported profile |
+| Product `1112015441N` (KFR-35G/YQ7Ga+B1), protocol `1` | TCL+ TSL cloud | TCL+ TSL cloud | Supported profile |
 | Other or unknown products | Not documented | Not documented | Open an issue with diagnostics |
 
 The Protocol 1 profile does not send UDP discovery or legacy XML commands.
@@ -45,7 +46,7 @@ It uses the TCL+ thing-status and property-control APIs.
 - Target temperature from 16 °C to 31 °C
 - 0.5 °C temperature steps
 - Automatic, low, medium, and high fan speeds for legacy devices
-- Automatic and seven-gear fan control for product `1112013595N`
+- Automatic and seven-gear fan control for products `1112013595N` and `1112015441N`
 - Vertical and horizontal swing control
 
 ### Device features
@@ -54,6 +55,7 @@ The integration creates only the entities that the selected product profile desc
 
 - Eco, display, health, sleep, turbo, auxiliary heat, and beep switches
 - Protocol 1 switches for anti-mildew, soft wind, self-clean, and fresh-air control
+- Fresh-air main switch, eco/boost/anti-condensation toggles, and TVOC readings for product `1112015441N`
 - Protocol 1 fresh-air percentage control
 - Outdoor temperature for supported legacy devices
 - Protocol 1 temperatures, electrical values, compressor data, fan data, valve state, filter state, and fault diagnostics

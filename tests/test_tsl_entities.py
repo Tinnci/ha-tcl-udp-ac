@@ -25,14 +25,14 @@ class FakeClient:
 class FakeCoordinator:
     """Provide one TSL config entry and state snapshot."""
 
-    def __init__(self, data=None) -> None:
+    def __init__(self, data=None, product_key="1112013595N") -> None:
         self.data = data or {}
         self.client = FakeClient()
         self.refreshes = 0
         self.config_entry = SimpleNamespace(
             entry_id="entry-tsl",
             domain="tcl_udp_ac",
-            data={"cloud_tid": "45816970", "cloud_product_key": "1112013595N"},
+            data={"cloud_tid": "45816970", "cloud_product_key": product_key},
             options={},
             runtime_data=SimpleNamespace(client=self.client),
         )
@@ -107,6 +107,38 @@ class TslEntityTest(unittest.TestCase):
 
         self.assertEqual(coordinator.client.calls, [("fresh_air_percentage", 45)])
         self.assertEqual(coordinator.refreshes, 1)
+
+
+class Tsl1112015441NEntityTest(unittest.TestCase):
+    """The fresh-air profile should expose its own controls and diagnostics."""
+
+    def test_fresh_air_and_tvoc_entities_are_created(self) -> None:
+        coordinator = FakeCoordinator(
+            {
+                "fresh_air": True,
+                "fresh_air_percentage": 33,
+                "tvoc_value": 0.4,
+                "tvoc_level": 2,
+                "fresh_air_active": True,
+                "ai_eco": True,
+                "self_clean_percentage": 20,
+            },
+            product_key="1112015441N",
+        )
+
+        switches = setup_entities("switch", coordinator)
+        sensors = setup_entities("sensor", coordinator)
+        binary = setup_entities("binary_sensor", coordinator)
+
+        switch_ids = {entity._attr_unique_id for entity in switches}
+        sensor_ids = {entity._attr_unique_id for entity in sensors}
+        binary_ids = {entity._attr_unique_id for entity in binary}
+
+        self.assertIn("45816970_fresh_air", switch_ids)
+        self.assertIn("45816970_ai_eco", switch_ids)
+        self.assertIn("45816970_tvoc_value", sensor_ids)
+        self.assertIn("45816970_tvoc_level", sensor_ids)
+        self.assertIn("45816970_fresh_air_active", binary_ids)
 
 
 if __name__ == "__main__":

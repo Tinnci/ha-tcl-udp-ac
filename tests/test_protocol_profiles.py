@@ -32,6 +32,36 @@ class ProtocolProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.name, "default")
 
+    def test_1112015441n_auto_mode_uses_zero_based_work_mode(self) -> None:
+        profile = self.profiles.resolve_protocol_profile(
+            "test-device", product_key="1112015441N"
+        )
+
+        self.assertIsInstance(profile, self.profiles.Tsl1112015441NProfile)
+        self.assertEqual(profile.name, "tsl_1112015441N")
+        bundle = profile.build_mode_command(self.const.MODE_AUTO)
+
+        self.assertEqual(bundle.payload, {"powerSwitch": 1, "workMode": 0})
+        self.assertEqual(bundle.expected_status["mode"], self.const.MODE_AUTO)
+
+    def test_1112015441n_profile_describes_fresh_air_and_tvoc(self) -> None:
+        profile = self.profiles.resolve_protocol_profile(
+            "test-device", product_key="1112015441N"
+        )
+        switches = profile.capabilities.switches
+        sensors = {item.data_key for item in profile.capabilities.diagnostic_sensors}
+
+        self.assertIn("fresh_air", switches)
+        self.assertIn("ai_eco", switches)
+        self.assertIn("tvoc_value", sensors)
+        self.assertIn("fresh_air_rate", sensors)
+        self.assertNotIn("eco_mode", switches)
+        self.assertNotIn("turbo_mode", switches)
+
+        fresh_air = profile.build_feature_command("fresh_air", enabled=True)
+        self.assertEqual(fresh_air.payload, {"newWindSwitch": 1})
+        self.assertEqual(fresh_air.expected_status, {"fresh_air": True})
+
     def test_tsl_temperature_command_uses_property_transport(self) -> None:
         profile = self.profiles.resolve_protocol_profile("45816970")
         bundle = profile.build_temperature_command(25.5)

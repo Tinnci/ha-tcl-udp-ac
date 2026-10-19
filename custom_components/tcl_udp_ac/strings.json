@@ -265,6 +265,42 @@
       },
       "ai_control_source": {
         "name": "AI control source"
+      },
+      "tvoc_value": {
+        "name": "TVOC"
+      },
+      "tvoc_level": {
+        "name": "TVOC level"
+      },
+      "self_clean_percentage": {
+        "name": "Self-clean progress"
+      },
+      "filter_age_percentage": {
+        "name": "Filter life remaining"
+      },
+      "fresh_air_rate": {
+        "name": "Fresh air rate"
+      },
+      "purify_wind_speed": {
+        "name": "Purify wind speed"
+      },
+      "ai_eco_status": {
+        "name": "AI eco status"
+      },
+      "sleep_state": {
+        "name": "Sleep state"
+      },
+      "sleep_target_temperature": {
+        "name": "Sleep target temperature"
+      },
+      "room_size": {
+        "name": "Room size"
+      },
+      "air_change_cube": {
+        "name": "Air change volume"
+      },
+      "save_money_status": {
+        "name": "Saving status"
       }
     },
     "switch": {
@@ -303,6 +339,39 @@
       },
       "fresh_air_auto": {
         "name": "Automatic fresh air"
+      },
+      "self_learn": {
+        "name": "Self learning"
+      },
+      "fresh_air": {
+        "name": "Fresh air"
+      },
+      "fresh_air_eco": {
+        "name": "Fresh air eco"
+      },
+      "fresh_air_super": {
+        "name": "Fresh air boost"
+      },
+      "fresh_air_anti_condensation": {
+        "name": "Fresh air anti-condensation"
+      },
+      "ai_eco": {
+        "name": "AI eco"
+      },
+      "anti_direct_blow": {
+        "name": "Anti-direct blow"
+      },
+      "blue_light": {
+        "name": "Blue light"
+      },
+      "purify": {
+        "name": "Purify"
+      },
+      "purify_deodorize": {
+        "name": "Purify deodorize"
+      },
+      "light_sense": {
+        "name": "Light sensing"
       }
     },
     "binary_sensor": {
@@ -317,6 +386,21 @@
       },
       "self_learning": {
         "name": "Self learning"
+      },
+      "fresh_air_active": {
+        "name": "Fresh air active"
+      },
+      "defrost_active": {
+        "name": "Defrost active"
+      },
+      "light_sense_active": {
+        "name": "Light sensing active"
+      },
+      "purify_deodorize_active": {
+        "name": "Purify deodorize active"
+      },
+      "save_money_active": {
+        "name": "Saving active"
       }
     },
     "number": {
