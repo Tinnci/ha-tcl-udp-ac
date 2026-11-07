@@ -41,9 +41,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.ref || github.sha }}
+      - name: Resolve checked-out commit for HACS
+        id: checked-ref
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: hacs/action@d556e736723344f83838d08488c983a15381059a # 22.5.0
         env:
-          REPOSITORY_REF: ${{ inputs.ref || github.event.pull_request.head.sha || github.sha }}
+          REPOSITORY_REF: ${{ steps.checked-ref.outputs.sha }}
         with:
           category: integration
           comment: false
