@@ -46,6 +46,10 @@ async def _async_after_command(
     context_id: str | None = None,
 ) -> None:
     """Confirm command application when the coordinator supports it."""
+    client = _device_api(coordinator)
+    annotate = getattr(client, "annotate_pending_command", None)
+    if annotate is not None:
+        annotate(command_id, entity_id=entity_id, context_id=context_id)
     confirm = getattr(coordinator, "async_confirm_pending_command", None)
     if confirm is not None:
         if command_id is not None:

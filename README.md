@@ -1,6 +1,6 @@
 # TCL Air Conditioner for Home Assistant
 
-[![Version](https://img.shields.io/badge/version-0.11.0-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
+[![Version](https://img.shields.io/badge/version-0.11.1-blue)](https://github.com/Tinnci/ha-tcl-udp-ac/releases/latest)
 [![Test](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/test.yml)
 [![Validate](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml/badge.svg)](https://github.com/Tinnci/ha-tcl-udp-ac/actions/workflows/validate.yml)
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://www.hacs.xyz/docs/faq/custom_repositories/)

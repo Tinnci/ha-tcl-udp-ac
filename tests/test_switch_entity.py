@@ -6,7 +6,7 @@ import asyncio
 import sys
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from tests.ha_stubs import install_homeassistant_stubs
 from tests.test_protocol_commands import load_integration_module
@@ -56,6 +56,29 @@ class SwitchEntityTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.switch = load_integration_module("switch")
+
+    def test_confirmation_preserves_switch_entity_and_service_context(self) -> None:
+        coordinator = FakeCoordinator()
+        coordinator.client.annotate_pending_command = Mock()
+        coordinator.async_confirm_pending_command = AsyncMock(return_value=True)
+
+        asyncio.run(
+            self.switch._async_after_command(
+                coordinator,
+                command_id="command-1",
+                entity_id="switch.ac_beep",
+                context_id="roommind-context-1",
+            )
+        )
+
+        coordinator.client.annotate_pending_command.assert_called_once_with(
+            "command-1",
+            entity_id="switch.ac_beep",
+            context_id="roommind-context-1",
+        )
+        coordinator.async_confirm_pending_command.assert_awaited_once_with(
+            command_id="command-1"
+        )
 
     def test_setup_does_not_create_duplicate_power_switch(self) -> None:
         coordinator = FakeCoordinator()

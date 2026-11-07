@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1 - 2026-11-07
+
+- Preserve switch entity and Home Assistant context IDs in command confirmation events.
+
 ## 0.11.0 - 2026-09-13
 
 - Preserve per-field observation times and immutable snapshots. Cached fields,

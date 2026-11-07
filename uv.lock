@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -381,7 +381,7 @@ wheels = [
 
 [[package]]
 name = "ha-tcl-udp-ac"
-version = "0.11.0"
+version = "0.11.1"
 source = { virtual = "." }
 
 [package.dev-dependencies]
