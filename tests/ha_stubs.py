@@ -13,6 +13,42 @@ import sys
 import types
 
 
+class _UnitOfTemperature(enum.StrEnum):
+    CELSIUS = "°C"
+    FAHRENHEIT = "°F"
+
+
+class _StubClimateEntity:
+    entity_id = "climate.tcl_air_conditioner"
+    _attr_native_temperature_unit = _UnitOfTemperature.CELSIUS
+    _attr_native_current_temperature = None
+    _attr_native_target_temperature = None
+
+    @property
+    def native_temperature_unit(self):
+        return self._attr_native_temperature_unit
+
+    @property
+    def temperature_unit(self):
+        return self.native_temperature_unit
+
+    @property
+    def native_current_temperature(self):
+        return self._attr_native_current_temperature
+
+    @property
+    def current_temperature(self):
+        return self.native_current_temperature
+
+    @property
+    def native_target_temperature(self):
+        return self._attr_native_target_temperature
+
+    @property
+    def target_temperature(self):
+        return self.native_target_temperature
+
+
 def install_homeassistant_stubs() -> None:
     """Install minimal Home Assistant modules into sys.modules."""
     if "homeassistant" in sys.modules:
@@ -72,10 +108,6 @@ def install_homeassistant_stubs() -> None:
         FAN_MODE = 8
         SWING_MODE = 16
 
-    class UnitOfTemperature(enum.StrEnum):
-        CELSIUS = "°C"
-        FAHRENHEIT = "°F"
-
     class UnitOfEnergy(enum.StrEnum):
         KILO_WATT_HOUR = "kWh"
 
@@ -92,9 +124,6 @@ def install_homeassistant_stubs() -> None:
     class EntityCategory(enum.StrEnum):
         CONFIG = "config"
         DIAGNOSTIC = "diagnostic"
-
-    class ClimateEntity:
-        entity_id = "climate.tcl_air_conditioner"
 
     class SensorEntity:
         entity_id = "sensor.tcl_ac_outdoor_temperature"
@@ -212,7 +241,7 @@ def install_homeassistant_stubs() -> None:
     climate.SWING_HORIZONTAL = "horizontal"
     climate.SWING_OFF = "off"
     climate.SWING_VERTICAL = "vertical"
-    climate.ClimateEntity = ClimateEntity
+    climate.ClimateEntity = _StubClimateEntity
     climate.ClimateEntityFeature = ClimateEntityFeature
     climate.HVACAction = HVACAction
     climate.HVACMode = HVACMode
@@ -229,7 +258,7 @@ def install_homeassistant_stubs() -> None:
     const.ATTR_TEMPERATURE = "temperature"
     const.Platform = Platform
     const.UnitOfEnergy = UnitOfEnergy
-    const.UnitOfTemperature = UnitOfTemperature
+    const.UnitOfTemperature = _UnitOfTemperature
     const.UnitOfTime = UnitOfTime
 
     config_entries.ConfigEntry = object

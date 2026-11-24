@@ -91,7 +91,7 @@ class ClimateEntityTest(unittest.TestCase):
     def test_temperature_attrs_are_celsius_for_home_assistant_ui(self) -> None:
         entity = self.climate.TclUdpClimate(FakeCoordinator())
 
-        self.assertEqual(entity._attr_temperature_unit.value, "°C")
+        self.assertEqual(entity.native_temperature_unit.value, "°C")
         self.assertEqual(entity._attr_min_temp, 16)
         self.assertEqual(entity._attr_max_temp, 31)
         self.assertEqual(entity._attr_target_temperature_step, 0.5)

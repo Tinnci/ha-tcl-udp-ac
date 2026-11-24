@@ -142,10 +142,16 @@ async def _async_after_command(
     await coordinator.async_request_refresh()
 
 
+_HAS_NATIVE_CLIMATE_TEMPS = hasattr(ClimateEntity, "native_target_temperature")
+
+
 class TclUdpClimate(TclUdpEntity, ClimateEntity):
     """TCL UDP AC Climate entity."""
 
-    _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    if _HAS_NATIVE_CLIMATE_TEMPS:
+        _attr_native_temperature_unit = UnitOfTemperature.CELSIUS
+    else:
+        _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.TURN_ON
@@ -235,21 +241,43 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
         """Return supported HVAC modes."""
         return self._attr_hvac_modes
 
-    @property
-    def current_temperature(self) -> float | None:
-        """Return the current temperature."""
+    def _current_temp_value(self) -> float | None:
+        """Return the reported indoor temperature in native Celsius."""
         value = self._reported_state().get("current_temp")
         if value is not None:
             return float(value)
         return None
 
-    @property
-    def target_temperature(self) -> float | None:
-        """Return the target temperature."""
+    def _target_temp_value(self) -> float | None:
+        """Return the reported target temperature in native Celsius."""
         value = self._reported_state().get("target_temp")
         if value is not None:
             return float(value)
         return None
+
+    if _HAS_NATIVE_CLIMATE_TEMPS:
+
+        @property
+        def native_current_temperature(self) -> float | None:
+            """Return the current temperature."""
+            return self._current_temp_value()
+
+        @property
+        def native_target_temperature(self) -> float | None:
+            """Return the target temperature."""
+            return self._target_temp_value()
+
+    else:
+
+        @property
+        def current_temperature(self) -> float | None:
+            """Return the current temperature."""
+            return self._current_temp_value()
+
+        @property
+        def target_temperature(self) -> float | None:
+            """Return the target temperature."""
+            return self._target_temp_value()
 
     @property
     def hvac_mode(self) -> HVACMode | None:
@@ -362,7 +390,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             target_temperature = (
                 float(temperature)
                 if temperature is not None
-                else self.target_temperature
+                else self._target_temp_value()
             )
             command_id = await client.async_set_mode_profile(
                 udp_mode,
@@ -409,7 +437,7 @@ class TclUdpClimate(TclUdpEntity, ClimateEntity):
             if not is_on or udp_mode is not None:
                 command_id = await client.async_set_mode_profile(
                     udp_mode,
-                    target_temperature=self.target_temperature,
+                    target_temperature=self._target_temp_value(),
                 )
             else:
                 command_id = None
