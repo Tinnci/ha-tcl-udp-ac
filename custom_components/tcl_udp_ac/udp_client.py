@@ -24,7 +24,7 @@ from .const import (
     UDP_BROADCAST_PORT,
     UDP_COMMAND_PORT,
 )
-from .log_utils import log_info, log_warning
+from .log_utils import log_debug, log_info, log_warning
 from .protocol_driver import ProtocolDriver, resolve_protocol_driver
 from .temperature_validity import is_valid_outdoor_temperature
 
@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from .udp_hub import UdpHub, UdpSubscription
 
 SYNC_THROTTLE_SECONDS = 2.0
+DISCOVERY_BACKOFF_INITIAL_SECONDS = 30.0
+DISCOVERY_BACKOFF_MAX_SECONDS = 300.0
 
 
 class UdpClient:
@@ -71,6 +73,8 @@ class UdpClient:
         self._udp_hub = udp_hub
         self._hub_subscription: UdpSubscription | None = None
         self._hub_acquired = False
+        self._last_discovery_time: float | None = None
+        self._discovery_backoff_seconds: float = DISCOVERY_BACKOFF_INITIAL_SECONDS
 
     async def async_start_listener(self, status_callback: Any) -> None:
         """Start the UDP listener for broadcast messages."""
@@ -186,6 +190,8 @@ class UdpClient:
                     "Device IP discovered/changed: %s -> %s", self._device_ip, sender_ip
                 )
                 self._device_ip = sender_ip
+                self._last_discovery_time = None
+                self._discovery_backoff_seconds = DISCOVERY_BACKOFF_INITIAL_SECONDS
                 task = asyncio.create_task(self.async_request_status())
                 self._tasks.add(task)
                 task.add_done_callback(self._tasks.discard)
@@ -218,6 +224,8 @@ class UdpClient:
                         dev_ip,
                     )
                     self._device_ip = dev_ip
+                    self._last_discovery_time = None
+                    self._discovery_backoff_seconds = DISCOVERY_BACKOFF_INITIAL_SECONDS
 
                 if dev_mac and self._device_mac != dev_mac:
                     LOGGER.info("Device MAC discovered via deviceInfo: %s", dev_mac)
@@ -463,6 +471,8 @@ class UdpClient:
     async def async_send_commands(
         self,
         items: list[tuple[str, str]],
+        *,
+        cloud_accepted: bool = False,
     ) -> bool:
         """
         Send multiple tags in a single SetMessage XML (UDP only).
@@ -500,7 +510,8 @@ class UdpClient:
             self._sendto(xml_command.encode("utf-8"), target_addr)
             return True
         desc = ", ".join(f"{t}={v}" for t, v in items)
-        log_warning(
+        log_fn = log_debug if cloud_accepted else log_warning
+        log_fn(
             LOGGER,
             "udp_control_skipped",
             command=desc,
@@ -560,7 +571,20 @@ class UdpClient:
         if not self._send_available:
             return
         if not self._device_ip:
+            now = time.time()
+            if (
+                self._last_discovery_time is not None
+                and now - self._last_discovery_time < self._discovery_backoff_seconds
+            ):
+                return
+            had_prior_discovery = self._last_discovery_time is not None
+            self._last_discovery_time = now
             await self.async_send_discovery()
+            if had_prior_discovery:
+                self._discovery_backoff_seconds = min(
+                    self._discovery_backoff_seconds * 2,
+                    DISCOVERY_BACKOFF_MAX_SECONDS,
+                )
             return
 
         now = time.time()

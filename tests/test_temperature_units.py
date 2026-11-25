@@ -63,6 +63,51 @@ class TemperatureUnitTest(unittest.TestCase):
         assert status["current_temp"] == 29.4
         assert status["outdoor_temp"] == 26.0
 
+    def test_cloud_status_uses_exact_fahrenheit_when_celsius_is_truncated(self) -> None:
+        """Cloud celsiusSetTemp truncates integer degrees and must not bounce UDP values."""
+        client = self.api.CloudClient(
+            session=None,
+            enabled=False,
+            tid=None,
+            token=None,
+            from_jid=None,
+            to_jid=None,
+            base_url="https://io.zx.tcljd.com",
+            control_enabled=False,
+            headers=self.api.CloudHeaderProfile(
+                platform="android",
+                user_agent="ua",
+                app_package="pkg",
+                system_version="16",
+                brand="brand",
+                app_version="4.1.1",
+                sdk_version="6.0.3",
+                channel="xiaomi",
+                app_build_version="4.1.1.0",
+                t_app_version="4.1.1.0",
+                t_platform_type="Android",
+                t_store_uuid="TCL+",
+                origin="https://h5.zx.tcljd.com",
+                x_requested_with="com.tcl.tclplus",
+                accept="text/plain",
+                accept_encoding="gzip",
+                accept_language="zh-CN",
+            ),
+        )
+
+        assert client._parse_cloud_status({"celsiusSetTemp": 25.0, "setTemp": "78"})[
+            "target_temp"
+        ] == 25.6
+        assert client._parse_cloud_status({"celsiusSetTemp": 26.0, "setTemp": "80"})[
+            "target_temp"
+        ] == 26.7
+        assert client._parse_cloud_status({"celsiusSetTemp": 23.0, "setTemp": "74"})[
+            "target_temp"
+        ] == 23.3
+        assert client._parse_cloud_status(
+            {"celsiusSetTemp": 25.0, "setTemp": "77", "degreeH": "1"}
+        )["target_temp"] == 25.5
+
     def test_set_temperature_accepts_celsius_and_sends_protocol_fahrenheit(
         self,
     ) -> None:

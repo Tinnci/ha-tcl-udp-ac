@@ -52,6 +52,7 @@ from .credential_manager import CloudAuthRejectedError
 from .log_utils import log_debug, log_info, log_warning
 from .protocol_driver import ProtocolDriver, resolve_protocol_driver
 from .protocol_profiles import UnsupportedModeError
+from .temperature_codec import LegacyTemperatureCodec
 from .temperature_validity import is_valid_outdoor_temperature
 from .udp_client import UdpClient
 
@@ -370,19 +371,28 @@ class CloudClient:
             status["power"] = power
 
         target_c = self._cloud_float(cur_status.get("celsiusSetTemp"))
-        if target_c is not None:
-            status["target_temp"] = round(target_c, 1)
-        else:
-            target_temp = self._cloud_int(cur_status.get("setTemp"))
-            if target_temp is not None:
-                status["target_temp"] = round(
-                    self._fahrenheit_to_celsius(float(target_temp)),
-                    1,
-                )
+        fahrenheit_c: float | None = None
+        target_temp = self._cloud_int(cur_status.get("setTemp"))
+        if target_temp is not None:
+            fahrenheit_c = round(
+                self._fahrenheit_to_celsius(float(target_temp)),
+                1,
+            )
+            if self._cloud_bool(cur_status.get("degreeH")):
+                fahrenheit_c = round(fahrenheit_c + 0.5, 1)
 
-            degree_half = self._cloud_bool(cur_status.get("degreeH"))
-            if degree_half and "target_temp" in status:
-                status["target_temp"] = round(float(status["target_temp"]) + 0.5, 1)
+        if target_c is not None and fahrenheit_c is not None:
+            if (
+                abs(fahrenheit_c - target_c)
+                <= LegacyTemperatureCodec.REPORT_TOLERANCE_C
+            ):
+                status["target_temp"] = round(target_c, 1)
+            else:
+                status["target_temp"] = fahrenheit_c
+        elif target_c is not None:
+            status["target_temp"] = round(target_c, 1)
+        elif fahrenheit_c is not None:
+            status["target_temp"] = fahrenheit_c
 
         current_temp = self._cloud_int(cur_status.get("inTemp"))
         if current_temp is not None:
@@ -1365,7 +1375,10 @@ class TclUdpApiClient:
                     if cloud_accepted
                     else TransportAttempt.REJECTED
                 )
-            udp_accepted = await self._udp.async_send_commands(items)
+            udp_accepted = await self._udp.async_send_commands(
+                items,
+                cloud_accepted=(cloud_attempt == TransportAttempt.ACCEPTED),
+            )
             udp_attempt = (
                 TransportAttempt.ACCEPTED if udp_accepted else TransportAttempt.SKIPPED
             )
