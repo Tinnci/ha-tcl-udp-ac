@@ -37,7 +37,7 @@ PLATFORMS: list[Platform] = [
     Platform.SWITCH,
     Platform.SENSOR,
 ]
-SCAN_INTERVAL = timedelta(minutes=1)
+SCAN_INTERVAL = timedelta(seconds=20)
 
 
 # https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
@@ -120,6 +120,10 @@ async def async_unload_entry(
     """Handle removal of an entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        coordinator = getattr(entry.runtime_data, "coordinator", None)
+        cancel_tasks = getattr(coordinator, "async_cancel_confirmation_tasks", None)
+        if cancel_tasks is not None:
+            await cancel_tasks()
         device = getattr(entry.runtime_data, "session", entry.runtime_data.client)
         await device.async_close()
     return unload_ok

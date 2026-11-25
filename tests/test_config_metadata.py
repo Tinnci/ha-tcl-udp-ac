@@ -251,10 +251,18 @@ class ConfigMetadataTest(unittest.TestCase):
         self,
     ) -> None:
         init_text = (ROOT / "custom_components/tcl_udp_ac/__init__.py").read_text()
-        match = re.search(r"SCAN_INTERVAL\s*=\s*timedelta\(minutes=(\d+)\)", init_text)
+        min_match = re.search(
+            r"SCAN_INTERVAL\s*=\s*timedelta\(minutes=(\d+)\)", init_text
+        )
+        sec_match = re.search(
+            r"SCAN_INTERVAL\s*=\s*timedelta\(seconds=(\d+)\)", init_text
+        )
 
-        self.assertIsNotNone(match)
-        self.assertLessEqual(int(match.group(1)), 1)
+        self.assertTrue(min_match or sec_match)
+        if min_match:
+            self.assertLessEqual(int(min_match.group(1)) * 60, 60)
+        if sec_match:
+            self.assertLessEqual(int(sec_match.group(1)), 60)
 
 
 if __name__ == "__main__":

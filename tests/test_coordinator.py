@@ -111,6 +111,23 @@ class CoordinatorTest(unittest.TestCase):
         self.assertEqual(result["energy_statistics"]["energy_kwh"], 3.4)
         self.assertEqual(result["energy_statistics"]["running_hours"], 163.3)
 
+    def test_statistics_are_throttled_and_skipped_during_confirmation(self) -> None:
+        client = FakeClient(cloud_enabled=True)
+        client.cloud_statistics_enabled = True
+        coordinator = self.make_coordinator(client)
+
+        # Confirmation poll skips energy statistics fetch
+        coordinator._confirmation_poll_active = 1
+        asyncio.run(coordinator._async_update_data())
+        self.assertNotIn("async_fetch_cloud_energy_statistics", client.calls)
+
+        # Normal poll fetches once, then throttles subsequent poll within 600s
+        coordinator._confirmation_poll_active = 0
+        client.calls.clear()
+        asyncio.run(coordinator._async_update_data())
+        asyncio.run(coordinator._async_update_data())
+        self.assertEqual(client.calls.count("async_fetch_cloud_energy_statistics"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

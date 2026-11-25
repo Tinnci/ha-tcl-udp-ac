@@ -456,6 +456,61 @@ class CommandConfirmationTest(unittest.TestCase):
             event["transport_attempts"], {"cloud": "skipped", "udp": "accepted"}
         )
 
+    def test_udp_push_wakes_confirmation_immediately(self) -> None:
+        client = FakeClient({"power": True})
+        coordinator = self.make_coordinator(client, [{"power": False}])
+        coordinator.async_set_updated_data = lambda data: setattr(coordinator, "data", data)
+        refreshes = 0
+
+        async def refresh():
+            nonlocal refreshes
+            refreshes += 1
+
+        coordinator.async_request_refresh = refresh
+
+        async def run_case():
+            task = asyncio.create_task(
+                coordinator.async_confirm_pending_command(timeout=2.0, interval=1.5)
+            )
+            await asyncio.sleep(0.03)
+            await coordinator.async_handle_status_update({"power": True})
+            return await asyncio.wait_for(task, timeout=0.5)
+
+        self.assertTrue(asyncio.run(run_case()))
+        self.assertGreaterEqual(refreshes, 1)
+        self.assertEqual(coordinator.last_command_result["outcome"], "applied")
+
+    def test_foreground_timeout_hands_off_to_background_task(self) -> None:
+        client = FakeClient({"power": True})
+        coordinator = self.make_coordinator(client, [{"power": False}])
+        created_tasks: list[asyncio.Task] = []
+        coordinator.hass.async_create_task = lambda coro: created_tasks.append(
+            asyncio.create_task(coro)
+        ) or created_tasks[-1]
+
+        async def run_case():
+            with patch.object(
+                self.coordinator_mod, "COMMAND_FOREGROUND_CONFIRMATION_TIMEOUT", 0.03
+            ):
+                confirmed = await coordinator.async_confirm_pending_command(
+                    timeout=0.5, interval=0.02
+                )
+                self.assertFalse(confirmed)
+                self.assertEqual(len(created_tasks), 1)
+                self.assertIsNone(
+                    getattr(coordinator, "_last_command_result", None)
+                )
+                coordinator.async_request_refresh = (
+                    lambda: _set_power_true(coordinator)
+                )
+                await asyncio.wait_for(created_tasks[0], timeout=0.5)
+
+        async def _set_power_true(coord):
+            coord.data = {"power": True}
+
+        asyncio.run(run_case())
+        self.assertEqual(coordinator.last_command_result["outcome"], "applied")
+
 
 if __name__ == "__main__":
     unittest.main()

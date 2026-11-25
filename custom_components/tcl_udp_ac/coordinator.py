@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
@@ -15,7 +16,10 @@ from .const import DOMAIN, LOGGER
 from .log_utils import log_error
 
 COMMAND_CONFIRMATION_TIMEOUT = 30.0
+COMMAND_FOREGROUND_CONFIRMATION_TIMEOUT = 2.5
 COMMAND_CONFIRMATION_INTERVAL = 2.0
+COMMAND_CONFIRMATION_BACKOFF = (0.35, 0.5, 0.8, 1.2, 1.5, 2.0)
+ENERGY_STATS_MIN_INTERVAL = 600.0
 COMMAND_EVENT = f"{DOMAIN}_command_result"
 COMMAND_REPAIR_ISSUE_ID = "command_not_confirmed"
 COMMAND_NOT_SENT_ISSUE_ID = "command_not_sent"
@@ -179,27 +183,56 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         )
         return True
 
+    async def _async_fetch_cloud_status_for_update(
+        self, client: Any, *, is_confirm_poll: bool
+    ) -> None:
+        """Fetch cloud status, avoiding retry sleeps on confirmation polls."""
+        if not is_confirm_poll:
+            await client.async_fetch_cloud_status()
+            return
+        try:
+            await client.async_fetch_cloud_status(retries=0)
+        except TypeError:
+            await client.async_fetch_cloud_status()
+
     async def _async_update_data(self) -> Any:
         """Update data via library."""
         # For UDP push-based updates, we return the last known status
         # But we also trigger a SyncStatusReq as a manual poll fallback
         runtime = self.config_entry.runtime_data
         client = getattr(runtime, "session", None) or runtime.client
+        is_confirm_poll = getattr(self, "_confirmation_poll_active", 0) > 0
         try:
             await client.async_request_status()
             if client.cloud_enabled:
-                await client.async_fetch_cloud_status()
+                await self._async_fetch_cloud_status_for_update(
+                    client, is_confirm_poll=is_confirm_poll
+                )
             status = client.get_last_status()
         except TclUdpApiClientError:
             if client.cloud_enabled:
-                await client.async_fetch_cloud_status()
+                await self._async_fetch_cloud_status_for_update(
+                    client, is_confirm_poll=is_confirm_poll
+                )
             status = client.get_last_status()
 
         if not status:
             msg = "No status received from TCL UDP AC"
             raise UpdateFailed(msg)
         if client.cloud_statistics_enabled:
-            stats = await client.async_fetch_cloud_energy_statistics()
+            now_mono = time.monotonic()
+            last_stats_at = getattr(self, "_last_stats_fetch_at", None)
+            stats: dict[str, Any] | None
+            if not is_confirm_poll and (
+                last_stats_at is None
+                or now_mono - last_stats_at >= ENERGY_STATS_MIN_INTERVAL
+            ):
+                stats = await client.async_fetch_cloud_energy_statistics()
+                if stats:
+                    self._cached_energy_statistics = stats
+                    self._last_stats_fetch_at = now_mono
+            else:
+                stats = getattr(self, "_cached_energy_statistics", None)
             if stats:
                 merge_derived = getattr(client, "merge_derived", None)
                 if merge_derived is not None:
@@ -208,6 +241,219 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                     status = dict(status)
                     status["energy_statistics"] = stats
         return status
+
+    def _get_status_update_event(self) -> asyncio.Event:
+        """Return or lazily create the UDP push wake-up event."""
+        event = getattr(self, "_status_update_event", None)
+        if event is None:
+            event = asyncio.Event()
+            self._status_update_event = event
+        return event
+
+    def _confirmation_tasks(self) -> dict[str, asyncio.Task[Any]]:
+        """Return or lazily create the active background confirmation map."""
+        tasks = getattr(self, "_background_confirmation_tasks", None)
+        if tasks is None:
+            tasks = {}
+            self._background_confirmation_tasks = tasks
+        return tasks
+
+    async def async_cancel_confirmation_tasks(self) -> None:
+        """Cancel any active background command confirmation tasks."""
+        tasks = getattr(self, "_background_confirmation_tasks", None)
+        if not tasks:
+            return
+        pending_tasks = list(tasks.values())
+        tasks.clear()
+        for task in pending_tasks:
+            task.cancel()
+        await asyncio.gather(*pending_tasks, return_exceptions=True)
+
+    async def _async_refresh_for_confirmation(self) -> None:
+        """Refresh device status without triggering extra statistics HTTP calls."""
+        self._confirmation_poll_active = (
+            getattr(self, "_confirmation_poll_active", 0) + 1
+        )
+        try:
+            await self.async_request_refresh()
+        finally:
+            self._confirmation_poll_active = max(
+                0, getattr(self, "_confirmation_poll_active", 1) - 1
+            )
+
+    def _read_confirmation_view(
+        self, client: Any, started_at: float | None
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Return full status and confirmation-eligible slice."""
+        status = dict(self.data or client.get_last_status() or {})
+        snapshot_reader = getattr(client, "state_snapshot", None)
+        if snapshot_reader is not None and started_at is not None:
+            snapshot = snapshot_reader()
+            return snapshot.as_dict(), snapshot.observed_since(started_at)
+        return status, status
+
+    async def _async_wait_confirmation_step(self, *, step: float, interval: float) -> None:
+        """Sleep up to *step* seconds, waking immediately on UDP push."""
+        if interval <= 0:
+            await asyncio.sleep(0)
+            return
+        if step <= 0:
+            return
+        event = self._get_status_update_event()
+        if event.is_set():
+            return
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(event.wait(), timeout=step)
+
+    @staticmethod
+    def _confirmation_step(interval: float, attempt: int) -> float:
+        """Return bounded progressive retry interval for confirmation checks."""
+        if interval <= 0:
+            return 0.0
+        schedule = COMMAND_CONFIRMATION_BACKOFF[
+            min(attempt, len(COMMAND_CONFIRMATION_BACKOFF) - 1)
+        ]
+        return min(interval, schedule)
+
+    def _finalize_confirmation_success(
+        self,
+        *,
+        client: Any,
+        command_id: str | None,
+        intent: str,
+        expected_status: dict[str, Any],
+        status: dict[str, Any],
+        transport_outcome: str,
+        transport_attempts: dict[str, str],
+        entity_id: str | None,
+        context_id: str | None,
+        status_tolerances: dict[str, float],
+    ) -> None:
+        self._clear_pending_command(client, command_id)
+        self._delete_command_issue()
+        self._fire_command_event(
+            command_id=command_id,
+            outcome="applied",
+            intent=intent,
+            expected_status=expected_status,
+            status=status,
+            transport_outcome=transport_outcome,
+            transport_attempts=transport_attempts,
+            entity_id=entity_id,
+            context_id=context_id,
+            status_tolerances=status_tolerances,
+        )
+
+    def _finalize_confirmation_timeout(
+        self,
+        *,
+        client: Any,
+        command_id: str | None,
+        timeout: float,
+        intent: str,
+        expected_status: dict[str, Any],
+        status: dict[str, Any],
+        transport_outcome: str,
+        transport_attempts: dict[str, str],
+        entity_id: str | None,
+        context_id: str | None,
+        status_tolerances: dict[str, float],
+    ) -> None:
+        LOGGER.warning(
+            "TCL AC command was not confirmed within %.0fs: "
+            "intent=%s expected=%s status=%s",
+            timeout,
+            intent,
+            expected_status,
+            status,
+        )
+        self._clear_pending_command(client, command_id)
+        self._create_command_issue()
+        self._fire_command_event(
+            command_id=command_id,
+            outcome="not_confirmed",
+            intent=intent,
+            expected_status=expected_status,
+            status_tolerances=status_tolerances,
+            status=status,
+            transport_outcome=transport_outcome,
+            transport_attempts=transport_attempts,
+            entity_id=entity_id,
+            context_id=context_id,
+        )
+
+    async def _async_continue_confirmation(
+        self,
+        *,
+        client: Any,
+        command_id: str | None,
+        started_at: float | None,
+        deadline: float,
+        timeout: float,
+        interval: float,
+        attempt_start: int,
+        intent: str,
+        expected_status: dict[str, Any],
+        status_tolerances: dict[str, float],
+        transport_outcome: str,
+        transport_attempts: dict[str, str],
+        entity_id: str | None,
+        context_id: str | None,
+    ) -> None:
+        """Continue confirmation in the background after the foreground window."""
+        attempt = attempt_start
+        status: dict[str, Any] = {}
+        while True:
+            pending_getter = getattr(client, "pending_command_confirmation", None)
+            if pending_getter is not None:
+                try:
+                    still_pending = pending_getter(command_id)
+                except TypeError:
+                    still_pending = pending_getter()
+                if not still_pending:
+                    return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            step = min(remaining, self._confirmation_step(interval, attempt))
+            attempt += 1
+            await self._async_wait_confirmation_step(step=step, interval=interval)
+            if interval > 0:
+                self._get_status_update_event().clear()
+            await self._async_refresh_for_confirmation()
+            status, confirmation_status = self._read_confirmation_view(
+                client, started_at
+            )
+            if self._command_matches(
+                expected_status, confirmation_status, status_tolerances
+            ):
+                self._finalize_confirmation_success(
+                    client=client,
+                    command_id=command_id,
+                    intent=intent,
+                    expected_status=expected_status,
+                    status=status,
+                    transport_outcome=transport_outcome,
+                    transport_attempts=transport_attempts,
+                    entity_id=entity_id,
+                    context_id=context_id,
+                    status_tolerances=status_tolerances,
+                )
+                return
+
+        self._finalize_confirmation_timeout(
+            client=client,
+            command_id=command_id,
+            timeout=timeout,
+            intent=intent,
+            expected_status=expected_status,
+            status=status,
+            transport_outcome=transport_outcome,
+            transport_attempts=transport_attempts,
+            entity_id=entity_id,
+            context_id=context_id,
+            status_tolerances=status_tolerances,
+        )
 
     async def async_confirm_pending_command(
         self,
@@ -240,31 +486,47 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         transport_attempts = pending.get("transport_attempts") or {}
         entity_id = pending.get("entity_id")
         context_id = pending.get("context_id")
+        started_at = pending.get("started_at")
         if not isinstance(expected_status, dict) or not expected_status:
             self._clear_pending_command(client, command_id)
             await self.async_request_refresh()
             return True
 
-        deadline = time.monotonic() + timeout
+        hass = getattr(self, "hass", None)
+        create_task = getattr(hass, "async_create_task", None)
+        can_background = (
+            callable(create_task)
+            and interval > 0
+            and timeout > COMMAND_FOREGROUND_CONFIRMATION_TIMEOUT
+        )
+        tasks = self._confirmation_tasks()
+        if can_background and intent in tasks:
+            old_task = tasks.pop(intent, None)
+            if old_task is not None and not old_task.done():
+                old_task.cancel()
+
+        now_start = time.monotonic()
+        deadline = now_start + timeout
+        foreground_deadline = (
+            min(deadline, now_start + COMMAND_FOREGROUND_CONFIRMATION_TIMEOUT)
+            if can_background
+            else deadline
+        )
+        attempt = 0
         status: dict[str, Any] = {}
         while True:
-            await self.async_request_refresh()
-            status = dict(self.data or client.get_last_status() or {})
-            snapshot_reader = getattr(client, "state_snapshot", None)
-            if snapshot_reader is not None:
-                snapshot = snapshot_reader()
-                status = snapshot.as_dict()
-                confirmation_status = snapshot.observed_since(pending["started_at"])
-            else:
-                confirmation_status = status
+            if interval > 0:
+                self._get_status_update_event().clear()
+            await self._async_refresh_for_confirmation()
+            status, confirmation_status = self._read_confirmation_view(
+                client, started_at
+            )
             if self._command_matches(
                 expected_status, confirmation_status, status_tolerances
             ):
-                self._clear_pending_command(client, command_id)
-                self._delete_command_issue()
-                self._fire_command_event(
+                self._finalize_confirmation_success(
+                    client=client,
                     command_id=command_id,
-                    outcome="applied",
                     intent=intent,
                     expected_status=expected_status,
                     status=status,
@@ -276,32 +538,56 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 return True
 
-            if time.monotonic() >= deadline:
+            now = time.monotonic()
+            if now >= deadline:
                 break
 
-            await asyncio.sleep(interval)
+            if can_background and now >= foreground_deadline:
+                task = create_task(
+                    self._async_continue_confirmation(
+                        client=client,
+                        command_id=command_id,
+                        started_at=started_at,
+                        deadline=deadline,
+                        timeout=timeout,
+                        interval=interval,
+                        attempt_start=attempt,
+                        intent=intent,
+                        expected_status=expected_status,
+                        status_tolerances=status_tolerances,
+                        transport_outcome=transport_outcome,
+                        transport_attempts=transport_attempts,
+                        entity_id=entity_id,
+                        context_id=context_id,
+                    )
+                )
+                tasks[intent] = task
 
-        LOGGER.warning(
-            "TCL AC command was not confirmed within %.0fs: "
-            "intent=%s expected=%s status=%s",
-            timeout,
-            intent,
-            expected_status,
-            status,
-        )
-        self._clear_pending_command(client, command_id)
-        self._create_command_issue()
-        self._fire_command_event(
+                def _cleanup_task(completed: asyncio.Task[Any], key: str = intent) -> None:
+                    if tasks.get(key) is completed:
+                        tasks.pop(key, None)
+
+                task.add_done_callback(_cleanup_task)
+                return False
+
+            step = self._confirmation_step(interval, attempt)
+            if interval > 0:
+                step = min(step, max(0.0, foreground_deadline - now))
+            attempt += 1
+            await self._async_wait_confirmation_step(step=step, interval=interval)
+
+        self._finalize_confirmation_timeout(
+            client=client,
             command_id=command_id,
-            outcome="not_confirmed",
+            timeout=timeout,
             intent=intent,
             expected_status=expected_status,
-            status_tolerances=status_tolerances,
             status=status,
             transport_outcome=transport_outcome,
             transport_attempts=transport_attempts,
             entity_id=entity_id,
             context_id=context_id,
+            status_tolerances=status_tolerances,
         )
         return False
 
@@ -317,3 +603,4 @@ class TclUdpDataUpdateCoordinator(DataUpdateCoordinator):
         """Handle status update from UDP broadcast."""
         # Update coordinator data and notify listeners
         self.async_set_updated_data(status)
+        self._get_status_update_event().set()

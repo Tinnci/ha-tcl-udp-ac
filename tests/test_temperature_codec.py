@@ -46,6 +46,12 @@ class LegacyTemperatureCodecTest(unittest.TestCase):
 
         self.assertLessEqual(abs(round_trip - 23.5), 0.25)
 
+    def test_whole_degree_targets_prefer_zero_half_flag_when_within_tolerance(self) -> None:
+        self.assertEqual(self.codec.encode(21.0, fallback_celsius=21.0), ("70", "0"))
+        for whole in range(16, 32):
+            set_temp, degree_h = self.codec.encode(float(whole), fallback_celsius=23.0)
+            self.assertEqual(degree_h, "0", f"Expected degreeH=0 for {whole}°C, got {set_temp},{degree_h}")
+
     def test_every_half_degree_target_fits_the_profile_confirmation_tolerance(
         self,
     ) -> None:

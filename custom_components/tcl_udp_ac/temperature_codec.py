@@ -51,11 +51,23 @@ class LegacyTemperatureCodec:
                 c_rounded = round(c_val * 2) / 2
                 diff = abs(c_rounded - desired_c_rounded)
                 diff_raw = abs(c_val - target)
+                # Prefer native integer Fahrenheit (degreeH=0) when it represents
+                # the requested half-degree target within device reporting tolerance,
+                # because some legacy AC units ignore degreeH=1 on whole-degree writes.
+                prefer_no_half = (
+                    0
+                    if (
+                        degree_half == 0
+                        and diff == 0.0
+                        and diff_raw <= cls.REPORT_TOLERANCE_C
+                    )
+                    else 1
+                )
                 diff_f = abs(f_int - cls.celsius_to_fahrenheit(target))
-                candidate = (diff, diff_raw, diff_f, f_int, degree_half)
+                candidate = (diff, prefer_no_half, diff_raw, diff_f, f_int, degree_half)
                 if best is None or candidate < best:
                     best = candidate
 
         if best is None:
             return str(round(cls.celsius_to_fahrenheit(target))), "0"
-        return str(best[3]), str(best[4])
+        return str(best[4]), str(best[5])
