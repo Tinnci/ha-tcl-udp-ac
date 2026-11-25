@@ -221,6 +221,9 @@
       "external_current": {
         "name": "Outdoor unit current"
       },
+      "external_power": {
+        "name": "Potencia de la unidad exterior"
+      },
       "compressor_frequency": {
         "name": "Compressor frequency"
       },

@@ -236,6 +236,36 @@ class CloudProtocolMappingTest(unittest.TestCase):
         for key, value in expected.items():
             self.assertEqual(status[key], value)
         self.assertEqual(status["tsl_query_time"].timestamp(), 1787583278.199)
+        self.assertFalse(status["tsl_diagnostics_fresh"])
+        self.assertNotIn("external_power_w", status)
+
+    def test_tsl_external_power_requires_fresh_query_and_positive_voltage(self) -> None:
+        import time
+
+        now_ms = int(time.time() * 1000)
+        fresh = self.client._parse_cloud_status(
+            {
+                "externalUnitVoltage": 220,
+                "externalUnitElectricCurrent": 2.5,
+                "tslQueryTime": now_ms,
+            }
+        )
+        self.assertTrue(fresh["tsl_diagnostics_fresh"])
+        self.assertEqual(fresh["external_power_w"], 550.0)
+
+        no_ts = self.client._parse_cloud_status(
+            {"externalUnitVoltage": 220, "externalUnitElectricCurrent": 1.2}
+        )
+        self.assertEqual(no_ts["external_power_w"], 264.0)
+
+        zero_v = self.client._parse_cloud_status(
+            {
+                "externalUnitVoltage": 0,
+                "externalUnitElectricCurrent": 1.2,
+                "tslQueryTime": now_ms,
+            }
+        )
+        self.assertNotIn("external_power_w", zero_v)
 
     def test_tsl_ascii_zero_error_marker_means_no_fault(self) -> None:
         status = self.client._parse_cloud_status({"errorCode": [48]})

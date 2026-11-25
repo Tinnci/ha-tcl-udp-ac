@@ -214,6 +214,7 @@ def install_homeassistant_stubs() -> None:
         DURATION = "duration"
         VOLTAGE = "voltage"
         CURRENT = "current"
+        POWER = "power"
         FREQUENCY = "frequency"
         TIMESTAMP = "timestamp"
 

@@ -70,6 +70,7 @@ class TslEntityTest(unittest.TestCase):
         self.assertIn("45816970_error_codes", sensor_ids)
         self.assertIn("45816970_internal_coil_temperature", sensor_ids)
         self.assertIn("45816970_tsl_query_time", sensor_ids)
+        self.assertIn("45816970_external_power_w", sensor_ids)
         self.assertIn("45816970_filter_blocked", binary_ids)
         self.assertIn("45816970_aux_heat_active", binary_ids)
         internal = next(
@@ -79,6 +80,31 @@ class TslEntityTest(unittest.TestCase):
         )
         self.assertEqual(internal.native_value, 25)
         self.assertTrue(internal.available)
+
+    def test_diagnostic_sensor_exposes_tsl_freshness_attributes(self) -> None:
+        from datetime import UTC, datetime
+
+        qtime = datetime(2026, 11, 25, 12, 0, tzinfo=UTC)
+        coordinator = FakeCoordinator(
+            {
+                "external_power_w": 330.0,
+                "tsl_diagnostics_fresh": True,
+                "tsl_query_time": qtime,
+            }
+        )
+        sensors = setup_entities("sensor", coordinator)
+        power_sensor = next(
+            item for item in sensors if item._attr_unique_id == "45816970_external_power_w"
+        )
+        self.assertTrue(power_sensor.available)
+        self.assertEqual(power_sensor.native_value, 330.0)
+        self.assertEqual(
+            power_sensor.extra_state_attributes,
+            {
+                "tsl_diagnostics_fresh": True,
+                "tsl_query_time": qtime.isoformat(),
+            },
+        )
 
     def test_missing_diagnostic_is_unavailable_instead_of_fabricated(self) -> None:
         coordinator = FakeCoordinator()

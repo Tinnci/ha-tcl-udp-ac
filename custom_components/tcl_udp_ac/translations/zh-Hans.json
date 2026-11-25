@@ -221,6 +221,9 @@
       "external_current": {
         "name": "室外机电流"
       },
+      "external_power": {
+        "name": "室外机功率"
+      },
       "compressor_frequency": {
         "name": "压缩机频率"
       },

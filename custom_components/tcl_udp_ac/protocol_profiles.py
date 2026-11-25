@@ -259,6 +259,14 @@ TSL_1112013595N_CAPABILITIES = DeviceCapabilities(
             "measurement",
         ),
         DiagnosticSensorCapability(
+            "external_power_w",
+            "external_power",
+            "mdi:flash",
+            "W",
+            "power",
+            "measurement",
+        ),
+        DiagnosticSensorCapability(
             "compressor_frequency",
             "compressor_frequency",
             "mdi:sine-wave",

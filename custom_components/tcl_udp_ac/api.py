@@ -624,10 +624,23 @@ class CloudClient:
             status["error_codes"] = str(errors)
 
         query_time = self._cloud_float(cur_status.get("tslQueryTime"))
+        tsl_diagnostics_fresh: bool | None = None
         if query_time is not None and query_time > 0:
-            status["tsl_query_time"] = datetime.fromtimestamp(
-                query_time / 1000.0, tz=UTC
-            )
+            query_dt = datetime.fromtimestamp(query_time / 1000.0, tz=UTC)
+            status["tsl_query_time"] = query_dt
+            tsl_diagnostics_fresh = abs((datetime.now(UTC) - query_dt).total_seconds()) <= 600
+            status["tsl_diagnostics_fresh"] = tsl_diagnostics_fresh
+
+        voltage = status.get("external_voltage")
+        current = status.get("external_current")
+        if (
+            isinstance(voltage, int | float)
+            and isinstance(current, int | float)
+            and voltage > 0
+            and current >= 0
+            and (tsl_diagnostics_fresh is None or tsl_diagnostics_fresh)
+        ):
+            status["external_power_w"] = round(float(voltage) * float(current), 1)
 
         bool_map = {
             "filterBlockStatus": "filter_blocked",

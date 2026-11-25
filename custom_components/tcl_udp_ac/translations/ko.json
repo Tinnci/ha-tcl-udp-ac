@@ -221,6 +221,9 @@
       "external_current": {
         "name": "Outdoor unit current"
       },
+      "external_power": {
+        "name": "실외기 전력"
+      },
       "compressor_frequency": {
         "name": "Compressor frequency"
       },

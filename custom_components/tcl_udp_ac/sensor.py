@@ -92,9 +92,18 @@ class TclUdpDiagnosticSensor(TclUdpEntity, SensorEntity):
         return self._reported_state().get(self._capability.data_key)
 
     @property
-    def extra_state_attributes(self) -> dict[str, str | None] | None:
+    def extra_state_attributes(self) -> dict[str, Any] | None:
         """Describe this field's report rather than the last coordinator refresh."""
-        return self._observation_attributes(self._capability.data_key)
+        attrs: dict[str, Any] = dict(
+            self._observation_attributes(self._capability.data_key) or {}
+        )
+        reported = self._reported_state()
+        if "tsl_diagnostics_fresh" in reported:
+            attrs["tsl_diagnostics_fresh"] = bool(reported["tsl_diagnostics_fresh"])
+        query_time = reported.get("tsl_query_time")
+        if isinstance(query_time, datetime):
+            attrs["tsl_query_time"] = query_time.isoformat()
+        return attrs or None
 
 
 class TclUdpOutdoorTempSensor(TclUdpEntity, SensorEntity):
